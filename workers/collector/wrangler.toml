@@ -1,6 +1,11 @@
-name = "twitcasting-livefield-collector"
+name = "livefield-collector"
 main = "src/index.ts"
 compatibility_date = "2026-03-10"
 
 [triggers]
 crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "livefield"
+database_id = "local-livefield"
