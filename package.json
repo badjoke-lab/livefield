@@ -1,0 +1,19 @@
+{
+  "name": "livefield",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.6.5",
+  "scripts": {
+    "dev:web": "pnpm --filter @livefield/web dev",
+    "build:web": "pnpm --filter @livefield/web build",
+    "preview:web": "pnpm --filter @livefield/web preview",
+    "dev:worker": "pnpm --filter @livefield/collector dev",
+    "check": "pnpm build:web"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260306.0",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.2",
+    "wrangler": "^4.6.0"
+  }
+}

@@ -1,0 +1,6 @@
+name = "twitcasting-livefield-collector"
+main = "src/index.ts"
+compatibility_date = "2026-03-10"
+
+[triggers]
+crons = ["* * * * *"]
