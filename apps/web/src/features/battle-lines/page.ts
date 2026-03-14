@@ -44,6 +44,33 @@ type BattleLinesResponse = {
   events: Array<{ type: "peak" | "rise" | "reversal"; bucket: string; label: string; streamerId: string; rivalId?: string }>
 }
 
+type UiMode = "recommended" | "custom"
+
+type BattleCandidate = {
+  key: string
+  leftId: string
+  rightId: string
+  leftName: string
+  rightName: string
+  score: number
+  gap: number
+}
+
+type RivalryRecommendation = {
+  primary: BattleCandidate | null
+  secondary: BattleCandidate[]
+  latestReversal: string
+  fastestChallenger: string
+  reversalStrip: string[]
+}
+
+type UiState = {
+  mode: UiMode
+  focusId: string
+  primaryKey: string | null
+  customRivals: string[]
+}
+
 const numberFmt = new Intl.NumberFormat("en-US")
 
 function escapeHtml(value: string): string {
@@ -71,6 +98,78 @@ function buildUrl(form: HTMLFormElement, focusOverride?: string): string {
   url.searchParams.set("bucket", bucket)
   if (focusOverride) url.searchParams.set("focus", focusOverride)
   return url.toString()
+}
+
+function parseIsoMinute(iso: string): number {
+  const time = Date.parse(iso)
+  return Number.isNaN(time) ? 0 : time
+}
+
+function buildRivalryRecommendation(payload: BattleLinesResponse): RivalryRecommendation {
+  const candidates: BattleCandidate[] = []
+  for (let left = 0; left < payload.lines.length; left += 1) {
+    for (let right = left + 1; right < payload.lines.length; right += 1) {
+      const a = payload.lines[left]
+      const b = payload.lines[right]
+      const combined = a.latestViewers + b.latestViewers
+      const gap = Math.abs(a.latestViewers - b.latestViewers)
+      const reversalBonus = payload.events.filter(
+        (event) =>
+          event.type === "reversal" &&
+          ((event.streamerId === a.streamerId && event.rivalId === b.streamerId) ||
+            (event.streamerId === b.streamerId && event.rivalId === a.streamerId))
+      ).length
+      const score = combined - gap * 0.6 + reversalBonus * 300
+      candidates.push({
+        key: `${a.streamerId}|${b.streamerId}`,
+        leftId: a.streamerId,
+        rightId: b.streamerId,
+        leftName: a.name,
+        rightName: b.name,
+        score,
+        gap
+      })
+    }
+  }
+
+  const ranked = [...candidates].sort((a, b) => b.score - a.score)
+  const reversalEvents = payload.events
+    .filter((event) => event.type === "reversal")
+    .sort((a, b) => parseIsoMinute(b.bucket) - parseIsoMinute(a.bucket))
+
+  const fastest = [...payload.lines].sort((a, b) => b.risePerMin - a.risePerMin)[0]
+  const fastestChallenger = fastest ? `${fastest.name} (+${numberFmt.format(Math.round(fastest.risePerMin))}/min)` : "N/A"
+
+  return {
+    primary: ranked[0] ?? null,
+    secondary: ranked.slice(1, 4),
+    latestReversal:
+      reversalEvents[0] !== undefined
+        ? `${reversalEvents[0].label} @ ${reversalEvents[0].bucket.slice(11, 16)}`
+        : "No reversal yet",
+    fastestChallenger,
+    reversalStrip: reversalEvents.slice(0, 6).map((event) => `${event.label} @ ${event.bucket.slice(11, 16)}`)
+  }
+}
+
+function normalizeUiState(payload: BattleLinesResponse, uiState: UiState): UiState {
+  const recommendation = buildRivalryRecommendation(payload)
+  const availableIds = new Set(payload.lines.map((line) => line.streamerId))
+  const resolvedFocus = availableIds.has(uiState.focusId) ? uiState.focusId : payload.filters.focus
+  const fallbackPrimary = recommendation.primary?.key ?? null
+  const primaryKey =
+    uiState.primaryKey &&
+    recommendation.primary !== null &&
+    (uiState.primaryKey === recommendation.primary.key || recommendation.secondary.some((item) => item.key === uiState.primaryKey))
+      ? uiState.primaryKey
+      : fallbackPrimary
+
+  return {
+    mode: uiState.mode,
+    focusId: resolvedFocus,
+    primaryKey,
+    customRivals: uiState.customRivals.filter((id) => availableIds.has(id) && id !== resolvedFocus).slice(0, 2)
+  }
 }
 
 function toPath(points: number[], index: number, allLines: number[][]): string {
@@ -166,7 +265,73 @@ function renderChart(payload: BattleLinesResponse): string {
 }
 
 function renderContent(payload: BattleLinesResponse): string {
+  return renderContentWithMode(payload, {
+    mode: "recommended",
+    focusId: payload.filters.focus,
+    primaryKey: null,
+    customRivals: []
+  })
+}
+
+function renderContentWithMode(payload: BattleLinesResponse, uiState: UiState): string {
+  const recommendation = buildRivalryRecommendation(payload)
+  const activePrimary = [recommendation.primary, ...recommendation.secondary].find((item) => item?.key === uiState.primaryKey) ?? recommendation.primary
+
+  const modeBadge = uiState.mode === "recommended" ? "Recommended state" : "Custom state"
+  const battleFeed = payload.events.slice(0, 10)
+
   return `
+    <section class="card page-section rivalry-radar">
+      <div class="rivalry-radar__head">
+        <div>
+          <h2>Rivalry Radar</h2>
+          <p>Start with a recommended battle, then switch to custom control without losing focus.</p>
+        </div>
+        <div class="battle-mock-modes">
+          <span class="pill">${modeBadge}</span>
+          <button type="button" class="focus-chip" data-switch-mode="recommended">Back to recommended</button>
+        </div>
+      </div>
+
+      <div class="rivalry-primary">
+        <strong>Primary battle</strong>
+        <h3>${activePrimary ? `${escapeHtml(activePrimary.leftName)} vs ${escapeHtml(activePrimary.rightName)}` : "No battle candidates"}</h3>
+        <p>Latest reversal: ${escapeHtml(recommendation.latestReversal)}</p>
+        <p>Fastest challenger: ${escapeHtml(recommendation.fastestChallenger)}</p>
+      </div>
+
+      <div class="rivalry-secondary">
+        <strong>Secondary battles</strong>
+        <div class="focus-chip-row">
+          ${recommendation.secondary
+            .map(
+              (item) =>
+                `<button type="button" class="focus-chip ${uiState.primaryKey === item.key ? "focus-chip--active" : ""}" data-primary-battle="${escapeHtml(item.key)}">${escapeHtml(item.leftName)} vs ${escapeHtml(item.rightName)}</button>`
+            )
+            .join("")}
+        </div>
+      </div>
+
+      <div class="rivalry-secondary rivalry-secondary--strip">
+        <strong>Reversal strip</strong>
+        <div class="reversal-strip">${recommendation.reversalStrip.map((line) => `<span>${escapeHtml(line)}</span>`).join("") || "<span>No reversals yet</span>"}</div>
+      </div>
+
+      <div class="rivalry-secondary">
+        <strong>Add rival</strong>
+        <div class="focus-chip-row">
+          ${payload.lines
+            .filter((line) => line.streamerId !== uiState.focusId)
+            .slice(0, 6)
+            .map((line) => {
+              const selected = uiState.customRivals.includes(line.streamerId)
+              return `<button type="button" class="focus-chip ${selected ? "focus-chip--active" : ""}" data-rival-id="${escapeHtml(line.streamerId)}">${selected ? "Added" : "Add"} ${escapeHtml(line.name)}</button>`
+            })
+            .join("")}
+        </div>
+      </div>
+    </section>
+
     <section class="summary-strip page-section">
       <div class="summary-item"><strong>Leader</strong><span>${escapeHtml(payload.summary.leader)}</span></div>
       <div class="summary-item"><strong>Biggest rise</strong><span>${escapeHtml(payload.summary.biggestRise)}</span></div>
@@ -201,10 +366,9 @@ function renderContent(payload: BattleLinesResponse): string {
         </section>
 
         <section class="card">
-          <h2>Event layer</h2>
+          <h2>Battle feed</h2>
           <div class="kv">
-            ${payload.events
-              .slice(0, 10)
+            ${battleFeed
               .map((event) => `<div class="kv-row"><span>${event.type.toUpperCase()}</span><strong>${escapeHtml(event.label)} @ ${escapeHtml(event.bucket.slice(11, 16))}</strong></div>`)
               .join("")}
           </div>
@@ -224,25 +388,71 @@ function renderContent(payload: BattleLinesResponse): string {
   `
 }
 
-async function loadPayload(form: HTMLFormElement, target: HTMLElement, focusOverride?: string): Promise<void> {
+async function loadPayload(form: HTMLFormElement, target: HTMLElement, uiState: UiState): Promise<UiState> {
   target.innerHTML = `<section class="card"><h2>Loading Battle Lines…</h2></section>`
 
   try {
-    const response = await fetch(buildUrl(form, focusOverride))
+    const response = await fetch(buildUrl(form, uiState.focusId))
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
     const payload = (await response.json()) as BattleLinesResponse
-    target.innerHTML = renderContent(payload)
+    const nextState = normalizeUiState(payload, uiState)
+    target.innerHTML = renderContentWithMode(payload, nextState)
 
     target.querySelectorAll<HTMLButtonElement>("[data-focus]").forEach((button) => {
       button.addEventListener("click", () => {
         const focus = button.dataset.focus
         if (!focus) return
-        void loadPayload(form, target, focus)
+        void loadPayload(form, target, {
+          ...nextState,
+          mode: "custom",
+          focusId: focus
+        })
       })
     })
+
+    target.querySelectorAll<HTMLButtonElement>("[data-primary-battle]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const primaryKey = button.dataset.primaryBattle
+        if (!primaryKey) return
+        void loadPayload(form, target, {
+          ...nextState,
+          mode: "recommended",
+          primaryKey
+        })
+      })
+    })
+
+    target.querySelectorAll<HTMLButtonElement>("[data-rival-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const rivalId = button.dataset.rivalId
+        if (!rivalId) return
+
+        const customRivals = nextState.customRivals.includes(rivalId)
+          ? nextState.customRivals.filter((id) => id !== rivalId)
+          : [...nextState.customRivals, rivalId].slice(0, 2)
+        void loadPayload(form, target, {
+          ...nextState,
+          mode: "custom",
+          customRivals
+        })
+      })
+    })
+
+    target.querySelectorAll<HTMLButtonElement>("[data-switch-mode='recommended']").forEach((button) => {
+      button.addEventListener("click", () => {
+        void loadPayload(form, target, {
+          ...nextState,
+          mode: "recommended",
+          customRivals: []
+        })
+      })
+    })
+
+    return nextState
   } catch {
     target.innerHTML = `<section class="card"><h2>Battle Lines error</h2><p>Could not load /api/battle-lines. Try again shortly.</p></section>`
+    return uiState
   }
 }
 
@@ -287,7 +497,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
 
     <div id="battle-lines-content"></div>
 
-    ${renderStatusNote("Rivalry Radar base comparison is live. Recommendation layers will be added in follow-up PRs.")}
+    ${renderStatusNote("Rivalry Radar recommendation layer is live with recommended and custom battle control.")}
     ${renderFooter()}
   `
 
@@ -295,10 +505,21 @@ export function renderBattleLinesPage(root: HTMLElement): void {
   const content = root.querySelector<HTMLElement>("#battle-lines-content")
   if (!form || !content) return
 
+  let uiState: UiState = {
+    mode: "recommended",
+    focusId: "",
+    primaryKey: null,
+    customRivals: []
+  }
+
   form.addEventListener("submit", (event) => {
     event.preventDefault()
-    void loadPayload(form, content)
+    void loadPayload(form, content, uiState).then((nextState) => {
+      uiState = nextState
+    })
   })
 
-  void loadPayload(form, content)
+  void loadPayload(form, content, uiState).then((nextState) => {
+    uiState = nextState
+  })
 }

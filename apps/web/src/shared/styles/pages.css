@@ -921,6 +921,64 @@
   gap: 16px;
 }
 
+.rivalry-radar {
+  display: grid;
+  gap: 12px;
+}
+
+.rivalry-radar__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.rivalry-radar__head h2 {
+  margin: 0 0 6px;
+}
+
+.rivalry-radar__head p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.rivalry-primary {
+  border: 1px solid rgba(131, 240, 183, 0.22);
+  background: rgba(131, 240, 183, 0.08);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.rivalry-primary h3 {
+  margin: 8px 0;
+}
+
+.rivalry-primary p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.rivalry-secondary {
+  display: grid;
+  gap: 8px;
+}
+
+.reversal-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reversal-strip span {
+  display: inline-flex;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(122, 162, 255, 0.14);
+  background: rgba(122, 162, 255, 0.06);
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .focus-chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -945,6 +1003,10 @@
 
 @media (max-width: 900px) {
   .battle-mock-card__head {
+    flex-direction: column;
+  }
+
+  .rivalry-radar__head {
     flex-direction: column;
   }
 
