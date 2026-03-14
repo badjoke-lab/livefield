@@ -23,7 +23,14 @@ export async function insertMinuteSnapshot(db: D1Database, row: MinuteSnapshotRe
         covered_pages,
         has_more,
         payload_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(provider, bucket_minute) DO UPDATE SET
+        collected_at=excluded.collected_at,
+        live_count=excluded.live_count,
+        total_viewers=excluded.total_viewers,
+        covered_pages=excluded.covered_pages,
+        has_more=excluded.has_more,
+        payload_json=excluded.payload_json`
     )
     .bind(
       row.provider,
