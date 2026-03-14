@@ -217,6 +217,39 @@ function buildDemoPayload(filters: BattleLinesPayload["filters"]): BattleLinesPa
   }
 }
 
+
+function buildEmptyPayload(filters: BattleLinesPayload["filters"], updatedAt: string): BattleLinesPayload {
+  const now = new Date()
+  const buckets = buildBuckets(new Date(`${filters.date}T00:00:00.000Z`), filters.bucketMinutes, now)
+
+  return {
+    ok: true,
+    tool: "battle-lines",
+    source: "api",
+    state: "empty",
+    updatedAt,
+    filters,
+    summary: {
+      leader: "No live streams",
+      biggestRise: "N/A",
+      peakMoment: buckets[0] ? isoMinuteLabel(buckets[0]) : "N/A",
+      reversals: 0
+    },
+    buckets,
+    lines: [],
+    focusStrip: [],
+    focusDetail: {
+      streamerId: "",
+      name: "N/A",
+      peakViewers: 0,
+      latestViewers: 0,
+      biggestRiseTime: "N/A",
+      reversalCount: 0
+    },
+    events: []
+  }
+}
+
 function json(body: BattleLinesPayload): Response {
   return new Response(JSON.stringify(body, null, 2), {
     headers: { "content-type": "application/json; charset=utf-8" }
@@ -251,7 +284,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     .bind(dayStart, dayEnd)
     .all()
 
-  if (!rows.results.length) return json(buildDemoPayload(filters))
+  if (!rows.results.length) return json(buildEmptyPayload(filters, new Date().toISOString()))
 
   try {
     const now = new Date()
@@ -323,16 +356,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     })
 
     if (!lines.length) {
-      return json({
-        ...buildDemoPayload(filters),
-        source: "api",
-        state: "empty",
-        lines: [],
-        focusStrip: [],
-        summary: { leader: "No live streams", biggestRise: "N/A", peakMoment: "N/A", reversals: 0 },
-        focusDetail: { streamerId: "", name: "N/A", peakViewers: 0, latestViewers: 0, biggestRiseTime: "N/A", reversalCount: 0 },
-        events: []
-      })
+      return json(buildEmptyPayload(filters, rows.results[rows.results.length - 1]?.collected_at ?? new Date().toISOString()))
     }
 
     const focusId = lines.find((line) => line.streamerId === filters.focus)?.streamerId ?? lines[0]?.streamerId ?? ""

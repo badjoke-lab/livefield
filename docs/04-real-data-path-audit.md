@@ -32,3 +32,16 @@ This audit checks whether Livefield currently has real Twitch data end-to-end, a
 - **Status UI wiring** (`/status` page) still renders placeholders; this task focuses on real data backbone and status API truth.
 - **Rollup/cache pipelines** are still separate follow-ups.
 - **Demo fallback remains** by design and is now explicitly surfaced through `sourceMode` instead of pretending to be live.
+
+## PR7 page-level audit: real consumption vs fallback
+
+| Page | Primary real path status | Fallback status | Remaining gaps |
+| --- | --- | --- | --- |
+| Heatmap (`/heatmap` via `/api/heatmap`) | **Real by default** when D1 exists and latest snapshot contains English Twitch streams; uses current+previous snapshots for momentum. | Demo only when DB binding is missing or payload parse fails. Empty snapshots now return explicit `source: api`, `nodes: []` (`state-like empty`) instead of demo. | Activity/comment signals are still unavailable from Twitch snapshot-only data (explicitly labeled). |
+| Day Flow (`/day-flow` via `/api/day-flow`) | **Real by default** when D1 snapshots exist for the selected day; computes bucket rollups from `minute_snapshots`. | Demo only when DB binding is missing or unexpected processing error occurs. Empty/no-stream cases now return explicit `source: api`, `state: empty` instead of demo. | `metric=share` remains geometry-only in UI copy; no separate share-normalized aggregation yet. |
+| Battle Lines / Rivalry Radar (`/battle-lines` via `/api/battle-lines`) | **Real by default** when D1 snapshots exist for the selected day; derives lines/events from Twitch minute snapshots. | Demo only when DB binding is missing or unexpected processing error occurs. Empty/no-stream cases now return explicit `source: api`, `state: empty` instead of demo. | Event semantics are derived from viewer deltas only (no chat/activity fusion yet). |
+
+### Fallback honesty rules now enforced
+- `source: "demo"` is reserved for explicit demo fallback paths (missing DB binding or processing failure).
+- `source: "api"` + empty payload is used when real pipeline is healthy but there is no qualifying stream data in the selected scope.
+- UI `Data State` cards continue to show `source` and `state`, so users can distinguish real/empty from demo.

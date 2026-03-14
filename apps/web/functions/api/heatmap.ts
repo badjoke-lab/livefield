@@ -119,6 +119,22 @@ function buildApiPayload(nodes: HeatmapNode[], updatedAt: string): HeatmapPayloa
   }
 }
 
+function buildEmptyPayload(updatedAt: string): HeatmapPayload {
+  return {
+    ok: true,
+    source: "api",
+    tool: "heatmap",
+    updatedAt,
+    summary: {
+      activeStreams: 0,
+      totalViewers: 0,
+      highestAgitationName: "No live streams",
+      strongestMomentumName: "No live streams"
+    },
+    nodes: []
+  }
+}
+
 function json(body: HeatmapPayload): Response {
   return new Response(JSON.stringify(body, null, 2), {
     headers: { "content-type": "application/json; charset=utf-8" }
@@ -142,9 +158,7 @@ export const onRequestGet = async (context: { env: Env; request: Request }) => {
     )
     .all() as Promise<{ results: SnapshotRow[] }>
 
-  if (!rows.results.length) {
-    return json(structuredClone(demoPayload as HeatmapPayload))
-  }
+  if (!rows.results.length) return json(buildEmptyPayload(new Date().toISOString()))
 
   try {
     const latest = rows.results[0]
@@ -160,9 +174,7 @@ export const onRequestGet = async (context: { env: Env; request: Request }) => {
       top
     )
 
-    if (!nodes.length) {
-      return json(structuredClone(demoPayload as HeatmapPayload))
-    }
+    if (!nodes.length) return json(buildEmptyPayload(latest.collected_at))
 
     return json(buildApiPayload(nodes, latest.collected_at))
   } catch {

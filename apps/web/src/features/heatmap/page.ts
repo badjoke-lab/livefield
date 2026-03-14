@@ -92,6 +92,42 @@ function renderReady(
   const lowLoad = readLowLoadEnabled()
   const animationEnabled = readAnimationEnabled()
 
+  if (!selected) {
+    root.className = "site-shell"
+    root.innerHTML = `
+      ${renderHeader("heatmap")}
+      ${renderHero({
+        eyebrow: "NOW",
+        title: "Heatmap",
+        subtitle: "A live bubble field for reading the Twitch stream landscape right now.",
+        note: `Viewers = size / Activity = outer ring / Momentum = glow. Current state: ${getModeLabel(mode)}`,
+        actions: [
+          { href: "/status/", label: "Open Status" },
+          { href: "/day-flow/", label: "Open Day Flow" }
+        ]
+      })}
+
+      <div class="controls">
+        <span class="pill">Top 50</span>
+        <span class="pill">1m activity</span>
+        <span class="pill">Visible nodes: 0</span>
+        <span class="pill">${getModeLabel(mode)}</span>
+        <span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span>
+      </div>
+
+      <section class="card page-section">
+        <h2>No live streams in current snapshot</h2>
+        <p>The API returned no English Twitch streams for this moment. Retry shortly.</p>
+      </section>
+
+      ${renderStatusNote(getModeNote(mode, lowLoad, animationEnabled))}
+      ${renderFooter()}
+    `
+    rendererCleanup?.()
+    rendererCleanup = null
+    return
+  }
+
   root.className = "site-shell"
   root.innerHTML = `
     ${renderHeader("heatmap")}
