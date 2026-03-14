@@ -1,4 +1,4 @@
-import type { PagesFunction } from "@cloudflare/workers-types"
+import { resolveApiState, type ApiState } from "./_shared/state"
 
 type Env = {
   DB?: {
@@ -54,7 +54,7 @@ type BattleLinesPayload = {
   ok: true
   tool: "battle-lines"
   source: "api" | "demo"
-  state: "live" | "partial" | "complete" | "empty" | "error" | "demo"
+  state: ApiState
   updatedAt: string
   filters: {
     day: DayMode
@@ -256,7 +256,7 @@ function json(body: BattleLinesPayload): Response {
   })
 }
 
-export const onRequestGet: PagesFunction<Env> = async (context) => {
+export const onRequest = async (context: { env: Env; request: Request }) => {
   const url = new URL(context.request.url)
   const parsedDay = parseDay(url.searchParams.get("date"), url.searchParams.get("day"))
   const filters: BattleLinesPayload["filters"] = {
@@ -409,8 +409,14 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
     const peakEvent = events.find((event) => event.type === "peak")
     const biggestRise = [...lines].sort((a, b) => b.risePerMin - a.risePerMin)[0]
-    const state: BattleLinesPayload["state"] =
-      filters.day === "today" ? "live" : rows.results.length >= 100 ? "complete" : "partial"
+    const minutesSinceLatest = Math.floor((Date.now() - new Date(rows.results[rows.results.length - 1]?.collected_at ?? Date.now()).getTime()) / 60_000)
+    const state = resolveApiState({
+      source: "api",
+      hasSnapshot: true,
+      isFresh: filters.day === "today" ? minutesSinceLatest <= 2 : true,
+      isPartial: rows.results.some((row) => row.has_more === 1),
+      hasError: false
+    })
 
     return json({
       ok: true,

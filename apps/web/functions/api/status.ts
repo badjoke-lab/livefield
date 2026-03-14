@@ -1,10 +1,9 @@
-import type { PagesFunction } from "@cloudflare/workers-types"
+import { resolveApiState, type ApiSource, type ApiState } from "./_shared/state"
 
 type Env = {
   DB?: {
     prepare: (sql: string) => {
       first: <T>() => Promise<T | null>
-      bind: (...params: unknown[]) => { first: <T>() => Promise<T | null> }
     }
   }
 }
@@ -19,7 +18,6 @@ type CollectorStatusRow = {
   has_more: number | null
   last_live_count: number | null
   last_total_viewers: number | null
-  updated_at: string | null
 }
 
 type SnapshotRow = {
@@ -31,7 +29,40 @@ type SnapshotRow = {
   has_more: number
 }
 
-type StatusState = "real" | "stale" | "empty" | "demo" | "error"
+type StatusPayload = {
+  ok: boolean
+  state: ApiState
+  source: ApiSource
+  lastUpdated: string
+  coverageNote: string
+  degradationNote: string
+  knownLimitations: string[]
+  collectorState: "unconfigured" | "idle" | "running" | "failing" | "error"
+  freshness: {
+    minutesSinceSuccess: number | null
+    isFresh: boolean
+    thresholdMinutes: number
+  }
+  collector: {
+    provider: string
+    lastAttemptAt: string | null
+    lastSuccessAt: string | null
+    lastFailureAt: string | null
+    lastError: string | null
+    lastLiveCount: number | null
+    lastTotalViewers: number | null
+  } | null
+  latestSnapshot: {
+    bucketMinute: string
+    collectedAt: string
+    liveCount: number
+    totalViewers: number
+    coveredPages: number
+    hasMore: boolean
+  } | null
+}
+
+const FRESHNESS_MINUTES = 2
 
 function minutesSince(iso: string | null, now: Date): number | null {
   if (!iso) return null
@@ -40,58 +71,38 @@ function minutesSince(iso: string | null, now: Date): number | null {
   return Math.floor((now.getTime() - parsed.getTime()) / 60_000)
 }
 
-function resolveSourceMode(lastSuccessAt: string | null, freshnessMinutes: number | null): "real" | "stale" | "demo" {
-  if (!lastSuccessAt) return "demo"
-  if (freshnessMinutes === null) return "stale"
-  if (freshnessMinutes <= 2) return "real"
-  return "stale"
+function json(body: StatusPayload, status = 200): Response {
+  return new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8" }
+  })
 }
 
-function resolveStatusState(sourceMode: "real" | "stale" | "demo", latestSnapshot: SnapshotRow | null): StatusState {
-  if (sourceMode === "demo") return "demo"
-  if (!latestSnapshot) return "empty"
-  if (sourceMode === "stale") return "stale"
-  return "real"
-}
-
-export const onRequestGet: PagesFunction<Env> = async (context) => {
+export const onRequest = async (context: { env: Env; request: Request }) => {
   const now = new Date()
   const db = context.env.DB
 
   if (!db) {
-    return new Response(
-      JSON.stringify(
-        {
-          ok: true,
-          state: "demo" as StatusState,
-          sourceMode: "demo",
-          collectorState: "unconfigured",
-          freshness: {
-            minutesSinceSuccess: null,
-            isFresh: false,
-            thresholdMinutes: 2
-          },
-          collector: null,
-          latestSnapshot: null,
-          coverage: {
-            observedCount: 0,
-            coveredPages: 0,
-            hasMore: false
-          },
-          updatedAt: now.toISOString()
-        },
-        null,
-        2
-      ),
-      { headers: { "content-type": "application/json; charset=utf-8" } }
-    )
+    return json({
+      ok: true,
+      state: "demo",
+      source: "demo",
+      lastUpdated: now.toISOString(),
+      coverageNote: "DB binding is not configured, so collector-backed coverage cannot be measured.",
+      degradationNote: "Serving demo status because Cloudflare D1 binding `DB` is missing.",
+      knownLimitations: ["No collector telemetry without D1 binding.", "No live Twitch snapshot can be verified in this mode."],
+      collectorState: "unconfigured",
+      freshness: { minutesSinceSuccess: null, isFresh: false, thresholdMinutes: FRESHNESS_MINUTES },
+      collector: null,
+      latestSnapshot: null
+    })
   }
 
   try {
     const [collector, latestSnapshot] = await Promise.all([
       db
         .prepare(
-          `SELECT provider, last_attempt_at, last_success_at, last_failure_at, last_error, covered_pages, has_more, last_live_count, last_total_viewers, updated_at
+          `SELECT provider, last_attempt_at, last_success_at, last_failure_at, last_error, covered_pages, has_more, last_live_count, last_total_viewers
            FROM collector_status
            WHERE provider = 'twitch'
            LIMIT 1`
@@ -109,8 +120,18 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     ])
 
     const minutesSinceSuccess = minutesSince(collector?.last_success_at ?? null, now)
-    const sourceMode = resolveSourceMode(collector?.last_success_at ?? null, minutesSinceSuccess)
-    const state = resolveStatusState(sourceMode, latestSnapshot ?? null)
+    const isFresh = minutesSinceSuccess !== null && minutesSinceSuccess <= FRESHNESS_MINUTES
+    const isPartial = (latestSnapshot?.has_more ?? 0) === 1
+    const source: ApiSource = "api"
+
+    const state = resolveApiState({
+      source,
+      hasSnapshot: Boolean(latestSnapshot),
+      isFresh,
+      isPartial,
+      hasError: false
+    })
+
     const hasRecentFailure = Boolean(
       collector?.last_failure_at &&
         collector.last_success_at &&
@@ -127,15 +148,37 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
             ? "error"
             : "idle"
 
-    const body = {
+    const coverageNote = latestSnapshot
+      ? `Observed ${latestSnapshot.live_count} streams across ${latestSnapshot.covered_pages} page(s)${latestSnapshot.has_more === 1 ? " with remaining pages." : "."}`
+      : "No minute snapshot rows are available yet."
+
+    const degradationNote =
+      state === "live"
+        ? "Collector telemetry is fresh and snapshot coverage is available."
+        : state === "partial"
+          ? "Collector snapshot exists but coverage is partial (`has_more=true`)."
+          : state === "stale"
+            ? `Collector snapshot exists but freshness exceeded ${FRESHNESS_MINUTES} minutes.`
+            : state === "empty"
+              ? "Collector telemetry exists but no snapshot rows are available yet."
+              : "Unknown status degradation."
+
+    return json({
       ok: true,
       state,
-      sourceMode,
+      source,
+      lastUpdated: latestSnapshot?.collected_at ?? collector?.last_attempt_at ?? now.toISOString(),
+      coverageNote,
+      degradationNote,
+      knownLimitations: [
+        "Activity/chat signal is not included in this endpoint yet.",
+        "State is currently based on collector freshness and `has_more` coverage only."
+      ],
       collectorState,
       freshness: {
         minutesSinceSuccess,
-        isFresh: minutesSinceSuccess !== null && minutesSinceSuccess <= 2,
-        thresholdMinutes: 2
+        isFresh,
+        thresholdMinutes: FRESHNESS_MINUTES
       },
       collector: collector
         ? {
@@ -157,48 +200,24 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
             coveredPages: latestSnapshot.covered_pages,
             hasMore: latestSnapshot.has_more === 1
           }
-        : null,
-      coverage: {
-        observedCount: latestSnapshot?.live_count ?? 0,
-        coveredPages: latestSnapshot?.covered_pages ?? 0,
-        hasMore: latestSnapshot?.has_more === 1
-      },
-      updatedAt: now.toISOString()
-    }
-
-    return new Response(JSON.stringify(body, null, 2), {
-      headers: { "content-type": "application/json; charset=utf-8" }
+        : null
     })
   } catch (error) {
-    return new Response(
-      JSON.stringify(
-        {
-          ok: false,
-          state: "error" as StatusState,
-          sourceMode: "demo",
-          collectorState: "error",
-          freshness: {
-            minutesSinceSuccess: null,
-            isFresh: false,
-            thresholdMinutes: 2
-          },
-          collector: null,
-          latestSnapshot: null,
-          coverage: {
-            observedCount: 0,
-            coveredPages: 0,
-            hasMore: false
-          },
-          error: error instanceof Error ? error.message : "Unknown status query error",
-          updatedAt: now.toISOString()
-        },
-        null,
-        2
-      ),
+    return json(
       {
-        status: 500,
-        headers: { "content-type": "application/json; charset=utf-8" }
-      }
+        ok: false,
+        state: "error",
+        source: "api",
+        lastUpdated: now.toISOString(),
+        coverageNote: "Collector coverage is unavailable due to status query failure.",
+        degradationNote: "Failed to read collector/snapshot rows from D1.",
+        knownLimitations: ["Status query failed before collector state could be evaluated."],
+        collectorState: "error",
+        freshness: { minutesSinceSuccess: null, isFresh: false, thresholdMinutes: FRESHNESS_MINUTES },
+        collector: null,
+        latestSnapshot: null
+      },
+      500
     )
   }
 }

@@ -141,7 +141,7 @@ function json(body: HeatmapPayload): Response {
   })
 }
 
-export const onRequestGet = async (context: { env: Env; request: Request }) => {
+export const onRequest = async (context: { env: Env; request: Request }) => {
   const db = context.env.DB
   if (!db) {
     return json(structuredClone(demoPayload as HeatmapPayload))
