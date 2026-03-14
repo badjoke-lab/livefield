@@ -170,6 +170,46 @@ function buildDemoPayload(filters: DayFlowPayload["filters"]): DayFlowPayload {
   }
 }
 
+
+function buildEmptyPayload(filters: DayFlowPayload["filters"], updatedAt: string): DayFlowPayload {
+  const now = new Date()
+  const buckets = buildBuckets(new Date(`${filters.date}T00:00:00.000Z`), filters.bucketMinutes, now)
+
+  return {
+    ok: true,
+    source: "api",
+    tool: "day-flow",
+    updatedAt,
+    state: "empty",
+    filters,
+    summary: {
+      peakLeader: "No live streams",
+      longestDominance: "N/A",
+      hottestWindow: buckets[0] ? isoMinuteLabel(buckets[0]) : "N/A",
+      biggestRise: "N/A",
+      activity: "Activity signal unavailable (Twitch snapshot-only)"
+    },
+    timeFocus: {
+      selectedTime: buckets[buckets.length - 1] ? isoMinuteLabel(buckets[buckets.length - 1]) : "N/A",
+      rank1: "N/A",
+      rank2: "N/A",
+      peakShare: "N/A",
+      hottestStream: "Activity signal unavailable"
+    },
+    buckets,
+    streams: [
+      {
+        streamerId: "others",
+        name: "Others",
+        isOthers: true,
+        color: OTHERS_COLOR,
+        totalViewerMinutes: 0,
+        points: new Array(buckets.length).fill(0)
+      }
+    ]
+  }
+}
+
 function json(body: DayFlowPayload): Response {
   return new Response(JSON.stringify(body, null, 2), {
     headers: { "content-type": "application/json; charset=utf-8" }
@@ -203,7 +243,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     .bind(dayStart, dayEnd)
     .all()
 
-  if (!rows.results.length) return json(buildDemoPayload(filters))
+  if (!rows.results.length) return json(buildEmptyPayload(filters, new Date().toISOString()))
 
   try {
     const now = new Date()
@@ -236,6 +276,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     }
 
     const sortedIds = [...totalsById.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id)
+    if (!sortedIds.length) return json(buildEmptyPayload(filters, rows.results[rows.results.length - 1]?.collected_at ?? new Date().toISOString()))
     const topIds = sortedIds.slice(0, filters.top)
 
     const streams: DayFlowSeries[] = topIds.map((id, i) => ({
