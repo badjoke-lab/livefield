@@ -7,4 +7,4 @@ import { renderStatusPage } from "../features/status/page"
 
 const root = document.querySelector<HTMLElement>("#app")
 if (!root) throw new Error("#app not found")
-renderStatusPage(root)
+void renderStatusPage(root)
