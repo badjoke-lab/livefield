@@ -1,4 +1,4 @@
-import type { PagesFunction } from "@cloudflare/workers-types"
+import { resolveApiState, type ApiState } from "./_shared/state"
 
 type Env = {
   DB?: {
@@ -42,7 +42,7 @@ type DayFlowPayload = {
   source: "api" | "demo"
   tool: "day-flow"
   updatedAt: string
-  state: "live" | "partial" | "complete" | "empty" | "demo"
+  state: ApiState
   filters: {
     day: "today" | "yesterday" | "date"
     date: string
@@ -216,7 +216,7 @@ function json(body: DayFlowPayload): Response {
   })
 }
 
-export const onRequestGet: PagesFunction<Env> = async (context) => {
+export const onRequest = async (context: { env: Env; request: Request }) => {
   const url = new URL(context.request.url)
   const parsedDay = parseDay(url.searchParams.get("date"), url.searchParams.get("day"))
   const filters: DayFlowPayload["filters"] = {
@@ -310,8 +310,14 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       .sort((a, b) => (b.points[finalIndex] ?? 0) - (a.points[finalIndex] ?? 0))
 
     const leader = sortedIds[0] ? streamNameById.get(sortedIds[0]) ?? sortedIds[0] : "No live streams"
-    const state: DayFlowPayload["state"] =
-      filters.day === "today" ? "live" : rows.results.length >= 100 ? "complete" : "partial"
+    const minutesSinceLatest = Math.floor((Date.now() - new Date(rows.results[rows.results.length - 1]?.collected_at ?? Date.now()).getTime()) / 60_000)
+    const state = resolveApiState({
+      source: "api",
+      hasSnapshot: true,
+      isFresh: filters.day === "today" ? minutesSinceLatest <= 2 : true,
+      isPartial: rows.results.some((row) => row.has_more === 1),
+      hasError: false
+    })
 
     return json({
       ok: true,

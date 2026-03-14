@@ -4,8 +4,12 @@ import { renderHero } from "../../shared/app-shell/hero"
 
 type StatusPayload = {
   ok: boolean
-  state: "real" | "stale" | "empty" | "demo" | "error"
-  sourceMode: "real" | "stale" | "demo"
+  state: "live" | "stale" | "partial" | "empty" | "demo" | "error"
+  source: "api" | "demo"
+  lastUpdated: string
+  coverageNote: string
+  degradationNote: string
+  knownLimitations: string[]
   collectorState: "unconfigured" | "idle" | "running" | "failing" | "error"
   freshness: {
     minutesSinceSuccess: number | null
@@ -29,15 +33,9 @@ type StatusPayload = {
     coveredPages: number
     hasMore: boolean
   } | null
-  coverage: {
-    observedCount: number
-    coveredPages: number
-    hasMore: boolean
-  }
-  updatedAt: string
 }
 
-type FeatureState = "real" | "stale" | "partial" | "empty" | "demo" | "error"
+type FeatureState = "live" | "stale" | "partial" | "empty" | "demo" | "error"
 type FeatureRow = {
   endpoint: "/heatmap" | "/day-flow" | "/battle-lines"
   state: FeatureState
@@ -73,12 +71,7 @@ function describeFreshness(payload: StatusPayload): string {
 }
 
 function toStatusState(payload: StatusPayload): FeatureState {
-  if (payload.state === "error") return "error"
-  if (payload.state === "demo") return "demo"
-  if (payload.state === "empty") return "empty"
-  if (payload.coverage.hasMore) return "partial"
-  if (payload.state === "stale") return "stale"
-  return "real"
+  return payload.state
 }
 
 function toFeatureState(endpoint: FeatureRow["endpoint"], body: unknown, status: StatusPayload): FeatureRow {
@@ -141,7 +134,7 @@ function toFeatureState(endpoint: FeatureRow["endpoint"], body: unknown, status:
       mode: `${source}${state ? ` / ${state}` : ""}`,
       updatedAt,
       detail:
-        derived === "real"
+        derived === "live"
           ? "Real Twitch-backed payload is active."
           : derived === "stale"
             ? "Real payload exists, but collector freshness is stale."
@@ -182,7 +175,7 @@ function renderInitial(root: HTMLElement): void {
 
 function renderLoaded(root: HTMLElement, status: StatusPayload, features: FeatureRow[]): void {
   const statusState = toStatusState(status)
-  const realFeatures = features.filter((f) => f.state === "real").length
+  const realFeatures = features.filter((f) => f.state === "live").length
   const fallbackFeatures = features.filter((f) => f.state === "demo" || f.state === "empty").length
 
   root.innerHTML = `
@@ -196,16 +189,20 @@ function renderLoaded(root: HTMLElement, status: StatusPayload, features: Featur
     <section class="card page-section">
       <h2>Collector & snapshot</h2>
       <div class="kv">
-        <div class="kv-row"><span>Source mode</span><span>${statusChip(statusState)} (${escapeHtml(status.sourceMode)})</span></div>
+        <div class="kv-row"><span>Source mode</span><span>${statusChip(statusState)} (${escapeHtml(status.source)})</span></div>
+        <div class="kv-row"><span>Last updated</span><span>${formatIso(status.lastUpdated)}</span></div>
         <div class="kv-row"><span>Collector state</span><span>${escapeHtml(status.collectorState)}</span></div>
         <div class="kv-row"><span>Latest snapshot</span><span>${formatIso(status.latestSnapshot?.collectedAt ?? null)}</span></div>
         <div class="kv-row"><span>Freshness</span><span>${escapeHtml(describeFreshness(status))}</span></div>
-        <div class="kv-row"><span>Observed channels</span><span>${status.coverage.observedCount}</span></div>
-        <div class="kv-row"><span>Covered pages</span><span>${status.coverage.coveredPages}${status.coverage.hasMore ? " (has more pages)" : ""}</span></div>
+        <div class="kv-row"><span>Observed channels</span><span>${status.latestSnapshot?.liveCount ?? 0}</span></div>
+        <div class="kv-row"><span>Covered pages</span><span>${status.latestSnapshot?.coveredPages ?? 0}${status.latestSnapshot?.hasMore ? " (has more pages)" : ""}</span></div>
+        <div class="kv-row"><span>Coverage note</span><span>${escapeHtml(status.coverageNote)}</span></div>
+        <div class="kv-row"><span>Degradation note</span><span>${escapeHtml(status.degradationNote)}</span></div>
         <div class="kv-row"><span>Last success</span><span>${formatIso(status.collector?.lastSuccessAt ?? null)}</span></div>
         <div class="kv-row"><span>Last failure</span><span>${formatIso(status.collector?.lastFailureAt ?? null)}</span></div>
       </div>
       ${status.collector?.lastError ? `<p class="status-warning">Last collector error: ${escapeHtml(status.collector.lastError)}</p>` : ""}
+      ${status.knownLimitations.length ? `<p class="code-note">Known limitations: ${escapeHtml(status.knownLimitations.join(" | "))}</p>` : ""}
     </section>
 
     <section class="card page-section">
