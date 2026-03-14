@@ -4,6 +4,7 @@ import { renderHero } from "../../shared/app-shell/hero"
 
 type StatusPayload = {
   ok: boolean
+  state: "real" | "stale" | "empty" | "demo" | "error"
   sourceMode: "real" | "stale" | "demo"
   collectorState: "unconfigured" | "idle" | "running" | "failing" | "error"
   freshness: {
@@ -72,10 +73,11 @@ function describeFreshness(payload: StatusPayload): string {
 }
 
 function toStatusState(payload: StatusPayload): FeatureState {
-  if (payload.sourceMode === "demo") return "demo"
-  if (!payload.latestSnapshot) return "empty"
+  if (payload.state === "error") return "error"
+  if (payload.state === "demo") return "demo"
+  if (payload.state === "empty") return "empty"
   if (payload.coverage.hasMore) return "partial"
-  if (payload.sourceMode === "stale") return "stale"
+  if (payload.state === "stale") return "stale"
   return "real"
 }
 
@@ -267,6 +269,9 @@ export async function renderStatusPage(root: HTMLElement): Promise<void> {
 
   try {
     const status = (await fetchJson("/api/status")) as StatusPayload
+    if (!status.ok || status.state === "error") {
+      throw new Error(`Status API reported error${(status as { error?: string }).error ? `: ${(status as { error?: string }).error}` : ""}`)
+    }
     const featurePayloads = await Promise.allSettled([
       fetchJson("/api/heatmap"),
       fetchJson("/api/day-flow"),
