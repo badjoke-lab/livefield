@@ -157,8 +157,11 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       ? `Observed ${latestSnapshot.live_count} streams across ${latestSnapshot.covered_pages} page(s)${latestSnapshot.has_more === 1 ? " with remaining pages." : "."}`
       : "No minute snapshot rows are available yet."
 
+    const sampledChat = collector?.chat_unavailable_reason?.includes("sampled") ?? false
     const chatNote = collector?.chat_state === "running"
-      ? "Chat ingest: running."
+      ? sampledChat
+        ? "Chat ingest: running in sampled short-lived mode."
+        : "Chat ingest: running."
       : `Chat ingest unavailable${collector?.chat_unavailable_reason ? ` (${collector.chat_unavailable_reason})` : "."}`
 
     const degradationNote =
@@ -181,7 +184,9 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       degradationNote,
       knownLimitations: [
         collector?.chat_state === "running"
-          ? "Heatmap activity uses Twitch chat comments/min with viewer-relative scaling."
+          ? sampledChat
+            ? "Heatmap activity uses sampled Twitch chat comments/min from short-lived collection windows."
+            : "Heatmap activity uses Twitch chat comments/min with viewer-relative scaling."
           : "Heatmap activity is unavailable when Twitch chat ingest is down.",
         "Heatmap remains viewers + momentum first; activity is a secondary signal."
       ],
