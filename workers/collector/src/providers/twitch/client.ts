@@ -29,6 +29,12 @@ export interface TwitchStream {
   viewerCount: number
   startedAt: string
   language: string
+
+  commentCount?: number | null
+  deltaComments?: number | null
+  commentsPerMin?: number | null
+  agitationRaw?: number | null
+  agitationLevel?: 0 | 1 | 2 | 3 | 4 | 5 | null
 }
 
 export interface TwitchStreamsPage {

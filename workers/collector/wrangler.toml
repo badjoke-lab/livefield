@@ -5,6 +5,10 @@ compatibility_date = "2026-03-10"
 [triggers]
 crons = ["* * * * *"]
 
+[vars]
+TWITCH_CHAT_MAX_CHANNELS = "30"
+TWITCH_CHAT_JOIN_INTERVAL_MS = "1200"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "livefield"

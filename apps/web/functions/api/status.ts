@@ -18,6 +18,8 @@ type CollectorStatusRow = {
   has_more: number | null
   last_live_count: number | null
   last_total_viewers: number | null
+  chat_state: "running" | "unavailable" | "error" | null
+  chat_unavailable_reason: string | null
 }
 
 type SnapshotRow = {
@@ -51,6 +53,8 @@ type StatusPayload = {
     lastError: string | null
     lastLiveCount: number | null
     lastTotalViewers: number | null
+    chatState: "running" | "unavailable" | "error" | "unknown"
+    chatUnavailableReason: string | null
   } | null
   latestSnapshot: {
     bucketMinute: string
@@ -102,7 +106,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     const [collector, latestSnapshot] = await Promise.all([
       db
         .prepare(
-          `SELECT provider, last_attempt_at, last_success_at, last_failure_at, last_error, covered_pages, has_more, last_live_count, last_total_viewers
+          `SELECT provider, last_attempt_at, last_success_at, last_failure_at, last_error, covered_pages, has_more, last_live_count, last_total_viewers, chat_state, chat_unavailable_reason
            FROM collector_status
            WHERE provider = 'twitch'
            LIMIT 1`
@@ -121,7 +125,8 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
     const minutesSinceSuccess = minutesSince(collector?.last_success_at ?? null, now)
     const isFresh = minutesSinceSuccess !== null && minutesSinceSuccess <= FRESHNESS_MINUTES
-    const isPartial = (latestSnapshot?.has_more ?? 0) === 1
+    const chatPartial = collector?.chat_state !== "running"
+    const isPartial = (latestSnapshot?.has_more ?? 0) === 1 || chatPartial
     const source: ApiSource = "api"
 
     const state = resolveApiState({
@@ -152,11 +157,15 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       ? `Observed ${latestSnapshot.live_count} streams across ${latestSnapshot.covered_pages} page(s)${latestSnapshot.has_more === 1 ? " with remaining pages." : "."}`
       : "No minute snapshot rows are available yet."
 
+    const chatNote = collector?.chat_state === "running"
+      ? "Chat ingest: running."
+      : `Chat ingest unavailable${collector?.chat_unavailable_reason ? ` (${collector.chat_unavailable_reason})` : "."}`
+
     const degradationNote =
       state === "live"
         ? "Collector telemetry is fresh and snapshot coverage is available."
         : state === "partial"
-          ? "Collector snapshot exists but coverage is partial (`has_more=true`)."
+          ? `Collector is partial. ${(latestSnapshot?.has_more ?? 0) === 1 ? "streams has_more=true. " : ""}${chatNote}`
           : state === "stale"
             ? `Collector snapshot exists but freshness exceeded ${FRESHNESS_MINUTES} minutes.`
             : state === "empty"
@@ -171,8 +180,10 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       coverageNote,
       degradationNote,
       knownLimitations: [
-        "Activity/chat signal is not included in this endpoint yet.",
-        "State is currently based on collector freshness and `has_more` coverage only."
+        collector?.chat_state === "running"
+          ? "Heatmap activity uses Twitch chat comments/min with viewer-relative scaling."
+          : "Heatmap activity is unavailable when Twitch chat ingest is down.",
+        "Heatmap remains viewers + momentum first; activity is a secondary signal."
       ],
       collectorState,
       freshness: {
@@ -188,7 +199,9 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
             lastFailureAt: collector.last_failure_at,
             lastError: collector.last_error,
             lastLiveCount: collector.last_live_count,
-            lastTotalViewers: collector.last_total_viewers
+            lastTotalViewers: collector.last_total_viewers,
+            chatState: collector.chat_state ?? "unknown",
+            chatUnavailableReason: collector.chat_unavailable_reason
           }
         : null,
       latestSnapshot: latestSnapshot
@@ -202,7 +215,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
           }
         : null
     })
-  } catch (error) {
+  } catch {
     return json(
       {
         ok: false,

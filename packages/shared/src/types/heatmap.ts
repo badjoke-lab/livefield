@@ -28,6 +28,8 @@ export type HeatmapPayload = {
   ok: boolean
   source: "demo" | "api"
   tool: "heatmap"
+  state?: "live" | "stale" | "partial" | "empty" | "error" | "demo"
+  note?: string
   updatedAt: string
   summary: HeatmapSummary
   nodes: HeatmapNode[]
