@@ -142,13 +142,17 @@ export async function collectSnapshot(env: Env): Promise<void> {
       provider: "twitch",
       lastAttemptAt: attemptAt,
       lastSuccessAt: new Date().toISOString(),
-      lastError: chatSnapshot.available ? undefined : `chat unavailable: ${chatSnapshot.reason ?? "unknown"}`,
+      lastError: chatSnapshot.available
+        ? (chatSnapshot.sampled ? "chat sampled: short-lived session" : undefined)
+        : `chat unavailable: ${chatSnapshot.reason ?? "unknown"}`,
       coveredPages: snapshot.coveredPages,
       hasMore: snapshot.hasMore,
       lastLiveCount: streams.length,
       lastTotalViewers: totalViewers,
       chatState: chatSnapshot.available ? "running" : "unavailable",
-      chatUnavailableReason: chatSnapshot.available ? undefined : chatSnapshot.reason
+      chatUnavailableReason: chatSnapshot.available
+        ? (chatSnapshot.sampled ? "short-lived sampled session" : undefined)
+        : chatSnapshot.reason
     })
   } catch (error) {
     await upsertCollectorStatus(env.DB, {

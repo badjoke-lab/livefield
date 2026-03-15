@@ -6,8 +6,9 @@ compatibility_date = "2026-03-10"
 crons = ["* * * * *"]
 
 [vars]
-TWITCH_CHAT_MAX_CHANNELS = "30"
-TWITCH_CHAT_JOIN_INTERVAL_MS = "1200"
+TWITCH_CHAT_MAX_CHANNELS = "10"
+TWITCH_CHAT_JOIN_INTERVAL_MS = "400"
+TWITCH_CHAT_OBSERVE_MS = "15000"
 
 [[d1_databases]]
 binding = "DB"

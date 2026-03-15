@@ -8,157 +8,102 @@ export interface TwitchChatMetric {
 
 export interface TwitchChatSnapshot {
   available: boolean
+  sampled: boolean
   reason?: string
   bucketMinute: string
   byLogin: Map<string, TwitchChatMetric>
 }
 
+type ConnectionContext = {
+  socket: WebSocket
+  closePromise: Promise<void>
+}
+
 type ChannelCounter = {
-  minute: string
-  minuteCount: number
   totalCount: number
 }
 
-class TwitchChatCollector {
-  private socket: WebSocket | null = null
-  private connected = false
-  private connecting = false
-  private lastError: string | null = null
-  private joinedChannels = new Set<string>()
-  private channelCounters = new Map<string, ChannelCounter>()
-  private reconnectTimer: number | null = null
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
-  private resetConnectionState(): void {
-    this.connected = false
-    this.connecting = false
-    this.socket = null
-    this.joinedChannels = new Set()
+function parsePrivmsgLogin(line: string): string | null {
+  if (!line.includes(" PRIVMSG #")) return null
+  const channelMatch = line.match(/ PRIVMSG #([^\s]+) /)
+  return channelMatch?.[1]?.toLowerCase() ?? null
+}
+
+function normalizeLogins(logins: string[], maxChannels: number): string[] {
+  const deduped = new Set<string>()
+  for (const login of logins) {
+    const normalized = login.trim().toLowerCase()
+    if (!normalized) continue
+    deduped.add(normalized)
+    if (deduped.size >= maxChannels) break
   }
+  return [...deduped]
+}
 
-  private onMessage(raw: string): void {
+async function openTwitchIrcSocket(env: Env): Promise<ConnectionContext> {
+  const socket = new WebSocket("wss://irc-ws.chat.twitch.tv:443")
+
+  const connected = new Promise<void>((resolve, reject) => {
+    const openHandler = () => {
+      cleanup()
+      resolve()
+    }
+    const errorHandler = () => {
+      cleanup()
+      reject(new Error("chat socket error"))
+    }
+    const cleanup = () => {
+      socket.removeEventListener("open", openHandler)
+      socket.removeEventListener("error", errorHandler)
+    }
+
+    socket.addEventListener("open", openHandler)
+    socket.addEventListener("error", errorHandler)
+  })
+
+  const closePromise = new Promise<void>((resolve) => {
+    socket.addEventListener("close", () => resolve(), { once: true })
+  })
+
+  await connected
+
+  socket.send(`PASS oauth:${env.BOT_USER_TOKEN}`)
+  socket.send(`NICK ${env.BOT_LOGIN}`)
+  socket.send("CAP REQ :twitch.tv/commands twitch.tv/tags")
+
+  return { socket, closePromise }
+}
+
+function collectFromSocket(
+  socket: WebSocket,
+  counters: Map<string, ChannelCounter>,
+  channels: Set<string>
+): () => void {
+  const messageHandler = (event: MessageEvent) => {
+    const raw = String(event.data ?? "")
     if (raw.startsWith("PING")) {
-      this.socket?.send(raw.replace("PING", "PONG"))
+      socket.send(raw.replace("PING", "PONG"))
       return
     }
 
     const lines = raw.split("\r\n")
     for (const line of lines) {
-      if (!line || !line.includes(" PRIVMSG #")) continue
-      const channelMatch = line.match(/ PRIVMSG #([^\s]+) /)
-      if (!channelMatch?.[1]) continue
-      const login = channelMatch[1].toLowerCase()
-      const nowMinute = minuteBucketFrom(new Date())
-      const current = this.channelCounters.get(login)
-      if (!current || current.minute !== nowMinute) {
-        this.channelCounters.set(login, {
-          minute: nowMinute,
-          minuteCount: 1,
-          totalCount: (current?.totalCount ?? 0) + 1
-        })
-        continue
-      }
+      const login = parsePrivmsgLogin(line)
+      if (!login || !channels.has(login)) continue
 
-      current.minuteCount += 1
+      const current = counters.get(login) ?? { totalCount: 0 }
       current.totalCount += 1
+      counters.set(login, current)
     }
   }
 
-  private scheduleReconnect(env: Env): void {
-    if (this.reconnectTimer !== null) return
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null
-      void this.ensureConnected(env)
-    }, 3_000) as unknown as number
-  }
-
-  async ensureConnected(env: Env): Promise<void> {
-    if (this.connected || this.connecting) return
-    if (!env.BOT_USER_TOKEN || !env.BOT_LOGIN) {
-      this.lastError = "BOT_USER_TOKEN or BOT_LOGIN is missing"
-      return
-    }
-
-    this.connecting = true
-
-    try {
-      const socket = new WebSocket("wss://irc-ws.chat.twitch.tv:443")
-      socket.addEventListener("open", () => {
-        this.connected = true
-        this.connecting = false
-        this.lastError = null
-        socket.send(`PASS oauth:${env.BOT_USER_TOKEN}`)
-        socket.send(`NICK ${env.BOT_LOGIN}`)
-        socket.send("CAP REQ :twitch.tv/commands twitch.tv/tags")
-      })
-      socket.addEventListener("message", (event) => {
-        this.onMessage(String(event.data ?? ""))
-      })
-      socket.addEventListener("close", () => {
-        this.resetConnectionState()
-        this.lastError = "chat socket closed"
-        this.scheduleReconnect(env)
-      })
-      socket.addEventListener("error", () => {
-        this.lastError = "chat socket error"
-      })
-
-      this.socket = socket
-    } catch (error) {
-      this.lastError = error instanceof Error ? error.message : "chat connect failed"
-      this.resetConnectionState()
-      this.scheduleReconnect(env)
-    } finally {
-      this.connecting = false
-    }
-  }
-
-  async syncJoinedChannels(logins: string[], env: Env, config: CollectorConfig): Promise<void> {
-    if (!this.connected || !this.socket) return
-    const target = new Set(logins.slice(0, config.chatMaxChannels).map((v) => v.toLowerCase()))
-
-    for (const joined of this.joinedChannels) {
-      if (!target.has(joined)) {
-        this.socket.send(`PART #${joined}`)
-        this.joinedChannels.delete(joined)
-      }
-    }
-
-    for (const login of target) {
-      if (this.joinedChannels.has(login)) continue
-      this.socket.send(`JOIN #${login}`)
-      this.joinedChannels.add(login)
-      await new Promise((resolve) => setTimeout(resolve, config.chatJoinIntervalMs))
-    }
-  }
-
-  collectMinuteSnapshot(now: Date): TwitchChatSnapshot {
-    const bucketMinute = minuteBucketFrom(now)
-    if (!this.connected) {
-      return {
-        available: false,
-        reason: this.lastError ?? "chat collector not connected",
-        bucketMinute,
-        byLogin: new Map()
-      }
-    }
-
-    const byLogin = new Map<string, TwitchChatMetric>()
-    for (const [login, counter] of this.channelCounters.entries()) {
-      byLogin.set(login, {
-        commentCount: counter.totalCount,
-        commentsPerMin: counter.minute === bucketMinute ? counter.minuteCount : 0
-      })
-    }
-
-    return {
-      available: true,
-      bucketMinute,
-      byLogin
-    }
-  }
+  socket.addEventListener("message", messageHandler)
+  return () => socket.removeEventListener("message", messageHandler)
 }
-
-const globalCollector = new TwitchChatCollector()
 
 export async function collectTwitchChatForStreams(
   env: Env,
@@ -166,7 +111,69 @@ export async function collectTwitchChatForStreams(
   streamLogins: string[],
   now: Date
 ): Promise<TwitchChatSnapshot> {
-  await globalCollector.ensureConnected(env)
-  await globalCollector.syncJoinedChannels(streamLogins, env, config)
-  return globalCollector.collectMinuteSnapshot(now)
+  const bucketMinute = minuteBucketFrom(now)
+  const logins = normalizeLogins(streamLogins, config.chatMaxChannels)
+
+  if (!env.BOT_USER_TOKEN || !env.BOT_LOGIN) {
+    return {
+      available: false,
+      sampled: true,
+      reason: "BOT_USER_TOKEN or BOT_LOGIN is missing",
+      bucketMinute,
+      byLogin: new Map()
+    }
+  }
+
+  if (!logins.length) {
+    return {
+      available: true,
+      sampled: true,
+      bucketMinute,
+      byLogin: new Map()
+    }
+  }
+
+  let connection: ConnectionContext | null = null
+  const counters = new Map<string, ChannelCounter>()
+
+  try {
+    connection = await openTwitchIrcSocket(env)
+    const trackedChannels = new Set(logins)
+    const unsubscribe = collectFromSocket(connection.socket, counters, trackedChannels)
+
+    for (const login of logins) {
+      connection.socket.send(`JOIN #${login}`)
+      await delay(config.chatJoinIntervalMs)
+    }
+
+    await delay(config.chatObserveMs)
+    unsubscribe()
+
+    const byLogin = new Map<string, TwitchChatMetric>()
+    for (const login of logins) {
+      const commentCount = counters.get(login)?.totalCount ?? 0
+      const commentsPerMin = Number(((commentCount * 60_000) / config.chatObserveMs).toFixed(3))
+      byLogin.set(login, { commentCount, commentsPerMin })
+    }
+
+    return {
+      available: true,
+      sampled: true,
+      bucketMinute,
+      byLogin
+    }
+  } catch (error) {
+    return {
+      available: false,
+      sampled: true,
+      reason: error instanceof Error ? error.message : "chat sampling failed",
+      bucketMinute,
+      byLogin: new Map()
+    }
+  } finally {
+    if (connection?.socket && (connection.socket.readyState === WebSocket.OPEN || connection.socket.readyState === WebSocket.CONNECTING)) {
+      connection.socket.close(1000, "sample complete")
+      await connection.closePromise.catch(() => undefined)
+    }
+  }
 }
