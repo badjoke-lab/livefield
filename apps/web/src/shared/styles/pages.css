@@ -1080,13 +1080,9 @@
   color: #ffb8b8;
 }
 
-.heatmap-compare-grid {
-  align-items: stretch;
-}
-
 .heatmap-tile-stage {
   position: relative;
-  min-height: 520px;
+  min-height: 560px;
   border-radius: 18px;
   overflow: hidden;
   border: 1px solid rgba(122, 162, 255, 0.12);
@@ -1096,24 +1092,50 @@
 .tile-node {
   position: absolute;
   margin: 0;
-  padding: 8px;
   border-radius: 10px;
   border: 1px solid rgba(122, 162, 255, 0.18);
-  background: transparent;
   color: #eef6ff;
   text-align: left;
+  overflow: hidden;
+}
+
+.tile-node__select {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 8px;
   display: grid;
   align-content: space-between;
   gap: 4px;
+  text-align: left;
   cursor: pointer;
+}
+
+.tile-node__stream-link {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: rgba(238, 246, 255, 0.92);
+  text-decoration: none;
+  background: rgba(8, 16, 30, 0.62);
+  border: 1px solid rgba(238, 246, 255, 0.24);
+  z-index: 2;
 }
 
 .tile-node__tone {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(160deg, rgba(132, 240, 255, 0.16), rgba(74, 112, 255, 0.08));
-  opacity: 0.3;
+  opacity: 0.34;
 }
 
 .tile-node__name,
@@ -1127,11 +1149,12 @@
   font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 }
 
 .tile-node__viewers {
   font-size: 12px;
-  color: rgba(235, 243, 255, 0.86);
+  color: rgba(235, 243, 255, 0.88);
 }
 
 .tile-node__badge {
@@ -1141,41 +1164,67 @@
   font-size: 10px;
   line-height: 1.2;
   border: 1px solid transparent;
+  background: rgba(8, 16, 30, 0.34);
 }
 
 .tile-node--active .tile-node__badge--active {
-  background: rgba(38, 214, 143, 0.2);
-  border-color: rgba(38, 214, 143, 0.55);
+  background: rgba(38, 214, 143, 0.24);
+  border-color: rgba(38, 214, 143, 0.66);
 }
 
 .tile-node--sampled_zero .tile-node__badge--sampled-zero {
-  background: rgba(255, 211, 107, 0.2);
-  border-color: rgba(255, 211, 107, 0.55);
+  background: rgba(255, 211, 107, 0.22);
+  border-color: rgba(255, 211, 107, 0.62);
 }
 
 .tile-node--unavailable_sampled .tile-node__badge--unavailable {
-  background: rgba(255, 160, 107, 0.17);
-  border-color: rgba(255, 160, 107, 0.48);
+  background: rgba(255, 160, 107, 0.2);
+  border-color: rgba(255, 160, 107, 0.58);
 }
 
 .tile-node--unavailable_not_sampled .tile-node__badge--not-sampled {
-  background: rgba(140, 150, 170, 0.2);
-  border-color: rgba(140, 150, 170, 0.55);
+  background: rgba(140, 150, 170, 0.24);
+  border-color: rgba(140, 150, 170, 0.65);
+}
+
+.tile-node--active .tile-node__tone {
+  animation: heatmap-activity-pulse 2.8s ease-in-out infinite;
+}
+
+.heatmap-tile-stage[data-animation="off"] .tile-node--active .tile-node__tone,
+.heatmap-tile-stage[data-animation="off"] .tile-node--active .tile-node__badge {
+  animation: none;
+}
+
+.tile-node--sampled_zero .tile-node__tone {
+  opacity: 0.22;
+  background: linear-gradient(150deg, rgba(126, 156, 198, 0.22), rgba(90, 116, 150, 0.14));
+}
+
+.tile-node--unavailable_sampled .tile-node__tone {
+  opacity: 0.15;
+  background: linear-gradient(150deg, rgba(130, 140, 162, 0.17), rgba(86, 95, 116, 0.12));
 }
 
 .tile-node--unavailable_not_sampled .tile-node__tone {
-  opacity: 0.14;
-  background: linear-gradient(160deg, rgba(130, 140, 162, 0.2), rgba(88, 96, 120, 0.14));
+  opacity: 0.09;
+  background: linear-gradient(150deg, rgba(98, 108, 130, 0.15), rgba(72, 82, 104, 0.1));
 }
 
 .tile-node--selected {
-  box-shadow: inset 0 0 0 1px rgba(237, 246, 255, 0.65);
+  box-shadow: inset 0 0 0 2px rgba(237, 246, 255, 0.72);
 }
 
-.tile-node--momentum-0 { box-shadow: inset 0 0 0 1px rgba(122, 162, 255, 0.14); }
-.tile-node--momentum-1 { box-shadow: inset 0 0 0 2px rgba(122, 162, 255, 0.30); }
-.tile-node--momentum-2 { box-shadow: inset 0 0 0 2px rgba(132, 240, 255, 0.42), 0 0 24px rgba(132, 240, 255, 0.13); }
-.tile-node--momentum-3 { box-shadow: inset 0 0 0 3px rgba(132, 240, 255, 0.55), 0 0 28px rgba(132, 240, 255, 0.2); }
+.tile-node--rise-1 { background: rgba(34, 114, 72, 0.32); box-shadow: inset 0 0 0 1px rgba(66, 197, 129, 0.42); }
+.tile-node--rise-2 { background: rgba(28, 126, 74, 0.45); box-shadow: inset 0 0 0 1px rgba(72, 218, 144, 0.58), 0 0 20px rgba(47, 181, 117, 0.16); }
+.tile-node--rise-3 { background: rgba(24, 146, 82, 0.58); box-shadow: inset 0 0 0 2px rgba(91, 234, 160, 0.74), 0 0 26px rgba(48, 205, 131, 0.22); }
+
+.tile-node--fall-1 { background: rgba(130, 46, 52, 0.3); box-shadow: inset 0 0 0 1px rgba(241, 108, 118, 0.4); }
+.tile-node--fall-2 { background: rgba(151, 44, 54, 0.44); box-shadow: inset 0 0 0 1px rgba(255, 128, 138, 0.56), 0 0 18px rgba(221, 78, 92, 0.14); }
+.tile-node--fall-3 { background: rgba(176, 40, 52, 0.58); box-shadow: inset 0 0 0 2px rgba(255, 146, 155, 0.72), 0 0 24px rgba(226, 76, 90, 0.2); }
+
+.tile-node--flat-0 { background: rgba(61, 75, 96, 0.34); box-shadow: inset 0 0 0 1px rgba(145, 160, 183, 0.32); }
+.tile-node--flat-1 { background: rgba(68, 84, 108, 0.44); box-shadow: inset 0 0 0 1px rgba(156, 172, 198, 0.42); }
 
 .heatmap-state-legend {
   display: flex;
@@ -1197,6 +1246,12 @@
 .heatmap-state-chip--sampled-zero { border-color: rgba(255, 211, 107, 0.6); }
 .heatmap-state-chip--sampled-unavailable { border-color: rgba(255, 160, 107, 0.58); }
 .heatmap-state-chip--not-sampled { border-color: rgba(140, 150, 170, 0.6); }
+
+@keyframes heatmap-activity-pulse {
+  0%,
+  100% { opacity: 0.28; }
+  50% { opacity: 0.46; }
+}
 
 @media (max-width: 900px) {
   .heatmap-tile-stage {

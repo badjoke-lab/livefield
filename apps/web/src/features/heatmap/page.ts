@@ -6,11 +6,9 @@ import { renderStatusNote } from "../../shared/app-shell/status-note"
 import { readAnimationEnabled, writeAnimationEnabled } from "../../shared/runtime/animation-mode"
 import { readLowLoadEnabled, writeLowLoadEnabled } from "../../shared/runtime/low-load-mode"
 import { formatActivityState, getActivityState } from "./activity-state"
-import { mountHeatmapRenderer } from "./renderer"
 import { mountTileMockRenderer } from "./renderer/tile-mock"
 import { loadHeatmapPageState, type HeatmapMode } from "./state"
 
-let rendererCleanup: (() => void) | null = null
 let pollTimer: number | null = null
 
 function escapeHtml(value: string): string {
@@ -21,8 +19,10 @@ function formatMomentum(momentum: number): string {
   if (momentum >= 0.15) return "Strong rise"
   if (momentum >= 0.08) return "Rising"
   if (momentum >= 0.03) return "Slight up"
-  if (momentum >= 0) return "Flat"
-  return "Slowing"
+  if (momentum <= -0.15) return "Strong drop"
+  if (momentum <= -0.08) return "Falling"
+  if (momentum <= -0.03) return "Slight down"
+  return "Flat"
 }
 
 function getModeLabel(mode: HeatmapMode): string {
@@ -39,24 +39,22 @@ function getModeNote(mode: HeatmapMode, payload: HeatmapPayload, lowLoad: boolea
       : mode === "stale"
         ? "Data updates are delayed."
         : mode === "partial"
-          ? "Sampled activity is partial; unavailable channels and sampled-zero channels are shown separately while viewers and momentum still update."
+          ? "Sampled activity is partial; sampled-zero and unavailable channels are shown separately while viewers and momentum continue to update."
           : "The current payload is in a live-like state."
 
   return `${modeText} ${payload.note ?? ""} Low Load: ${lowLoad ? "ON" : "OFF"} / Animation: ${animationEnabled ? "ON" : "OFF"}`
 }
 
 function renderReady(root: HTMLElement, payload: HeatmapPayload, mode: HeatmapMode, selectedStreamerId?: string): void {
-  const visibleCount = readLowLoadEnabled() ? 5 : 9
-  const visibleNodes = payload.nodes.slice(0, visibleCount)
-  const selected = visibleNodes.find((node) => node.streamerId === selectedStreamerId) ?? visibleNodes[0]
   const lowLoad = readLowLoadEnabled()
   const animationEnabled = readAnimationEnabled()
+  const visibleCount = lowLoad ? 24 : 50
+  const visibleNodes = payload.nodes.slice(0, visibleCount)
+  const selected = visibleNodes.find((node) => node.streamerId === selectedStreamerId) ?? visibleNodes[0]
 
   if (!selected) {
     root.className = "site-shell"
-    root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "A live bubble field for reading the Twitch stream landscape right now.", note: `Viewers = size / Activity = marker / Momentum = edge. Current state: ${getModeLabel(mode)}`, actions: [{ href: "/status/", label: "Open Status" }, { href: "/day-flow/", label: "Open Day Flow" }] })}<div class="controls"><span class="pill">Top 50</span><span class="pill">1m activity</span><span class="pill">Visible nodes: 0</span><span class="pill">${getModeLabel(mode)}</span><span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span></div><section class="card page-section"><h2>No live streams in current snapshot</h2><p>${escapeHtml(payload.note ?? "The API returned no English Twitch streams for this moment.")}</p></section>${renderStatusNote(getModeNote(mode, payload, lowLoad, animationEnabled))}${renderFooter()}`
-    rendererCleanup?.()
-    rendererCleanup = null
+    root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production tile view of what is live on Twitch right now.", note: `Treemap area = viewers / color = momentum / badges = sampled activity state. Current state: ${getModeLabel(mode)}`, actions: [{ href: "/status/", label: "Open Status" }, { href: "/day-flow/", label: "Open Day Flow" }] })}<div class="controls"><span class="pill">Top ${visibleCount}</span><span class="pill">1m sampled activity</span><span class="pill">Visible tiles: 0</span><span class="pill">${getModeLabel(mode)}</span><span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span></div><section class="card page-section"><h2>No live streams in current snapshot</h2><p>${escapeHtml(payload.note ?? "The API returned no English Twitch streams for this moment.")}</p></section>${renderStatusNote(getModeNote(mode, payload, lowLoad, animationEnabled))}${renderFooter()}`
     return
   }
 
@@ -73,23 +71,17 @@ function renderReady(root: HTMLElement, payload: HeatmapPayload, mode: HeatmapMo
   )
 
   root.className = "site-shell"
-  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Compare renderer readability with the same live payload while keeping Now-view priorities.", note: `Viewers = primary / Momentum = secondary / Activity = helper. Current state: ${getModeLabel(mode)}`, actions: [{ href: "/status/", label: "Open Status" }, { href: "/day-flow/", label: "Open Day Flow" }] })}
-    <div class="controls"><span class="pill">Top 50</span><span class="pill">1m activity</span><button type="button" class="pill" data-low-load-toggle>Low Load: ${lowLoad ? "ON" : "OFF"}</button><button type="button" class="pill" data-animation-toggle>Animation: ${animationEnabled ? "ON" : "OFF"}</button><span class="pill">Visible nodes: ${visibleCount}</span><span class="pill">${getModeLabel(mode)}</span><span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span></div>
+  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production treemap for reading Twitch momentum at a glance.", note: `Area = viewers / green-red-blue-gray = momentum / activity is secondary. Current state: ${getModeLabel(mode)}`, actions: [{ href: "/status/", label: "Open Status" }, { href: "/day-flow/", label: "Open Day Flow" }] })}
+    <div class="controls"><span class="pill">Top ${visibleCount}</span><span class="pill">1m sampled activity</span><button type="button" class="pill" data-low-load-toggle>Low Load: ${lowLoad ? "ON" : "OFF"}</button><button type="button" class="pill" data-animation-toggle>Animation: ${animationEnabled ? "ON" : "OFF"}</button><span class="pill">Visible tiles: ${visibleNodes.length}</span><span class="pill">${getModeLabel(mode)}</span><span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span></div>
     ${payload.note ? `<section class="card page-section"><p>${escapeHtml(payload.note)}</p></section>` : ""}
     <section class="summary-strip page-section"><div class="summary-item"><strong>Active streams</strong><span>${payload.summary.activeStreams}</span></div><div class="summary-item"><strong>Total viewers observed</strong><span>${payload.summary.totalViewers.toLocaleString()}</span></div><div class="summary-item"><strong>Highest activity</strong><span>${escapeHtml(payload.summary.highestAgitationName)}</span></div><div class="summary-item"><strong>Strongest momentum</strong><span>${escapeHtml(payload.summary.strongestMomentumName)}</span></div></section>
-    <section class="grid-2 page-section heatmap-compare-grid"><section class="heatmap-mock-card"><div class="heatmap-mock-card__head"><div><strong>Bubble renderer mock</strong><p>Current bubble style with live payload. Viewers lead through radius, momentum via glow, activity as outer ring signal.</p></div><div class="heatmap-mock-modes"><span class="pill">Bubble</span><span class="pill heatmap-mock-pill--off">Tile</span></div></div><div class="heatmap-mock-stage"><canvas id="heatmapCanvas" class="heatmap-canvas"></canvas></div></section><section class="heatmap-mock-card"><div class="heatmap-mock-card__head"><div><strong>Tile / treemap renderer mock</strong><p>Same payload, area by viewers. Momentum uses edge emphasis, activity state uses corner badge so unavailable is never shown as zero.</p></div><div class="heatmap-mock-modes"><span class="pill heatmap-mock-pill--off">Bubble</span><span class="pill">Tile/Treemap</span></div></div><div class="heatmap-tile-stage" id="heatmapTileStage"></div></section></section>
-    <section class="card page-section"><h2>Shared activity semantics (same for both renderers)</h2><div class="heatmap-state-legend"><span class="heatmap-state-chip heatmap-state-chip--active">observed and active (${activityBreakdown.active})</span><span class="heatmap-state-chip heatmap-state-chip--sampled-zero">sampled only, no activity (${activityBreakdown.sampledZero})</span><span class="heatmap-state-chip heatmap-state-chip--sampled-unavailable">sampled but unavailable (${activityBreakdown.sampledUnavailable})</span><span class="heatmap-state-chip heatmap-state-chip--not-sampled">not sampled in this window (${activityBreakdown.notSampled})</span></div></section>
-    <section class="grid-2 page-section"><section class="heatmap-side"><section class="card"><h2>Quick select</h2><div class="focus-chip-row">${visibleNodes.slice(0, 6).map((node) => `<button type="button" class="focus-chip ${node.streamerId === selected.streamerId ? "focus-chip--active" : ""}" data-focus-streamer-id="${node.streamerId}">${escapeHtml(node.name)}</button>`).join("")}</div></section></section><section class="card"><h2>Selected details (shared)</h2><div class="kv"><div class="kv-row"><span>Streamer</span><strong>${escapeHtml(selected.name)}</strong></div><div class="kv-row"><span>Current viewers</span><strong>${selected.viewers.toLocaleString()}</strong></div><div class="kv-row"><span>Activity state</span><strong>${escapeHtml(formatActivityState(selected))}</strong></div><div class="kv-row"><span>Comment count</span><strong>${selected.activityAvailable ? selected.commentCount.toLocaleString() : "-"}</strong></div><div class="kv-row"><span>Delta comments</span><strong>${selected.activityAvailable ? selected.deltaComments.toLocaleString() : "-"}</strong></div><div class="kv-row"><span>Comments / min</span><strong>${selected.activityAvailable ? selected.commentsPerMin.toLocaleString() : "-"}</strong></div><div class="kv-row"><span>Activity level</span><strong>${selected.activityAvailable ? `Lv${selected.agitationLevel}` : "-"}</strong></div><div class="kv-row"><span>Momentum</span><strong>${formatMomentum(selected.momentum)}</strong></div><div class="kv-row"><span>Viewer rank</span><strong>#${selected.rankViewers}</strong></div></div></section></section>
+    <section class="card page-section"><h2>Now view treemap</h2><p class="muted">Tile area follows viewers. Momentum uses green (rising), red (falling), and blue-gray (flat). Activity markers only annotate sampled state and never override momentum color.</p><div class="heatmap-tile-stage" id="heatmapTileStage"></div></section>
+    <section class="card page-section"><h2>Activity sampling legend</h2><p class="muted">Sampled coverage in current window: ${activityBreakdown.active + activityBreakdown.sampledZero + activityBreakdown.sampledUnavailable} / ${visibleNodes.length} tiles. Sampled-zero and unavailable are intentionally distinct.</p><div class="heatmap-state-legend"><span class="heatmap-state-chip heatmap-state-chip--active">activity sampled (${activityBreakdown.active})</span><span class="heatmap-state-chip heatmap-state-chip--sampled-zero">sampled · no activity (${activityBreakdown.sampledZero})</span><span class="heatmap-state-chip heatmap-state-chip--sampled-unavailable">sampled · unavailable (${activityBreakdown.sampledUnavailable})</span><span class="heatmap-state-chip heatmap-state-chip--not-sampled">activity unavailable (${activityBreakdown.notSampled})</span></div></section>
+    <section class="grid-2 page-section"><section class="heatmap-side"><section class="card"><h2>Quick select</h2><div class="focus-chip-row">${visibleNodes.slice(0, 8).map((node) => `<button type="button" class="focus-chip ${node.streamerId === selected.streamerId ? "focus-chip--active" : ""}" data-focus-streamer-id="${node.streamerId}">${escapeHtml(node.name)}</button>`).join("")}</div></section></section><section class="card"><h2>Selected details</h2><div class="kv"><div class="kv-row"><span>Streamer</span><strong>${escapeHtml(selected.name)}</strong></div><div class="kv-row"><span>Current viewers</span><strong>${selected.viewers.toLocaleString()}</strong></div><div class="kv-row"><span>Momentum</span><strong>${formatMomentum(selected.momentum)}</strong></div><div class="kv-row"><span>Activity state</span><strong>${escapeHtml(formatActivityState(selected))}</strong></div><div class="kv-row"><span>Comments / min</span><strong>${selected.activityAvailable ? selected.commentsPerMin.toLocaleString() : "-"}</strong></div><div class="kv-row"><span>Activity level</span><strong>${selected.activityAvailable ? `Lv${selected.agitationLevel}` : "-"}</strong></div><div class="kv-row"><span>Viewer rank</span><strong>#${selected.rankViewers}</strong></div><div class="kv-row"><span>Open stream</span><strong><a href="${escapeHtml(selected.url)}" target="_blank" rel="noopener noreferrer">Open stream ↗</a></strong></div></div></section></section>
     ${renderStatusNote(getModeNote(mode, payload, lowLoad, animationEnabled))}${renderFooter()}`
 
-  const canvas = root.querySelector<HTMLCanvasElement>("#heatmapCanvas")
-  if (!canvas) throw new Error("heatmap canvas not found")
-  rendererCleanup?.()
-  const renderer = mountHeatmapRenderer(canvas, payload, selected.streamerId, (nextId) => renderReady(root, payload, mode, nextId))
-  rendererCleanup = () => renderer.destroy()
-
   const tileStage = root.querySelector<HTMLElement>("#heatmapTileStage")
-  if (!tileStage) throw new Error("tile mock stage not found")
+  if (!tileStage) throw new Error("tile stage not found")
   mountTileMockRenderer(tileStage, visibleNodes, selected.streamerId, (nextId) => renderReady(root, payload, mode, nextId))
 
   root.querySelectorAll<HTMLButtonElement>("[data-focus-streamer-id]").forEach((button) =>
@@ -110,12 +102,12 @@ function renderReady(root: HTMLElement, payload: HeatmapPayload, mode: HeatmapMo
 
 function renderLoading(root: HTMLElement): void {
   root.className = "site-shell"
-  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "A live bubble field for reading the Twitch stream landscape right now.", note: "Loading Heatmap data" })}<section class="card page-section"><h2>Loading</h2><p>Loading Heatmap data...</p></section>${renderFooter()}`
+  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production tile view of what is live on Twitch right now.", note: "Loading Heatmap data" })}<section class="card page-section"><h2>Loading</h2><p>Loading Heatmap data...</p></section>${renderFooter()}`
 }
 
 function renderError(root: HTMLElement, message: string): void {
   root.className = "site-shell"
-  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "A live bubble field for reading the Twitch stream landscape right now.", note: "Heatmap data load failed" })}<section class="card page-section"><h2>Load failed</h2><p>${escapeHtml(message)}</p></section>${renderFooter()}`
+  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production tile view of what is live on Twitch right now.", note: "Heatmap data load failed" })}<section class="card page-section"><h2>Load failed</h2><p>${escapeHtml(message)}</p></section>${renderFooter()}`
 }
 
 export function renderHeatmapPage(root: HTMLElement): void {
