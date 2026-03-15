@@ -35,6 +35,9 @@ export interface TwitchStream {
   commentsPerMin?: number | null
   agitationRaw?: number | null
   agitationLevel?: 0 | 1 | 2 | 3 | 4 | 5 | null
+  activityAvailable?: boolean
+  activitySampled?: boolean
+  activityUnavailableReason?: string | null
 }
 
 export interface TwitchStreamsPage {

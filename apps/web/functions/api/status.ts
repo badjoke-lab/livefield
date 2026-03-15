@@ -29,6 +29,7 @@ type SnapshotRow = {
   total_viewers: number
   covered_pages: number
   has_more: number
+  payload_json: string
 }
 
 type StatusPayload = {
@@ -64,6 +65,43 @@ type StatusPayload = {
     coveredPages: number
     hasMore: boolean
   } | null
+}
+
+type SnapshotPayload = {
+  streams?: Array<{
+    activityAvailable?: boolean
+    activitySampled?: boolean
+    activityUnavailableReason?: string | null
+  }>
+}
+
+type ActivityCoverage = {
+  sampled: number
+  available: number
+  unavailable: number
+}
+
+function getActivityCoverage(snapshot: SnapshotRow | null): ActivityCoverage | null {
+  if (!snapshot?.payload_json) return null
+
+  try {
+    const payload = JSON.parse(snapshot.payload_json) as SnapshotPayload
+    const streams = payload.streams ?? []
+    if (!streams.length) return null
+
+    let sampled = 0
+    let available = 0
+    let unavailable = 0
+    for (const stream of streams) {
+      if (stream.activitySampled !== false) sampled += 1
+      if (stream.activityAvailable === true) available += 1
+      else unavailable += 1
+    }
+
+    return { sampled, available, unavailable }
+  } catch {
+    return null
+  }
 }
 
 const FRESHNESS_MINUTES = 2
@@ -114,7 +152,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
         .first<CollectorStatusRow>(),
       db
         .prepare(
-          `SELECT bucket_minute, collected_at, live_count, total_viewers, covered_pages, has_more
+          `SELECT bucket_minute, collected_at, live_count, total_viewers, covered_pages, has_more, payload_json
            FROM minute_snapshots
            WHERE provider = 'twitch'
            ORDER BY bucket_minute DESC
@@ -125,6 +163,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
     const minutesSinceSuccess = minutesSince(collector?.last_success_at ?? null, now)
     const isFresh = minutesSinceSuccess !== null && minutesSinceSuccess <= FRESHNESS_MINUTES
+    const activityCoverage = getActivityCoverage(latestSnapshot ?? null)
     const chatPartial = collector?.chat_state !== "running"
     const isPartial = (latestSnapshot?.has_more ?? 0) === 1 || chatPartial
     const source: ApiSource = "api"
@@ -154,7 +193,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
             : "idle"
 
     const coverageNote = latestSnapshot
-      ? `Observed ${latestSnapshot.live_count} streams across ${latestSnapshot.covered_pages} page(s)${latestSnapshot.has_more === 1 ? " with remaining pages." : "."}`
+      ? `Observed ${latestSnapshot.live_count} streams across ${latestSnapshot.covered_pages} page(s)${latestSnapshot.has_more === 1 ? " with remaining pages." : "."}${activityCoverage ? ` Activity available for ${activityCoverage.available}/${latestSnapshot.live_count} streams.` : ""}`
       : "No minute snapshot rows are available yet."
 
     const sampledChat = collector?.chat_unavailable_reason?.includes("sampled") ?? false
@@ -164,11 +203,19 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
         : "Chat ingest: running."
       : `Chat ingest unavailable${collector?.chat_unavailable_reason ? ` (${collector.chat_unavailable_reason})` : "."}`
 
+    const activityReliability = !activityCoverage || !latestSnapshot || latestSnapshot.live_count === 0
+      ? "Heatmap activity reliability: unknown."
+      : activityCoverage.available >= Math.ceil(latestSnapshot.live_count * 0.6)
+        ? `Heatmap activity reliability: moderate (${activityCoverage.available}/${latestSnapshot.live_count} streams with sampled activity).`
+        : activityCoverage.available > 0
+          ? `Heatmap activity reliability: limited (${activityCoverage.available}/${latestSnapshot.live_count} streams with sampled activity).`
+          : "Heatmap activity reliability: unavailable (viewer + momentum only)."
+
     const degradationNote =
       state === "live"
         ? "Collector telemetry is fresh and snapshot coverage is available."
         : state === "partial"
-          ? `Collector is partial. ${(latestSnapshot?.has_more ?? 0) === 1 ? "streams has_more=true. " : ""}${chatNote}`
+          ? `Collector is partial. ${(latestSnapshot?.has_more ?? 0) === 1 ? "streams has_more=true. " : ""}${chatNote} ${activityReliability}`
           : state === "stale"
             ? `Collector snapshot exists but freshness exceeded ${FRESHNESS_MINUTES} minutes.`
             : state === "empty"
@@ -188,6 +235,9 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
             ? "Heatmap activity uses sampled Twitch chat comments/min from short-lived collection windows."
             : "Heatmap activity uses Twitch chat comments/min with viewer-relative scaling."
           : "Heatmap activity is unavailable when Twitch chat ingest is down.",
+        activityCoverage && latestSnapshot
+          ? `Sample coverage: sampled=${activityCoverage.sampled}, available=${activityCoverage.available}, unavailable=${activityCoverage.unavailable}.`
+          : "Sample coverage is not available from latest snapshot payload.",
         "Heatmap remains viewers + momentum first; activity is a secondary signal."
       ],
       collectorState,

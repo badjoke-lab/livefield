@@ -12,6 +12,7 @@ export interface TwitchChatSnapshot {
   reason?: string
   bucketMinute: string
   byLogin: Map<string, TwitchChatMetric>
+  observedLogins: Set<string>
 }
 
 type ConnectionContext = {
@@ -78,10 +79,16 @@ async function openTwitchIrcSocket(env: Env): Promise<ConnectionContext> {
   return { socket, closePromise }
 }
 
+function parseJoinAckLogin(line: string): string | null {
+  const match = line.match(/:(?:[^\s]+)\s+JOIN\s+#([^\s]+)/)
+  return match?.[1]?.toLowerCase() ?? null
+}
+
 function collectFromSocket(
   socket: WebSocket,
   counters: Map<string, ChannelCounter>,
-  channels: Set<string>
+  channels: Set<string>,
+  observedLogins: Set<string>
 ): () => void {
   const messageHandler = (event: MessageEvent) => {
     const raw = String(event.data ?? "")
@@ -92,8 +99,14 @@ function collectFromSocket(
 
     const lines = raw.split("\r\n")
     for (const line of lines) {
+      const joinedLogin = parseJoinAckLogin(line)
+      if (joinedLogin && channels.has(joinedLogin)) {
+        observedLogins.add(joinedLogin)
+      }
+
       const login = parsePrivmsgLogin(line)
       if (!login || !channels.has(login)) continue
+      observedLogins.add(login)
 
       const current = counters.get(login) ?? { totalCount: 0 }
       current.totalCount += 1
@@ -120,7 +133,8 @@ export async function collectTwitchChatForStreams(
       sampled: true,
       reason: "BOT_USER_TOKEN or BOT_LOGIN is missing",
       bucketMinute,
-      byLogin: new Map()
+      byLogin: new Map(),
+      observedLogins: new Set()
     }
   }
 
@@ -129,7 +143,8 @@ export async function collectTwitchChatForStreams(
       available: true,
       sampled: true,
       bucketMinute,
-      byLogin: new Map()
+      byLogin: new Map(),
+      observedLogins: new Set()
     }
   }
 
@@ -139,7 +154,8 @@ export async function collectTwitchChatForStreams(
   try {
     connection = await openTwitchIrcSocket(env)
     const trackedChannels = new Set(logins)
-    const unsubscribe = collectFromSocket(connection.socket, counters, trackedChannels)
+    const observedLogins = new Set<string>()
+    const unsubscribe = collectFromSocket(connection.socket, counters, trackedChannels, observedLogins)
 
     for (const login of logins) {
       connection.socket.send(`JOIN #${login}`)
@@ -160,7 +176,8 @@ export async function collectTwitchChatForStreams(
       available: true,
       sampled: true,
       bucketMinute,
-      byLogin
+      byLogin,
+      observedLogins
     }
   } catch (error) {
     return {
@@ -168,7 +185,8 @@ export async function collectTwitchChatForStreams(
       sampled: true,
       reason: error instanceof Error ? error.message : "chat sampling failed",
       bucketMinute,
-      byLogin: new Map()
+      byLogin: new Map(),
+      observedLogins: new Set()
     }
   } finally {
     if (connection?.socket && (connection.socket.readyState === WebSocket.OPEN || connection.socket.readyState === WebSocket.CONNECTING)) {
