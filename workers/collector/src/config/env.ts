@@ -22,8 +22,8 @@ export interface CollectorConfig {
 const DEFAULT_MAX_PAGES = 2
 const DEFAULT_PAGE_SIZE = 100
 const DEFAULT_CHAT_MAX_CHANNELS = 10
-const DEFAULT_CHAT_JOIN_INTERVAL_MS = 400
-const DEFAULT_CHAT_OBSERVE_MS = 15_000
+const DEFAULT_CHAT_JOIN_INTERVAL_MS = 300
+const DEFAULT_CHAT_OBSERVE_MS = 20_000
 
 function parseBoundedInt(value: string | undefined, fallback: number, min: number, max: number): number {
   const parsed = Number.parseInt(value ?? "", 10)
@@ -36,7 +36,7 @@ export function getCollectorConfig(env: Env): CollectorConfig {
     maxPages: parseBoundedInt(env.TWITCH_COLLECTION_MAX_PAGES, DEFAULT_MAX_PAGES, 1, 10),
     pageSize: parseBoundedInt(env.TWITCH_COLLECTION_PAGE_SIZE, DEFAULT_PAGE_SIZE, 20, 100),
     chatMaxChannels: parseBoundedInt(env.TWITCH_CHAT_MAX_CHANNELS, DEFAULT_CHAT_MAX_CHANNELS, 5, 100),
-    chatJoinIntervalMs: parseBoundedInt(env.TWITCH_CHAT_JOIN_INTERVAL_MS, DEFAULT_CHAT_JOIN_INTERVAL_MS, 300, 5000),
+    chatJoinIntervalMs: parseBoundedInt(env.TWITCH_CHAT_JOIN_INTERVAL_MS, DEFAULT_CHAT_JOIN_INTERVAL_MS, 200, 5000),
     chatObserveMs: parseBoundedInt(env.TWITCH_CHAT_OBSERVE_MS, DEFAULT_CHAT_OBSERVE_MS, 5000, 30000)
   }
 }

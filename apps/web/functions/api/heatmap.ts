@@ -25,6 +25,9 @@ type SnapshotPayload = {
     commentsPerMin?: number | null
     agitationRaw?: number | null
     agitationLevel?: 0 | 1 | 2 | 3 | 4 | 5 | null
+    activityAvailable?: boolean
+    activitySampled?: boolean
+    activityUnavailableReason?: string | null
   }>
 }
 
@@ -49,7 +52,7 @@ function toHeatmapNodes(
   previousViewerByStreamer: Map<string, number>,
   collectedAt: string,
   top: number
-): { nodes: HeatmapNode[]; unavailableCount: number } {
+): { nodes: HeatmapNode[]; unavailableCount: number; observedZeroCount: number; sampledCount: number } {
   const twitchBaseUrl = "https://www.twitch.tv"
 
   const baseNodes = (streams ?? [])
@@ -62,17 +65,27 @@ function toHeatmapNodes(
         commentsPerMin?: number | null
         agitationRaw?: number | null
         agitationLevel?: 0 | 1 | 2 | 3 | 4 | 5 | null
+        activityAvailable?: boolean
+        activitySampled?: boolean
+        activityUnavailableReason?: string | null
       } => Boolean(stream.userId && stream.displayName && stream.title && typeof stream.viewerCount === "number" && stream.startedAt)
     )
     .sort((a, b) => b.viewerCount - a.viewerCount)
     .slice(0, top)
 
   let unavailableCount = 0
+  let observedZeroCount = 0
+  let sampledCount = 0
   const withMomentum = baseNodes.map((stream, index) => {
     const previous = previousViewerByStreamer.get(stream.userId) ?? stream.viewerCount
     const momentum = (stream.viewerCount - previous) / Math.max(previous, 20)
+    const activityAvailable = stream.activityAvailable === true
+    const activitySampled = stream.activitySampled !== false
     const commentsPerMin = typeof stream.commentsPerMin === "number" ? stream.commentsPerMin : null
-    if (commentsPerMin === null) unavailableCount += 1
+
+    if (!activityAvailable) unavailableCount += 1
+    if (activitySampled) sampledCount += 1
+    if (activityAvailable && (commentsPerMin ?? 0) === 0) observedZeroCount += 1
 
     return {
       streamerId: stream.userId,
@@ -85,6 +98,9 @@ function toHeatmapNodes(
       commentsPerMin: commentsPerMin ?? 0,
       agitationRaw: typeof stream.agitationRaw === "number" ? stream.agitationRaw : 0,
       agitationLevel: typeof stream.agitationLevel === "number" ? stream.agitationLevel : 0,
+      activityAvailable,
+      activitySampled,
+      activityUnavailableReason: stream.activityUnavailableReason ?? (activityAvailable ? undefined : "activity unavailable"),
       momentum,
       rankViewers: index + 1,
       rankAgitation: 0,
@@ -105,13 +121,16 @@ function toHeatmapNodes(
       rankAgitation: agitationRankById.get(node.streamerId) ?? withMomentum.length,
       rankMomentum: momentumRankById.get(node.streamerId) ?? withMomentum.length
     })),
-    unavailableCount
+    unavailableCount,
+    observedZeroCount,
+    sampledCount
   }
 }
 
 function buildPayload(nodes: HeatmapNode[], updatedAt: string, state: ApiState, note: string): HeatmapPayload {
   const topByMomentum = [...nodes].sort((a, b) => b.momentum - a.momentum)[0]
-  const topByAgitation = [...nodes].sort((a, b) => b.agitationRaw - a.agitationRaw)[0]
+  const availableActivityNodes = nodes.filter((node) => node.activityAvailable)
+  const topByAgitation = [...availableActivityNodes].sort((a, b) => b.agitationRaw - a.agitationRaw)[0]
 
   return {
     ok: true,
@@ -123,7 +142,9 @@ function buildPayload(nodes: HeatmapNode[], updatedAt: string, state: ApiState, 
     summary: {
       activeStreams: nodes.length,
       totalViewers: nodes.reduce((sum, node) => sum + node.viewers, 0),
-      highestAgitationName: topByAgitation?.name ?? "No activity data",
+      highestAgitationName: topByAgitation
+        ? `${topByAgitation.name} (Lv${topByAgitation.agitationLevel})`
+        : "No sampled activity",
       strongestMomentumName: topByMomentum?.name ?? "No live streams"
     },
     nodes
@@ -179,7 +200,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     const latestPayload = JSON.parse(latest.payload_json) as SnapshotPayload
     const previousPayload = previous ? (JSON.parse(previous.payload_json) as SnapshotPayload) : undefined
 
-    const { nodes, unavailableCount } = toHeatmapNodes(
+    const { nodes, unavailableCount, observedZeroCount, sampledCount } = toHeatmapNodes(
       latestPayload.streams,
       getViewerCountByStreamer(previousPayload?.streams),
       latest.collected_at,
@@ -198,11 +219,13 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       hasError: false
     })
 
+    const observedCount = nodes.length - unavailableCount
+    const sampledModeNote = sampledCount > 0 ? `Sampled chat observed for ${observedCount}/${nodes.length} channels.` : "Sampled chat coverage is unavailable."
     const note = allUnavailable
-      ? "Activity unavailable for all channels; viewers and momentum only."
+      ? `${sampledModeNote} Activity unavailable for all channels; viewers and momentum only.`
       : unavailableCount > 0
-        ? `Activity unavailable for ${unavailableCount}/${nodes.length} channels.`
-        : "Activity signal is available from Twitch chat ingest."
+        ? `${sampledModeNote} Activity unavailable for ${unavailableCount}/${nodes.length} channels. ${observedZeroCount > 0 ? `${observedZeroCount} sampled channels were observed with zero activity.` : ""}`.trim()
+        : `${sampledModeNote} ${observedZeroCount > 0 ? `${observedZeroCount} channels were sampled with zero activity.` : "Activity signal is available from Twitch chat ingest."}`.trim()
 
     return json(buildPayload(nodes, latest.collected_at, state, note))
   } catch {

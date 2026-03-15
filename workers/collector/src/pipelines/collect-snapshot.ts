@@ -20,8 +20,10 @@ function clampLevel(value: number): 0 | 1 | 2 | 3 | 4 | 5 {
 }
 
 function computeAgitation(commentsPerMin: number, viewers: number): { agitationRaw: number; agitationLevel: 0 | 1 | 2 | 3 | 4 | 5 } {
-  const scaled = commentsPerMin / Math.sqrt(Math.max(viewers, 25))
-  const level = clampLevel((scaled / 2.4) * 5)
+  const viewerFloor = Math.max(viewers, 20)
+  const normalized = commentsPerMin / (Math.pow(viewerFloor, 0.42) + 1)
+  const scaled = Math.log1p(Math.max(0, normalized) * 1.45) * 3.2
+  const level = clampLevel(scaled)
   return { agitationRaw: Number(scaled.toFixed(3)), agitationLevel: level }
 }
 
@@ -54,19 +56,40 @@ async function getPreviousCommentCountByUserId(db: D1Database): Promise<Map<stri
 function enrichStreamsWithChat(
   streams: TwitchStream[],
   chatByLogin: Map<string, { commentCount: number; commentsPerMin: number }>,
+  observedLogins: Set<string>,
   previousCommentCountByUserId: Map<string, number>,
-  chatAvailable: boolean
+  chatAvailable: boolean,
+  sampled: boolean,
+  unavailableReason?: string
 ): TwitchStream[] {
   return streams.map((stream) => {
     const metrics = chatByLogin.get(stream.login.toLowerCase())
-    if (!chatAvailable || !metrics) {
+    if (!chatAvailable) {
       return {
         ...stream,
         commentCount: null,
         deltaComments: null,
         commentsPerMin: null,
         agitationRaw: null,
-        agitationLevel: null
+        agitationLevel: null,
+        activityAvailable: false,
+        activitySampled: sampled,
+        activityUnavailableReason: unavailableReason ?? "chat unavailable"
+      }
+    }
+
+    if (!metrics) {
+      const observed = observedLogins.has(stream.login.toLowerCase())
+      return {
+        ...stream,
+        commentCount: observed ? 0 : null,
+        deltaComments: observed ? 0 : null,
+        commentsPerMin: observed ? 0 : null,
+        agitationRaw: observed ? 0 : null,
+        agitationLevel: observed ? 0 : null,
+        activityAvailable: observed,
+        activitySampled: sampled,
+        activityUnavailableReason: observed ? null : "not sampled in this window"
       }
     }
 
@@ -80,7 +103,10 @@ function enrichStreamsWithChat(
       deltaComments,
       commentsPerMin: metrics.commentsPerMin,
       agitationRaw: agitation.agitationRaw,
-      agitationLevel: agitation.agitationLevel
+      agitationLevel: agitation.agitationLevel,
+      activityAvailable: true,
+      activitySampled: sampled,
+      activityUnavailableReason: null
     }
   })
 }
@@ -103,8 +129,11 @@ export async function collectSnapshot(env: Env): Promise<void> {
     const streams = enrichStreamsWithChat(
       snapshot.streams,
       chatSnapshot.byLogin,
+      chatSnapshot.observedLogins,
       previousCommentCountByUserId,
-      chatSnapshot.available
+      chatSnapshot.available,
+      chatSnapshot.sampled,
+      chatSnapshot.reason
     )
 
     const totalViewers = streams.reduce((sum, stream) => sum + stream.viewerCount, 0)

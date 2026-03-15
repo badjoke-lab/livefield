@@ -9,6 +9,9 @@ export type HeatmapNode = {
   commentsPerMin: number
   agitationRaw: number
   agitationLevel: 0 | 1 | 2 | 3 | 4 | 5
+  activityAvailable: boolean
+  activitySampled: boolean
+  activityUnavailableReason?: string
   momentum: number
   rankViewers: number
   rankAgitation: number
