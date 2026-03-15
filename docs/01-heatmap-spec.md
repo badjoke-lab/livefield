@@ -642,3 +642,335 @@ Heatmap 画面で使う v2 英語文言は以下の思想で固定する。
 ## 20. この機能の一言定義
 
 **Heatmap is the “Now” view of Twitch Livefield: a live tile field that shows which streams are biggest, rising, and actively reacting right now.**
+
+---
+
+結論から言うと、名前は「treemap」で統一したほうがいいです。
+tile は各ブロックの呼び名として使うのは問題ないですが、画面全体の可視化方式の名前としては弱いです。
+
+TradingView も Heatmap を、セルサイズとセル色の2軸で読む可視化として説明していて、サイズと色を別指標で設定でき、grouping や fullscreen、tooltip、zoom も持っています。つまり本質は「並んだタイル」ではなく、大きさと色で全体を読む treemap/heatmap 系の可視化です。 
+
+なので用語はこう切るのが一番きれいです。
+
+ページ名: Heatmap
+
+可視化方式名: Treemap
+
+各矩形要素: Tile
+
+
+つまり、仕様書では
+「Heatmap page uses a treemap renderer」
+「each stream is rendered as a tile」
+の形が正解です。
+
+「タイル」は間違いか
+
+完全に間違いではないです。
+ただし、可視化方式の名前としては不正確です。
+
+なぜなら、tile だけだと
+
+単なるカード一覧
+
+均等グリッド
+
+masonry 的な並び
+
+
+まで含んでしまうからです。
+一方 treemap は、面積が値に比例し、画面を高密度に埋める階層/面積可視化 という意味がはっきりあります。
+
+今回あなたがやりたいのは明らかに後者なので、
+仕様書では treemap に直したほうがいいです。
+
+画面全体を隙間なく埋めるのは MVP でもマストか
+
+はい、マストです。
+ここは妥協しないほうがいいです。
+
+TradingView の heatmap は、full-size display や fullscreen を前提にしていて、セルサイズと色で一目で全体傾向を見るためのものです。画面がスカスカだと、この本質が壊れます。 
+
+なので MVP でも最低限これが必要です。
+
+container を高密度に埋める
+
+極端に細長い帯を減らす
+
+大きいものは素直に大きく
+
+小さいものは端に圧縮
+
+無駄な余白を減らす
+
+
+ここは「後で改善」ではなく、MVP の成立条件です。
+
+グループとズームはどうするか
+
+グループ
+
+必要です。
+ただ、MVP の初手で必須かというと、no group で先に成立させてもよいです。
+
+TradingView も grouping を持っていますが、stock は sector grouping、no_group も選べます。crypto も dataset や segment を切り替えられます。 
+
+Livefield で将来グループ化するなら候補はこうです。
+
+category / game
+
+language
+
+region
+
+viewer tier
+
+platform event / official vs individual
+
+
+ただし、今の Twitch-only MVP では自然で強いグループ軸がまだ薄いので、
+まずは no_group で正解です。
+ただし、設計はグループ対応前提にしておくべきです。
+
+ズーム
+
+ここはあなたの判断に賛成です。
+ズームは早い段階で必要です。
+
+TradingView の埋め込み設定例にも isZoomEnabled: true と hasSymbolTooltip: true が出ています。つまり、密な heatmap を読む前提で zoom/tooltip が重要機能として入っています。 
+
+Livefield でもズームが早めに必要な理由はまさにあなたの言う通りで、
+
+viewers に忠実に面積を割り当てる
+
+小さい配信を無理に見やすくするために面積を盛らない
+
+その代わり、必要ならズームして読む
+
+
+このほうが正しいです。
+
+なので順番としては、
+
+1. 本物の dense treemap
+
+
+2. クリック/ホイール/ピンチでズーム
+
+
+3. ズーム時の詳細ラベル増加
+
+
+4. その後 grouping
+
+
+
+がいいです。
+
+TradingView を参考にして仕様書末尾に追記すべき機能
+
+そのまま追記しやすい形でまとめます。
+
+
+---
+
+追記候補｜TradingView系 treemap を参考にした Heatmap 拡張方針
+
+1. 用語統一
+
+本ページの正式な可視化方式名は treemap
+
+各矩形要素は tile
+
+「tile」は要素名として使用可だが、画面全体の方式名は treemap に統一する
+
+
+2. Dense treemap packing
+
+Heatmap の本質は、画面全体を高密度に埋める treemap である
+
+MVP 段階でも、無駄な余白を減らし、極端な横長帯を避ける
+
+面積比較が一目で伝わることを最優先とする
+
+単純な行詰めではなく、squarified treemap 等の本物の treemap packing を採用する
+
+
+3. Size と Color の明確な分離
+
+面積 = viewers
+
+色 = momentum
+
+area と color は別指標として扱う
+
+他の補助指標が面積の意味を壊してはならない
+
+
+4. Momentum 色ルール
+
+上昇 = 緑
+
+下降 = 赤
+
+横ばい = 青灰
+
+色の強さは momentum の強さに応じて変える
+
+暗背景でも埋もれないコントラストを確保する
+
+
+5. Activity は補助信号
+
+activity は主役ではなく補助
+
+size や base color を上書きしない
+
+表現手段は小バッジ、発光、微パルス、微振動などに限定する
+
+激しい点滅や大きな移動アニメーションは禁止する
+
+
+6. Activity state の明確な区別
+
+最低限、以下を見分けられること。
+
+observed and active
+
+sampled, no activity
+
+sampled, unavailable
+
+not sampled in this window
+
+
+0 activity と unavailable を同一視しない。
+
+7. Zoom を早期導入対象とする
+
+Heatmap は viewers 比例で素直に面積を割り当てる
+
+小さい配信を無理に大きく見せない
+
+代わりに zoom で詳細閲覧を可能にする
+
+zoom 時はラベル密度や詳細量を増やせるようにする
+
+将来的には wheel / pinch / click-to-zoom / reset zoom / breadcrumb を検討する
+
+
+8. Tooltip / Detail layering
+
+hover または select により詳細情報を表示する
+
+常時すべての情報をタイル上に出さない
+
+大タイルは名前 + viewers
+
+中タイルは短縮ラベル
+
+小タイルは最低限のラベルまたは省略
+
+詳細は tooltip / selected details panel で補う
+
+
+9. 明示リンク導線
+
+各タイルには外部リンク導線を持たせる
+
+タイル本体 = 選択
+
+外部リンクアイコン = 配信へ遷移
+
+details panel にも Open stream を置く
+
+モバイルで誤タップしにくい設計にする
+
+
+10. Fullscreen / focused reading
+
+Heatmap は全体俯瞰が重要なため、fullscreen または広い表示モードとの相性が良い
+
+将来的に fullscreen button を検討対象とする
+
+Heatmap は「一覧ページ」ではなく「全体を一瞬で読む面」として扱う
+
+
+11. Grouping 対応前提の設計
+
+初期は no_group でよい
+
+ただし内部設計は将来の grouping に対応できるようにする
+
+候補:
+
+category / game
+
+language
+
+region
+
+viewer tier
+
+
+grouping 導入後は group 単位で zoom / drill-down できる設計が望ましい
+
+
+12. 表示内容の切替
+
+将来的に以下の切替を検討する。
+
+Top 10 / 20 / 50
+
+active-only / all
+
+viewers emphasis / momentum emphasis
+
+1m / 5m / 10m activity
+
+grouping on/off
+
+
+ただし、MVP では切替を増やしすぎず、主表示のわかりやすさを優先する。
+
+13. Legend の強化
+
+色の意味を簡潔に明示する
+
+緑 / 赤 / 青灰の意味を固定する
+
+activity sampling state も legend で短く説明する
+
+凡例は主表示を邪魔しないサイズに抑える
+
+
+14. Production と Lab の分離
+
+公開 /heatmap は production treemap のみ
+
+比較用 renderer や旧 bubble 版は public 導線から外す
+
+必要なら lab/internal route に退避する
+
+
+
+---
+
+実務上のおすすめ
+
+仕様書には、名前だけでなく最初に一文でこう入れるとブレにくいです。
+
+「Heatmap page is implemented as a production treemap. Each stream is rendered as a tile whose area follows viewers, color follows momentum, and activity is shown only as a secondary signal.」
+
+これで
+
+heatmap
+
+treemap
+
+tile
+
+
+の関係が一発で固定されます。
+
+この追記文をそのまま仕様書末尾に貼れる形で、もっと仕様書トーンに寄せた版に整えることもできます。
