@@ -34,7 +34,11 @@ function applyBounds(viewport: HTMLElement, content: HTMLElement, next: Transfor
   }
 }
 
-export function mountTreemapInteraction(viewport: HTMLElement, content: HTMLElement): TreemapInteractionHandle {
+export function mountTreemapInteraction(
+  viewport: HTMLElement,
+  content: HTMLElement,
+  onTransform?: (transform: { scale: number; tx: number; ty: number }) => void
+): TreemapInteractionHandle {
   let state: Transform = { scale: 1, tx: 0, ty: 0 }
   let dragging = false
   let dragStart = { x: 0, y: 0, tx: 0, ty: 0 }
@@ -50,6 +54,7 @@ export function mountTreemapInteraction(viewport: HTMLElement, content: HTMLElem
   const setState = (next: Transform) => {
     state = applyBounds(viewport, content, next)
     render()
+    onTransform?.(state)
   }
 
   const zoomAt = (targetScale: number, focusX: number, focusY: number) => {
@@ -145,6 +150,7 @@ export function mountTreemapInteraction(viewport: HTMLElement, content: HTMLElem
   window.addEventListener("resize", handleResize)
 
   render()
+  onTransform?.(state)
 
   return {
     zoomIn: () => zoomAt(state.scale + ZOOM_STEP, viewport.clientWidth / 2, viewport.clientHeight / 2),

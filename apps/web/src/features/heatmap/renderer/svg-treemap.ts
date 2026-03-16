@@ -13,6 +13,11 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;")
 }
 
+function abbreviate(value: string, maxLength = 12): string {
+  if (value.length <= maxLength) return value
+  return `${value.slice(0, Math.max(3, maxLength - 1))}…`
+}
+
 function momentumBucket(momentum: number): "rise-3" | "rise-2" | "rise-1" | "fall-3" | "fall-2" | "fall-1" | "flat" {
   if (momentum >= 0.15) return "rise-3"
   if (momentum >= 0.08) return "rise-2"
@@ -25,16 +30,16 @@ function momentumBucket(momentum: number): "rise-3" | "rise-2" | "rise-1" | "fal
 
 function renderLabels(node: HeatmapNode, w: number, h: number): string {
   const area = w * h
-  if (area < 1800) return ""
+  const nameSize = Math.max(10, Math.min(16, Math.sqrt(area) * 0.065))
+  const valueSize = Math.max(9, nameSize - 2)
+  const baseX = 7
+  const baseY = 16
 
-  const nameSize = Math.max(11, Math.min(16, Math.sqrt(area) * 0.065))
-  const valueSize = Math.max(10, nameSize - 2)
-  const baseX = 8
-  const baseY = 18
-
-  const viewers = `${node.viewers.toLocaleString()} viewers`
-  return `<text class="treemap-node__name" x="${baseX}" y="${baseY}" style="font-size:${nameSize.toFixed(1)}px">${escapeHtml(node.name)}</text>
-      ${area > 4200 ? `<text class="treemap-node__viewers" x="${baseX}" y="${(baseY + nameSize + 4).toFixed(1)}" style="font-size:${valueSize.toFixed(1)}px">${escapeHtml(viewers)}</text>` : ""}`
+  return `<g class="treemap-node__labels" data-area="${area.toFixed(2)}">
+      <text class="treemap-node__name treemap-node__name--abbr" x="${baseX}" y="${baseY}" style="font-size:${Math.max(9, nameSize - 1.5).toFixed(1)}px">${escapeHtml(abbreviate(node.name, 10))}</text>
+      <text class="treemap-node__name treemap-node__name--full" x="${baseX}" y="${baseY}" style="font-size:${nameSize.toFixed(1)}px">${escapeHtml(node.name)}</text>
+      <text class="treemap-node__viewers" x="${baseX}" y="${(baseY + nameSize + 4).toFixed(1)}" style="font-size:${valueSize.toFixed(1)}px">${escapeHtml(`${node.viewers.toLocaleString()} viewers`)}</text>
+    </g>`
 }
 
 function renderActivityCue(node: HeatmapNode, w: number, h: number): string {
@@ -62,21 +67,61 @@ function renderActivityCue(node: HeatmapNode, w: number, h: number): string {
 function renderNode(node: HeatmapNode, selectedId: string, rect: { x: number; y: number; w: number; h: number }): string {
   const selected = node.streamerId === selectedId
   const tileClass = `treemap-node treemap-node--${momentumBucket(node.momentum)} treemap-node--${getActivityState(node)}${selected ? " treemap-node--selected" : ""}`
-  const rounded = Math.max(2, Math.min(6, Math.min(rect.w, rect.h) * 0.08))
+  const rounded = Math.max(1.2, Math.min(4, Math.min(rect.w, rect.h) * 0.07))
+  const area = rect.w * rect.h
 
-  const linkSize = Math.max(12, Math.min(20, Math.min(rect.w, rect.h) * 0.22))
+  const linkSize = Math.max(10, Math.min(18, Math.min(rect.w, rect.h) * 0.2))
   const linkX = Math.max(2, rect.w - linkSize - 3)
   const linkY = 3
 
-  return `<g class="${tileClass}" transform="translate(${rect.x.toFixed(3)} ${rect.y.toFixed(3)})">
+  return `<g class="${tileClass}" transform="translate(${rect.x.toFixed(3)} ${rect.y.toFixed(3)})" data-area="${area.toFixed(2)}">
     <rect class="treemap-node__body" data-streamer-id="${escapeHtml(node.streamerId)}" role="button" tabindex="0" aria-label="Select ${escapeHtml(node.name)} tile" width="${rect.w.toFixed(3)}" height="${rect.h.toFixed(3)}" rx="${rounded.toFixed(2)}"></rect>
     ${renderActivityCue(node, rect.w, rect.h)}
     ${renderLabels(node, rect.w, rect.h)}
-    ${rect.w * rect.h > 900 ? `<a class="treemap-node__stream-link" href="${escapeHtml(node.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(node.name)} stream">
+    ${area > 700 ? `<a class="treemap-node__stream-link" href="${escapeHtml(node.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(node.name)} stream">
       <rect class="treemap-node__link-hit" x="${linkX.toFixed(2)}" y="${linkY.toFixed(2)}" width="${linkSize.toFixed(2)}" height="${linkSize.toFixed(2)}" rx="3"></rect>
       <text x="${(linkX + linkSize / 2).toFixed(2)}" y="${(linkY + linkSize / 2 + 4).toFixed(2)}" text-anchor="middle">↗</text>
     </a>` : ""}
   </g>`
+}
+
+function updateLabelVisibility(root: HTMLElement, zoomScale: number): void {
+  const nodeGroups = root.querySelectorAll<SVGGElement>(".treemap-node")
+  nodeGroups.forEach((group) => {
+    const area = Number(group.dataset.area ?? "0")
+    const effectiveArea = area * zoomScale * zoomScale
+    const labels = group.querySelector<SVGGElement>(".treemap-node__labels")
+    if (!labels) return
+
+    const abbr = labels.querySelector<SVGTextElement>(".treemap-node__name--abbr")
+    const full = labels.querySelector<SVGTextElement>(".treemap-node__name--full")
+    const viewers = labels.querySelector<SVGTextElement>(".treemap-node__viewers")
+
+    if (effectiveArea < 1700) {
+      labels.style.display = "none"
+      return
+    }
+
+    labels.style.display = ""
+
+    if (effectiveArea < 5000) {
+      if (abbr) abbr.style.display = ""
+      if (full) full.style.display = "none"
+      if (viewers) viewers.style.display = "none"
+      return
+    }
+
+    if (effectiveArea < 11000) {
+      if (abbr) abbr.style.display = "none"
+      if (full) full.style.display = ""
+      if (viewers) viewers.style.display = "none"
+      return
+    }
+
+    if (abbr) abbr.style.display = "none"
+    if (full) full.style.display = ""
+    if (viewers) viewers.style.display = ""
+  })
 }
 
 export function mountSvgTreemapRenderer(
@@ -122,7 +167,11 @@ export function mountSvgTreemapRenderer(
     })
   })
 
-  const interaction: TreemapInteractionHandle = mountTreemapInteraction(root, surface)
+  const interaction: TreemapInteractionHandle = mountTreemapInteraction(root, surface, (transform) => {
+    updateLabelVisibility(svg, transform.scale)
+  })
+  updateLabelVisibility(svg, 1)
+
   controls.zoomInButton?.addEventListener("click", interaction.zoomIn)
   controls.zoomOutButton?.addEventListener("click", interaction.zoomOut)
   controls.zoomResetButton?.addEventListener("click", interaction.reset)
