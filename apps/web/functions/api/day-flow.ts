@@ -1,4 +1,5 @@
-import { resolveApiState, type ApiState } from "./_shared/state"
+import { resolveApiState } from "./_shared/state"
+import type { DayFlowPayload, DayFlowBandSeries, DayFlowFocusItem } from "../../../../packages/shared/src/types/day-flow"
 
 type Env = {
   DB?: {
@@ -12,65 +13,37 @@ type Env = {
 type SnapshotRow = {
   bucket_minute: string
   collected_at: string
-  covered_pages: number
   has_more: number
   payload_json: string
+  agitation_level?: number | null
+}
+
+type StreamSnapshot = {
+  userId?: string
+  displayName?: string
+  title?: string
+  viewerCount?: number
+  language?: string
 }
 
 type SnapshotPayload = {
-  streams?: Array<{
-    userId?: string
-    displayName?: string
-    title?: string
-    viewerCount?: number
-    startedAt?: string
-    language?: string
-  }>
+  streams?: StreamSnapshot[]
 }
 
-type DayFlowSeries = {
-  streamerId: string
+type StreamAgg = {
+  id: string
   name: string
-  isOthers: boolean
-  color: string
-  totalViewerMinutes: number
+  title: string
+  url: string
   points: number[]
+  totalViewerMinutes: number
+  firstSeenBucket: string | null
+  lastSeenBucket: string | null
 }
 
-type DayFlowPayload = {
-  ok: true
-  source: "api" | "demo"
-  tool: "day-flow"
-  updatedAt: string
-  state: ApiState
-  filters: {
-    day: "today" | "yesterday" | "date"
-    date: string
-    bucketMinutes: 5 | 10
-    top: 10 | 20 | 50
-    metric: "volume" | "share"
-  }
-  summary: {
-    peakLeader: string
-    longestDominance: string
-    hottestWindow: string
-    biggestRise: string
-    activity: string
-  }
-  timeFocus: {
-    selectedTime: string
-    rank1: string
-    rank2: string
-    peakShare: string
-    hottestStream: string
-  }
-  buckets: string[]
-  streams: DayFlowSeries[]
-}
-
-const COLORS = ["#ff8f8f", "#6dd3ff", "#9bff8d", "#f5cb6b", "#be9bff", "#70f5d0", "#ff9bd7"]
-const OTHERS_COLOR = "#8b94a8"
 const DAY_MS = 24 * 60 * 60 * 1000
+const COLORS = ["#7aa2ff", "#4cdfff", "#8cf3c5", "#bd9bff", "#ff9ac6", "#f5cb6b", "#9fb3d8", "#d99fff", "#7df2c8", "#ffc38f"]
+const OTHERS_COLOR = "#77829a"
 
 function normalizeTop(raw: string | null): 10 | 20 | 50 {
   if (raw === "10") return 10
@@ -82,7 +55,7 @@ function normalizeBucket(raw: string | null): 5 | 10 {
   return raw === "10" ? 10 : 5
 }
 
-function normalizeMetric(raw: string | null): "volume" | "share" {
+function normalizeMode(raw: string | null): "volume" | "share" {
   return raw === "share" ? "share" : "volume"
 }
 
@@ -90,7 +63,7 @@ function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
 }
 
-function parseDay(rawDate: string | null, rawDay: string | null): { day: DayFlowPayload["filters"]["day"]; date: Date } {
+function parseDay(rawDate: string | null, rawDay: string | null): { day: "today" | "yesterday" | "date"; date: Date } {
   const now = new Date()
   if (rawDay === "yesterday") {
     return { day: "yesterday", date: new Date(startOfUtcDay(now).getTime() - DAY_MS) }
@@ -106,25 +79,8 @@ function parseDay(rawDate: string | null, rawDay: string | null): { day: DayFlow
   return { day: "today", date: startOfUtcDay(now) }
 }
 
-function isoMinuteLabel(iso: string): string {
-  return iso.slice(11, 16)
-}
-
 function toIsoMinute(date: Date): string {
-  return date.toISOString().slice(0, 16) + ":00.000Z"
-}
-
-function buildBuckets(day: Date, minutes: 5 | 10, now: Date): string[] {
-  const start = startOfUtcDay(day)
-  const end = new Date(start.getTime() + DAY_MS)
-  const isToday = start.getTime() === startOfUtcDay(now).getTime()
-  const limit = isToday ? now : end
-
-  const buckets: string[] = []
-  for (let ts = start.getTime(); ts < limit.getTime(); ts += minutes * 60 * 1000) {
-    buckets.push(toIsoMinute(new Date(ts)))
-  }
-  return buckets
+  return `${date.toISOString().slice(0, 16)}:00.000Z`
 }
 
 function floorToBucket(iso: string, minutes: 5 | 10): string {
@@ -135,78 +91,93 @@ function floorToBucket(iso: string, minutes: 5 | 10): string {
   return toIsoMinute(d)
 }
 
-function buildDemoPayload(filters: DayFlowPayload["filters"]): DayFlowPayload {
-  const buckets = ["00:00", "06:00", "12:00", "18:00", "23:55"].map((hhmm) => `${filters.date}T${hhmm}:00.000Z`)
-  const streams: DayFlowSeries[] = [
-    { streamerId: "demo-a", name: "Stream A", isOthers: false, color: COLORS[0], totalViewerMinutes: 220000, points: [1800, 2200, 3900, 5100, 4200] },
-    { streamerId: "demo-b", name: "Stream B", isOthers: false, color: COLORS[1], totalViewerMinutes: 180000, points: [1200, 1600, 2300, 2600, 2400] },
-    { streamerId: "demo-c", name: "Stream C", isOthers: false, color: COLORS[2], totalViewerMinutes: 130000, points: [900, 1000, 1200, 1700, 1500] },
-    { streamerId: "others", name: "Others", isOthers: true, color: OTHERS_COLOR, totalViewerMinutes: 90000, points: [800, 1100, 1300, 1800, 1600] }
-  ]
-
-  return {
-    ok: true,
-    source: "demo",
-    tool: "day-flow",
-    updatedAt: new Date().toISOString(),
-    state: "demo",
-    filters,
-    summary: {
-      peakLeader: "Stream A",
-      longestDominance: "18:00-23:00",
-      hottestWindow: "20:00 around",
-      biggestRise: "Stream C",
-      activity: "Activity signal unavailable"
-    },
-    timeFocus: {
-      selectedTime: "19:35",
-      rank1: "Stream A",
-      rank2: "Stream B",
-      peakShare: "Stream A",
-      hottestStream: "Activity signal unavailable"
-    },
-    buckets,
-    streams
+function buildBuckets(day: Date, bucketMinutes: 5 | 10): string[] {
+  const start = startOfUtcDay(day)
+  const end = new Date(start.getTime() + DAY_MS)
+  const buckets: string[] = []
+  for (let ts = start.getTime(); ts < end.getTime(); ts += bucketMinutes * 60 * 1000) {
+    buckets.push(toIsoMinute(new Date(ts)))
   }
+  return buckets
 }
 
+function isoMinuteLabel(iso: string | null): string {
+  if (!iso) return "N/A"
+  return iso.slice(11, 16)
+}
 
-function buildEmptyPayload(filters: DayFlowPayload["filters"], updatedAt: string): DayFlowPayload {
-  const now = new Date()
-  const buckets = buildBuckets(new Date(`${filters.date}T00:00:00.000Z`), filters.bucketMinutes, now)
+function buildEmptyPayload(input: {
+  dateScope: "today" | "yesterday" | "date"
+  selectedDate: string
+  bucketSize: 5 | 10
+  topN: 10 | 20 | 50
+  mode: "volume" | "share"
+  updatedAt: string
+}): DayFlowPayload {
+  const buckets = buildBuckets(new Date(`${input.selectedDate}T00:00:00.000Z`), input.bucketSize)
 
   return {
     ok: true,
-    source: "api",
     tool: "day-flow",
-    updatedAt,
+    source: "api",
     state: "empty",
-    filters,
+    status: "empty",
+    note: "No stream snapshots were available for the selected date.",
+    coverageNote: `Top ${input.topN} + Others by daily viewer-minutes`,
+    partialNote: "No activity layer in current Twitch snapshot ingest.",
+    lastUpdated: input.updatedAt,
+    selectedDate: input.selectedDate,
+    bucketSize: input.bucketSize,
+    topN: input.topN,
+    defaultMode: input.mode,
+    dateScope: input.dateScope,
     summary: {
-      peakLeader: "No live streams",
+      peakLeader: "N/A",
       longestDominance: "N/A",
-      hottestWindow: buckets[0] ? isoMinuteLabel(buckets[0]) : "N/A",
-      biggestRise: "N/A",
-      activity: "Activity signal unavailable (Twitch snapshot-only)"
+      highestActivity: "Activity unavailable",
+      biggestRise: "N/A"
     },
-    timeFocus: {
-      selectedTime: buckets[buckets.length - 1] ? isoMinuteLabel(buckets[buckets.length - 1]) : "N/A",
-      rank1: "N/A",
-      rank2: "N/A",
-      peakShare: "N/A",
-      hottestStream: "Activity signal unavailable"
+    timeline: {
+      dayStart: `${input.selectedDate}T00:00:00.000Z`,
+      dayEnd: `${input.selectedDate}T24:00:00.000Z`,
+      nowBucket: null,
+      bucketCount: buckets.length,
+      futureBlankFrom: null
     },
     buckets,
-    streams: [
-      {
-        streamerId: "others",
-        name: "Others",
-        isOthers: true,
-        color: OTHERS_COLOR,
-        totalViewerMinutes: 0,
-        points: new Array(buckets.length).fill(0)
-      }
-    ]
+    totalViewersByBucket: new Array(buckets.length).fill(0),
+    bands: [{
+      streamerId: "others",
+      name: "Others",
+      title: "Grouped remaining streams",
+      url: "",
+      color: OTHERS_COLOR,
+      isOthers: true,
+      order: 0,
+      totalViewerMinutes: 0,
+      peakViewers: 0,
+      avgViewers: 0,
+      peakShare: 0,
+      biggestRiseBucket: null,
+      firstSeen: null,
+      lastSeen: null,
+      activityMax: null,
+      buckets: buckets.map(() => ({ viewers: 0, share: 0, activityAvailable: false, peak: false, rise: false }))
+    }],
+    focusSnapshot: {
+      selectedBucket: null,
+      items: [],
+      strongestMomentum: "N/A",
+      highestActivity: "Activity unavailable"
+    },
+    detailPanelSource: {
+      defaultStreamerId: null,
+      streamers: []
+    },
+    activity: {
+      available: false,
+      note: "Activity unavailable for day-flow MVP: snapshots currently do not provide per-stream activity."
+    }
   }
 }
 
@@ -216,26 +187,101 @@ function json(body: DayFlowPayload): Response {
   })
 }
 
+function toBandSeries(input: {
+  ordered: StreamAgg[]
+  bucketSize: 5 | 10
+  totalByBucket: number[]
+}): DayFlowBandSeries[] {
+  return input.ordered.map((stream, index) => {
+    const peakViewers = stream.points.reduce((best, value) => Math.max(best, value), 0)
+    const avgViewers = stream.points.length ? Math.round(stream.points.reduce((sum, value) => sum + value, 0) / stream.points.length) : 0
+    const peakShare = stream.points.reduce((best, value, idx) => Math.max(best, input.totalByBucket[idx] > 0 ? value / input.totalByBucket[idx] : 0), 0)
+    let biggestRiseBucket: string | null = null
+    let biggestRise = Number.NEGATIVE_INFINITY
+    for (let i = 1; i < stream.points.length; i += 1) {
+      const rise = stream.points[i] - stream.points[i - 1]
+      if (rise > biggestRise) {
+        biggestRise = rise
+        biggestRiseBucket = null
+      }
+    }
+
+    return {
+      streamerId: stream.id,
+      name: stream.name,
+      title: stream.title,
+      url: stream.url,
+      color: stream.id === "others" ? OTHERS_COLOR : COLORS[index % COLORS.length],
+      isOthers: stream.id === "others",
+      order: index,
+      totalViewerMinutes: stream.totalViewerMinutes,
+      peakViewers,
+      avgViewers,
+      peakShare,
+      biggestRiseBucket,
+      firstSeen: stream.firstSeenBucket,
+      lastSeen: stream.lastSeenBucket,
+      activityMax: null,
+      buckets: stream.points.map((viewers, idx) => {
+        const previous = idx > 0 ? stream.points[idx - 1] : viewers
+        const share = input.totalByBucket[idx] > 0 ? viewers / input.totalByBucket[idx] : 0
+        return {
+          viewers,
+          share,
+          activityAvailable: false,
+          peak: viewers === peakViewers && viewers > 0,
+          rise: viewers > previous
+        }
+      })
+    }
+  })
+}
+
+function buildFocusItems(bands: DayFlowBandSeries[], bucketIndex: number): DayFlowFocusItem[] {
+  return bands
+    .filter((band) => !band.isOthers)
+    .map((band) => {
+      const current = band.buckets[bucketIndex] ?? { viewers: 0, share: 0 }
+      const previous = band.buckets[Math.max(0, bucketIndex - 1)] ?? { viewers: 0 }
+      return {
+        streamerId: band.streamerId,
+        name: band.name,
+        viewers: current.viewers,
+        share: current.share,
+        momentum: current.viewers - previous.viewers,
+        activity: null,
+        activityAvailable: false
+      }
+    })
+    .sort((a, b) => b.viewers - a.viewers)
+    .slice(0, 5)
+}
+
 export const onRequest = async (context: { env: Env; request: Request }) => {
   const url = new URL(context.request.url)
-  const parsedDay = parseDay(url.searchParams.get("date"), url.searchParams.get("day"))
-  const filters: DayFlowPayload["filters"] = {
-    day: parsedDay.day,
-    date: startOfUtcDay(parsedDay.date).toISOString().slice(0, 10),
-    bucketMinutes: normalizeBucket(url.searchParams.get("bucket")),
-    top: normalizeTop(url.searchParams.get("top")),
-    metric: normalizeMetric(url.searchParams.get("metric"))
-  }
+  const parsed = parseDay(url.searchParams.get("date"), url.searchParams.get("day"))
+  const selectedDate = startOfUtcDay(parsed.date).toISOString().slice(0, 10)
+  const bucketSize = normalizeBucket(url.searchParams.get("bucket"))
+  const topN = normalizeTop(url.searchParams.get("top"))
+  const mode = normalizeMode(url.searchParams.get("metric"))
 
   const db = context.env.DB
-  if (!db) return json(buildDemoPayload(filters))
+  if (!db) {
+    return json({
+      ...buildEmptyPayload({ dateScope: parsed.day, selectedDate, bucketSize, topN, mode, updatedAt: new Date().toISOString() }),
+      source: "demo",
+      state: "demo",
+      status: "demo",
+      note: "DB unavailable in this environment; returning demo-compatible payload shell."
+    })
+  }
 
-  const dayStart = `${filters.date}T00:00:00.000Z`
-  const dayEnd = `${filters.date}T23:59:59.999Z`
+  const dayStart = `${selectedDate}T00:00:00.000Z`
+  const dayEnd = `${selectedDate}T23:59:59.999Z`
 
   const rows = await db
     .prepare(
-      `SELECT bucket_minute, collected_at, covered_pages, has_more, payload_json
+      `SELECT bucket_minute, collected_at, has_more, payload_json, agitation_level
        FROM minute_snapshots
        WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute <= ?
        ORDER BY bucket_minute ASC`
@@ -243,107 +289,183 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     .bind(dayStart, dayEnd)
     .all()
 
-  if (!rows.results.length) return json(buildEmptyPayload(filters, new Date().toISOString()))
-
-  try {
-    const now = new Date()
-    const buckets = buildBuckets(new Date(`${filters.date}T00:00:00.000Z`), filters.bucketMinutes, now)
-    const bucketIndex = new Map(buckets.map((b, i) => [b, i]))
-
-    const streamNameById = new Map<string, string>()
-    const totalsById = new Map<string, number>()
-    const pointsById = new Map<string, number[]>()
-    const totalByBucket = new Array(buckets.length).fill(0)
-
-    for (const row of rows.results) {
-      const bucketIso = floorToBucket(row.bucket_minute, filters.bucketMinutes)
-      const idx = bucketIndex.get(bucketIso)
-      if (idx === undefined) continue
-
-      const payload = JSON.parse(row.payload_json) as SnapshotPayload
-      for (const stream of payload.streams ?? []) {
-        if (!stream.userId || !stream.displayName || typeof stream.viewerCount !== "number") continue
-        if (stream.language && stream.language !== "en") continue
-
-        streamNameById.set(stream.userId, stream.displayName)
-        totalByBucket[idx] += stream.viewerCount
-        totalsById.set(stream.userId, (totalsById.get(stream.userId) ?? 0) + stream.viewerCount * filters.bucketMinutes)
-
-        const points = pointsById.get(stream.userId) ?? new Array(buckets.length).fill(0)
-        points[idx] += stream.viewerCount
-        pointsById.set(stream.userId, points)
-      }
-    }
-
-    const sortedIds = [...totalsById.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id)
-    if (!sortedIds.length) return json(buildEmptyPayload(filters, rows.results[rows.results.length - 1]?.collected_at ?? new Date().toISOString()))
-    const topIds = sortedIds.slice(0, filters.top)
-
-    const streams: DayFlowSeries[] = topIds.map((id, i) => ({
-      streamerId: id,
-      name: streamNameById.get(id) ?? id,
-      isOthers: false,
-      color: COLORS[i % COLORS.length],
-      totalViewerMinutes: totalsById.get(id) ?? 0,
-      points: pointsById.get(id) ?? new Array(buckets.length).fill(0)
+  if (!rows.results.length) {
+    return json(buildEmptyPayload({
+      dateScope: parsed.day,
+      selectedDate,
+      bucketSize,
+      topN,
+      mode,
+      updatedAt: new Date().toISOString()
     }))
-
-    const othersPoints = totalByBucket.map((bucketTotal, idx) => {
-      const topTotal = streams.reduce((sum, stream) => sum + (stream.points[idx] ?? 0), 0)
-      return Math.max(0, bucketTotal - topTotal)
-    })
-    const othersTotal = othersPoints.reduce((sum, value) => sum + value * filters.bucketMinutes, 0)
-
-    streams.push({
-      streamerId: "others",
-      name: "Others",
-      isOthers: true,
-      color: OTHERS_COLOR,
-      totalViewerMinutes: othersTotal,
-      points: othersPoints
-    })
-
-    const peakIndex = totalByBucket.reduce((best, value, idx, arr) => (value > arr[best] ? idx : best), 0)
-    const finalIndex = Math.max(0, buckets.length - 1)
-    const rankedNow = [...streams]
-      .filter((stream) => !stream.isOthers)
-      .sort((a, b) => (b.points[finalIndex] ?? 0) - (a.points[finalIndex] ?? 0))
-
-    const leader = sortedIds[0] ? streamNameById.get(sortedIds[0]) ?? sortedIds[0] : "No live streams"
-    const minutesSinceLatest = Math.floor((Date.now() - new Date(rows.results[rows.results.length - 1]?.collected_at ?? Date.now()).getTime()) / 60_000)
-    const state = resolveApiState({
-      source: "api",
-      hasSnapshot: true,
-      isFresh: filters.day === "today" ? minutesSinceLatest <= 2 : true,
-      isPartial: rows.results.some((row) => row.has_more === 1),
-      hasError: false
-    })
-
-    return json({
-      ok: true,
-      source: "api",
-      tool: "day-flow",
-      updatedAt: rows.results[rows.results.length - 1]?.collected_at ?? new Date().toISOString(),
-      state,
-      filters,
-      summary: {
-        peakLeader: leader,
-        longestDominance: leader,
-        hottestWindow: buckets[peakIndex] ? isoMinuteLabel(buckets[peakIndex]) : "N/A",
-        biggestRise: rankedNow[0]?.name ?? "N/A",
-        activity: "Activity signal unavailable (Twitch snapshot-only)"
-      },
-      timeFocus: {
-        selectedTime: buckets[finalIndex] ? isoMinuteLabel(buckets[finalIndex]) : "N/A",
-        rank1: rankedNow[0]?.name ?? "N/A",
-        rank2: rankedNow[1]?.name ?? "N/A",
-        peakShare: leader,
-        hottestStream: "Activity signal unavailable"
-      },
-      buckets,
-      streams
-    })
-  } catch {
-    return json(buildDemoPayload(filters))
   }
+
+  const buckets = buildBuckets(new Date(`${selectedDate}T00:00:00.000Z`), bucketSize)
+  const bucketIndexByIso = new Map(buckets.map((bucket, index) => [bucket, index]))
+  const streamAggById = new Map<string, StreamAgg>()
+  const totalByBucket = new Array<number>(buckets.length).fill(0)
+
+  for (const row of rows.results) {
+    const bucketIso = floorToBucket(row.bucket_minute, bucketSize)
+    const bucketIndex = bucketIndexByIso.get(bucketIso)
+    if (bucketIndex === undefined) continue
+
+    const payload = JSON.parse(row.payload_json) as SnapshotPayload
+    for (const stream of payload.streams ?? []) {
+      if (!stream.userId || !stream.displayName || typeof stream.viewerCount !== "number") continue
+      if (stream.language && stream.language !== "en") continue
+
+      let agg = streamAggById.get(stream.userId)
+      if (!agg) {
+        agg = {
+          id: stream.userId,
+          name: stream.displayName,
+          title: stream.title ?? "",
+          url: `https://www.twitch.tv/${stream.displayName}`,
+          points: new Array<number>(buckets.length).fill(0),
+          totalViewerMinutes: 0,
+          firstSeenBucket: bucketIso,
+          lastSeenBucket: bucketIso
+        }
+        streamAggById.set(stream.userId, agg)
+      }
+
+      agg.name = stream.displayName
+      agg.title = stream.title ?? agg.title
+      agg.points[bucketIndex] += stream.viewerCount
+      agg.totalViewerMinutes += stream.viewerCount * bucketSize
+      agg.firstSeenBucket = agg.firstSeenBucket ? (agg.firstSeenBucket < bucketIso ? agg.firstSeenBucket : bucketIso) : bucketIso
+      agg.lastSeenBucket = agg.lastSeenBucket ? (agg.lastSeenBucket > bucketIso ? agg.lastSeenBucket : bucketIso) : bucketIso
+      totalByBucket[bucketIndex] += stream.viewerCount
+    }
+  }
+
+  const ordered = [...streamAggById.values()].sort((a, b) => b.totalViewerMinutes - a.totalViewerMinutes)
+  if (!ordered.length) {
+    return json(buildEmptyPayload({ dateScope: parsed.day, selectedDate, bucketSize, topN, mode, updatedAt: rows.results.at(-1)?.collected_at ?? new Date().toISOString() }))
+  }
+
+  const topStreams = ordered.slice(0, topN)
+  const others = ordered.slice(topN)
+  const othersPoints = new Array<number>(buckets.length).fill(0)
+  for (const stream of others) {
+    for (let i = 0; i < stream.points.length; i += 1) {
+      othersPoints[i] += stream.points[i]
+    }
+  }
+
+  const topTotals = topStreams.reduce((sum, s) => sum + s.totalViewerMinutes, 0)
+  const othersTotalViewerMinutes = ordered.reduce((sum, s) => sum + s.totalViewerMinutes, 0) - topTotals
+  const withOthers: StreamAgg[] = [
+    ...topStreams,
+    {
+      id: "others",
+      name: "Others",
+      title: "Grouped remaining streams",
+      url: "",
+      points: othersPoints,
+      totalViewerMinutes: Math.max(0, othersTotalViewerMinutes),
+      firstSeenBucket: rows.results[0]?.bucket_minute ?? null,
+      lastSeenBucket: rows.results.at(-1)?.bucket_minute ?? null
+    }
+  ]
+
+  const bands = toBandSeries({ ordered: withOthers, bucketSize, totalByBucket })
+  const latestCollectedAt = rows.results.at(-1)?.collected_at ?? new Date().toISOString()
+  const nowBucketIso = floorToBucket(latestCollectedAt, bucketSize)
+  const currentBucketIndex = Math.max(0, bucketIndexByIso.get(nowBucketIso) ?? (buckets.length - 1))
+  const focusItems = buildFocusItems(bands, currentBucketIndex)
+
+  const leaderBand = bands.filter((b) => !b.isOthers)[0]
+  const biggestRiseBand = [...bands].filter((b) => !b.isOthers).sort((a, b) => {
+    const aRise = a.buckets.reduce((best, bucket, idx, arr) => Math.max(best, idx > 0 ? bucket.viewers - arr[idx - 1].viewers : 0), 0)
+    const bRise = b.buckets.reduce((best, bucket, idx, arr) => Math.max(best, idx > 0 ? bucket.viewers - arr[idx - 1].viewers : 0), 0)
+    return bRise - aRise
+  })[0]
+
+  const dominanceCounts = new Map<string, number>()
+  for (let i = 0; i < buckets.length; i += 1) {
+    const leader = bands
+      .filter((b) => !b.isOthers)
+      .map((b) => ({ id: b.streamerId, name: b.name, viewers: b.buckets[i]?.viewers ?? 0 }))
+      .sort((a, b) => b.viewers - a.viewers)[0]
+    if (leader && leader.viewers > 0) {
+      dominanceCounts.set(leader.name, (dominanceCounts.get(leader.name) ?? 0) + 1)
+    }
+  }
+  const longestDominance = [...dominanceCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "N/A"
+
+  const minutesSinceLatest = Math.floor((Date.now() - new Date(latestCollectedAt).getTime()) / 60_000)
+  const baseState = resolveApiState({
+    source: "api",
+    hasSnapshot: true,
+    isFresh: parsed.day === "today" ? minutesSinceLatest <= 2 : true,
+    isPartial: rows.results.some((r) => r.has_more === 1),
+    hasError: false
+  })
+  const state: DayFlowPayload["state"] = baseState === "stale" ? "partial" : baseState
+  const status: DayFlowPayload["status"] = state === "live" ? "live-today" : state
+
+  return json({
+    ok: true,
+    tool: "day-flow",
+    source: "api",
+    state,
+    status,
+    note: state === "partial" ? "Coverage or freshness is partial for selected date." : undefined,
+    coverageNote: `Top ${topN} + Others by daily viewer-minutes`,
+    degradationNote: "Activity overlay is intentionally disabled in MVP until per-stream activity is fully wired.",
+    partialNote: rows.results.some((r) => r.has_more === 1) ? "Collector reported partial page coverage in one or more buckets." : undefined,
+    lastUpdated: latestCollectedAt,
+    selectedDate,
+    bucketSize,
+    topN,
+    defaultMode: mode,
+    dateScope: parsed.day,
+    summary: {
+      peakLeader: leaderBand?.name ?? "N/A",
+      longestDominance,
+      highestActivity: "Activity unavailable",
+      biggestRise: biggestRiseBand?.name ?? "N/A"
+    },
+    timeline: {
+      dayStart,
+      dayEnd: `${selectedDate}T24:00:00.000Z`,
+      nowBucket: parsed.day === "today" ? nowBucketIso : null,
+      bucketCount: buckets.length,
+      futureBlankFrom: parsed.day === "today" ? nowBucketIso : null
+    },
+    buckets,
+    totalViewersByBucket: totalByBucket,
+    bands,
+    focusSnapshot: {
+      selectedBucket: buckets[currentBucketIndex] ?? null,
+      items: focusItems,
+      strongestMomentum: focusItems.sort((a, b) => b.momentum - a.momentum)[0]?.name ?? "N/A",
+      highestActivity: "Activity unavailable"
+    },
+    detailPanelSource: {
+      defaultStreamerId: bands.find((b) => !b.isOthers)?.streamerId ?? null,
+      streamers: bands
+        .filter((band) => !band.isOthers)
+        .map((band) => ({
+          streamerId: band.streamerId,
+          name: band.name,
+          title: band.title,
+          url: band.url,
+          peakViewers: band.peakViewers,
+          avgViewers: band.avgViewers,
+          viewerMinutes: band.totalViewerMinutes,
+          peakShare: band.peakShare,
+          highestActivity: null,
+          biggestRiseTime: band.biggestRiseBucket,
+          firstSeen: band.firstSeen,
+          lastSeen: band.lastSeen
+        }))
+    },
+    activity: {
+      available: false,
+      note: "Activity unavailable for day-flow MVP: snapshots currently do not provide per-stream activity."
+    }
+  })
 }

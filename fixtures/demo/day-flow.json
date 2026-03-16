@@ -1,0 +1,87 @@
+{
+  "ok": true,
+  "tool": "day-flow",
+  "source": "demo",
+  "state": "demo",
+  "status": "demo",
+  "coverageNote": "Top 20 + Others by daily viewer-minutes",
+  "lastUpdated": "2026-01-01T00:00:00.000Z",
+  "selectedDate": "2026-01-01",
+  "bucketSize": 5,
+  "topN": 20,
+  "defaultMode": "volume",
+  "dateScope": "today",
+  "summary": {
+    "peakLeader": "Demo A",
+    "longestDominance": "Demo A",
+    "highestActivity": "Activity unavailable",
+    "biggestRise": "Demo B"
+  },
+  "timeline": {
+    "dayStart": "2026-01-01T00:00:00.000Z",
+    "dayEnd": "2026-01-01T24:00:00.000Z",
+    "nowBucket": "2026-01-01T00:00:00.000Z",
+    "bucketCount": 2,
+    "futureBlankFrom": null
+  },
+  "buckets": ["2026-01-01T00:00:00.000Z", "2026-01-01T00:05:00.000Z"],
+  "totalViewersByBucket": [150, 170],
+  "bands": [
+    {
+      "streamerId": "demo-a",
+      "name": "Demo A",
+      "title": "Demo",
+      "url": "https://www.twitch.tv/demoa",
+      "color": "#7aa2ff",
+      "isOthers": false,
+      "order": 0,
+      "totalViewerMinutes": 700,
+      "peakViewers": 90,
+      "avgViewers": 85,
+      "peakShare": 0.58,
+      "biggestRiseBucket": null,
+      "firstSeen": "2026-01-01T00:00:00.000Z",
+      "lastSeen": "2026-01-01T00:05:00.000Z",
+      "activityMax": null,
+      "buckets": [
+        { "viewers": 80, "share": 0.53, "activityAvailable": false, "peak": false, "rise": false },
+        { "viewers": 90, "share": 0.52, "activityAvailable": false, "peak": true, "rise": true }
+      ]
+    },
+    {
+      "streamerId": "others",
+      "name": "Others",
+      "title": "Grouped remaining streams",
+      "url": "",
+      "color": "#77829a",
+      "isOthers": true,
+      "order": 1,
+      "totalViewerMinutes": 500,
+      "peakViewers": 80,
+      "avgViewers": 75,
+      "peakShare": 0.47,
+      "biggestRiseBucket": null,
+      "firstSeen": "2026-01-01T00:00:00.000Z",
+      "lastSeen": "2026-01-01T00:05:00.000Z",
+      "activityMax": null,
+      "buckets": [
+        { "viewers": 70, "share": 0.47, "activityAvailable": false, "peak": false, "rise": false },
+        { "viewers": 80, "share": 0.48, "activityAvailable": false, "peak": true, "rise": true }
+      ]
+    }
+  ],
+  "focusSnapshot": {
+    "selectedBucket": "2026-01-01T00:05:00.000Z",
+    "items": [],
+    "strongestMomentum": "Demo A",
+    "highestActivity": "Activity unavailable"
+  },
+  "detailPanelSource": {
+    "defaultStreamerId": "demo-a",
+    "streamers": []
+  },
+  "activity": {
+    "available": false,
+    "note": "Activity unavailable"
+  }
+}
