@@ -103,7 +103,7 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
 
   const draw = () => {
     const { ctx, width, height } = host.get()
-    const pad = { left: 44, right: 16, top: 20, bottom: 34 }
+    const pad = { left: 44, right: 12, top: 16, bottom: 30 }
     const chartW = Math.max(1, width - pad.left - pad.right)
     const chartH = Math.max(1, height - pad.top - pad.bottom)
     const { selectedBucket, selectedStreamerId, mode, isolate } = getState()
@@ -223,18 +223,18 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
 
     if (payload.dateScope === "today" && futureStart < payload.buckets.length) {
       const blankStartX = pad.left + (futureStart / Math.max(1, payload.buckets.length - 1)) * chartW
-      ctx.fillStyle = "rgba(8, 11, 19, 0.34)"
+      ctx.fillStyle = "rgba(8, 11, 19, 0.2)"
       ctx.fillRect(blankStartX, pad.top, pad.left + chartW - blankStartX, chartH)
-      ctx.strokeStyle = "rgba(255,255,255,0.14)"
+      ctx.strokeStyle = "rgba(255,255,255,0.1)"
       ctx.beginPath()
       ctx.moveTo(blankStartX, pad.top)
       ctx.lineTo(blankStartX, pad.top + chartH)
       ctx.stroke()
-      ctx.fillStyle = "#7f8db2"
+      ctx.fillStyle = "#6f7d9f"
       ctx.fillText("Future (blank)", blankStartX + 6, pad.top + 16)
-      ctx.fillStyle = "#9ed6ff"
+      ctx.fillStyle = "#b4d9ff"
       ctx.fillRect(blankStartX - 1, pad.top, 2, chartH)
-      ctx.fillStyle = "#d9e8ff"
+      ctx.fillStyle = "#dff0ff"
       ctx.fillText("NOW", blankStartX + 6, pad.top + 32)
     }
   }
@@ -267,8 +267,10 @@ function renderStateNote(payload: DayFlowPayload): string {
   const expanded = payload.state === "error" || payload.state === "empty"
   return `
     <section class="card dayflow-state-card ${expanded ? "dayflow-state-card--expanded" : ""}">
-      <h2>Data state</h2>
-      <div class="status-chip" data-state="${payload.state}">${payload.status}</div>
+      <div class="dayflow-state-head">
+        <h2>Data state</h2>
+        <div class="status-chip" data-state="${payload.state}">${payload.status}</div>
+      </div>
       <p class="muted">${payload.note ?? "Live data render from API day rollup."}</p>
       <ul class="dayflow-notes">
         <li>${payload.coverageNote}</li>
@@ -281,8 +283,10 @@ function renderStateNote(payload: DayFlowPayload): string {
 
 function renderFrame(payload: DayFlowPayload): string {
   return `
-    ${renderSummary(payload)}
-    ${renderStateNote(payload)}
+    <section class="dayflow-meta-row page-section">
+      ${renderSummary(payload)}
+      ${renderStateNote(payload)}
+    </section>
     <section class="grid-2 page-section dayflow-layout">
       <section class="card dayflow-main-card">
         <div class="dayflow-main-head">
@@ -405,7 +409,6 @@ function renderDetailCard(payload: DayFlowPayload, streamerId: string | null, is
       <button class="action action-toggle" type="button" id="dayflow-highlight">${isolate ? "Highlight only" : "Show all"}</button>
       <a class="action" href="${detail.url}" target="_blank" rel="noreferrer">Open stream</a>
       <button class="action action-toggle" type="button" id="dayflow-isolate">${isolate ? "Dim others: on" : "Dim others: off"}</button>
-      <a class="action" href="/battle-lines/">Jump to Battle Lines</a>
     </div>
   `
 }
@@ -579,7 +582,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
     ${renderHero({
       eyebrow: "TODAY",
       title: "Day Flow",
-      subtitle: "Read who owned today, hour by hour.",
+      subtitle: "Read today’s ownership landscape, hour by hour.",
       note: "Real-data path active · Today default · 5m buckets · Top 20 + Others.",
       actions: [
         { href: "/heatmap/", label: "Heatmap" },

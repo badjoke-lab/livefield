@@ -1319,14 +1319,14 @@
 }
 
 .dayflow-page .hero p {
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .controls--dayflow {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  margin: 10px 0 12px;
+  margin: 6px 0 10px;
 }
 
 .controls-group {
@@ -1352,12 +1352,12 @@
 
 .summary-strip--dayflow {
   gap: 8px;
-  margin: 10px 0;
+  margin: 0;
 }
 
 .summary-strip--dayflow .summary-item {
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: rgba(15, 23, 41, 0.85);
 }
 
@@ -1366,12 +1366,21 @@
 }
 
 .summary-strip--dayflow .summary-item strong {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   font-size: 12px;
+}
+
+.dayflow-meta-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.8fr);
+  gap: 10px;
+  align-items: start;
+  margin: 8px 0;
 }
 
 .dayflow-layout {
   align-items: start;
+  margin-top: 6px;
 }
 
 .dayflow-layout .card {
@@ -1379,7 +1388,7 @@
 }
 
 .dayflow-main-card {
-  padding: 14px;
+  padding: 12px;
 }
 
 .dayflow-main-head h2 {
@@ -1388,28 +1397,28 @@
 
 .dayflow-main-head .muted {
   margin-top: 0;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .dayflow-main-kv {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 .dayflow-main-kv .kv-row {
   display: block;
-  padding: 6px 8px;
+  padding: 4px 7px;
   border: 1px solid rgba(122, 162, 255, 0.1);
   border-radius: 10px;
 }
 
 .dayflow-main-kv .kv-row span {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .muted-strong {
@@ -1425,7 +1434,8 @@
 
 .dayflow-canvas {
   width: 100%;
-  height: 560px;
+  height: min(72vh, 760px);
+  min-height: 620px;
   border-radius: 14px;
   display: block;
   border: 0;
@@ -1434,7 +1444,7 @@
 }
 
 .dayflow-time-wrap {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .dayflow-time-label {
@@ -1449,18 +1459,26 @@
 }
 
 .dayflow-state-card {
-  margin-top: 4px;
-  padding: 12px 14px;
+  margin-top: 0;
+  padding: 10px 12px;
   background: rgba(14, 20, 36, 0.58);
 }
 
+.dayflow-state-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .dayflow-state-card h2 {
-  margin-bottom: 8px;
+  margin-bottom: 0;
   font-size: 14px;
 }
 
 .dayflow-state-card .muted {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
+  line-height: 1.45;
 }
 
 .dayflow-state-card--expanded {
@@ -1468,19 +1486,23 @@
 }
 
 .dayflow-notes {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   padding-left: 16px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .dayflow-side {
-  gap: 10px;
+  gap: 8px;
 }
 
 .dayflow-side .card {
-  padding: 14px;
+  padding: 10px 11px;
   background: rgba(15, 23, 42, 0.78);
+}
+
+.dayflow-side h2 {
+  margin-bottom: 8px;
 }
 
 .dayflow-transient-note {
@@ -1505,7 +1527,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 6px;
+  padding: 3px 5px;
   border-radius: 8px;
 }
 
@@ -1556,8 +1578,16 @@
 }
 
 @media (max-width: 1100px) {
+  .dayflow-meta-row {
+    grid-template-columns: 1fr;
+  }
+
   .dayflow-main-kv {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dayflow-canvas {
+    min-height: 560px;
   }
 }
 
@@ -1577,11 +1607,11 @@
 
 @media (max-width: 760px) {
   .dayflow-page .hero {
-    padding: 14px;
+    padding: 10px 12px;
   }
 
   .controls--dayflow {
-    margin: 8px 0;
+    margin: 6px 0;
   }
 
   .controls-group {
@@ -1596,7 +1626,8 @@
   }
 
   .dayflow-canvas {
-    height: 360px;
+    height: min(64vh, 500px);
+    min-height: 420px;
   }
 }
 
