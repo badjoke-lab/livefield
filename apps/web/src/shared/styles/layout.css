@@ -54,3 +54,23 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 760px) {
+  .topbar {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .topbar__nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    width: 100%;
+    justify-content: flex-start;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .topbar__nav .nav-link {
+    white-space: nowrap;
+  }
+}

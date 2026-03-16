@@ -12,6 +12,9 @@ export type TreemapInteractionHandle = {
   zoomIn: () => void
   zoomOut: () => void
   reset: () => void
+  focus: () => void
+  blur: () => void
+  isFocused: () => boolean
   destroy: () => void
 }
 
@@ -37,10 +40,12 @@ function applyBounds(viewport: HTMLElement, content: HTMLElement, next: Transfor
 export function mountTreemapInteraction(
   viewport: HTMLElement,
   content: HTMLElement,
-  onTransform?: (transform: { scale: number; tx: number; ty: number }) => void
+  onTransform?: (transform: { scale: number; tx: number; ty: number }) => void,
+  onFocusChange?: (focused: boolean) => void
 ): TreemapInteractionHandle {
   let state: Transform = { scale: 1, tx: 0, ty: 0 }
   let dragging = false
+  let focused = false
   let dragStart = { x: 0, y: 0, tx: 0, ty: 0 }
 
   const pointers = new Map<number, { x: number; y: number }>()
@@ -57,6 +62,12 @@ export function mountTreemapInteraction(
     onTransform?.(state)
   }
 
+  const setFocused = (next: boolean) => {
+    focused = next
+    viewport.dataset.focused = next ? "on" : "off"
+    onFocusChange?.(next)
+  }
+
   const zoomAt = (targetScale: number, focusX: number, focusY: number) => {
     const scale = clamp(targetScale, MIN_SCALE, MAX_SCALE)
     const ratio = scale / state.scale
@@ -69,6 +80,7 @@ export function mountTreemapInteraction(
   }
 
   const handleWheel = (event: WheelEvent) => {
+    if (!focused && !event.ctrlKey && !event.metaKey) return
     event.preventDefault()
     const rect = viewport.getBoundingClientRect()
     const focusX = event.clientX - rect.left
@@ -102,7 +114,7 @@ export function mountTreemapInteraction(
       return
     }
 
-    if (state.scale <= 1) return
+    if (!focused || state.scale <= 1) return
     dragging = true
     dragStart = { x: event.clientX, y: event.clientY, tx: state.tx, ty: state.ty }
     viewport.setPointerCapture(event.pointerId)
@@ -142,13 +154,30 @@ export function mountTreemapInteraction(
 
   const handleResize = () => setState(state)
 
+  const handleDocumentPointerDown = (event: PointerEvent) => {
+    if (!focused) return
+    if (!viewport.contains(event.target as Node)) {
+      stopDragging()
+      setFocused(false)
+    }
+  }
+
+  const handleKeydown = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || !focused) return
+    stopDragging()
+    setFocused(false)
+  }
+
   viewport.addEventListener("wheel", handleWheel, { passive: false })
   viewport.addEventListener("pointerdown", handlePointerDown)
   viewport.addEventListener("pointermove", handlePointerMove)
   viewport.addEventListener("pointerup", stopDragging)
   viewport.addEventListener("pointercancel", stopDragging)
+  document.addEventListener("pointerdown", handleDocumentPointerDown)
+  window.addEventListener("keydown", handleKeydown)
   window.addEventListener("resize", handleResize)
 
+  setFocused(false)
   render()
   onTransform?.(state)
 
@@ -156,14 +185,23 @@ export function mountTreemapInteraction(
     zoomIn: () => zoomAt(state.scale + ZOOM_STEP, viewport.clientWidth / 2, viewport.clientHeight / 2),
     zoomOut: () => zoomAt(state.scale - ZOOM_STEP, viewport.clientWidth / 2, viewport.clientHeight / 2),
     reset: () => setState({ scale: 1, tx: 0, ty: 0 }),
+    focus: () => setFocused(true),
+    blur: () => {
+      stopDragging()
+      setFocused(false)
+    },
+    isFocused: () => focused,
     destroy: () => {
       window.removeEventListener("resize", handleResize)
+      window.removeEventListener("keydown", handleKeydown)
+      document.removeEventListener("pointerdown", handleDocumentPointerDown)
       viewport.removeEventListener("wheel", handleWheel)
       viewport.removeEventListener("pointerdown", handlePointerDown)
       viewport.removeEventListener("pointermove", handlePointerMove)
       viewport.removeEventListener("pointerup", stopDragging)
       viewport.removeEventListener("pointercancel", stopDragging)
       viewport.dataset.dragging = "off"
+      viewport.dataset.focused = "off"
     }
   }
 }

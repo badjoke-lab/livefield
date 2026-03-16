@@ -129,7 +129,13 @@ export function mountSvgTreemapRenderer(
   nodes: HeatmapNode[],
   selectedId: string,
   onSelect: (nextId: string) => void,
-  controls: { zoomInButton?: HTMLButtonElement | null; zoomOutButton?: HTMLButtonElement | null; zoomResetButton?: HTMLButtonElement | null } = {}
+  controls: {
+    zoomInButton?: HTMLButtonElement | null
+    zoomOutButton?: HTMLButtonElement | null
+    zoomResetButton?: HTMLButtonElement | null
+    focusButton?: HTMLButtonElement | null
+    focusStatus?: HTMLElement | null
+  } = {}
 ): () => void {
   const sorted = [...nodes].sort((a, b) => b.viewers - a.viewers)
   const bounds = { x: 0, y: 0, w: 1000, h: 620 }
@@ -167,19 +173,52 @@ export function mountSvgTreemapRenderer(
     })
   })
 
-  const interaction: TreemapInteractionHandle = mountTreemapInteraction(root, surface, (transform) => {
-    updateLabelVisibility(svg, transform.scale)
-  })
+  const applyFocusUi = (focused: boolean) => {
+    root.dataset.focused = focused ? "on" : "off"
+    controls.focusButton?.setAttribute("aria-pressed", focused ? "true" : "false")
+    if (controls.focusButton) controls.focusButton.textContent = focused ? "Exit map focus" : "Focus map"
+    if (controls.focusStatus) {
+      controls.focusStatus.textContent = focused ? "Map focus: ON (wheel zoom + drag pan, Esc to exit)" : "Map focus: OFF (wheel scrolls page)"
+    }
+  }
+
+  const interaction: TreemapInteractionHandle = mountTreemapInteraction(
+    root,
+    surface,
+    (transform) => {
+      updateLabelVisibility(svg, transform.scale)
+    },
+    (focused) => applyFocusUi(focused)
+  )
   updateLabelVisibility(svg, 1)
+
+  const handleStageFocus = (event: PointerEvent) => {
+    const target = event.target as Element | null
+    const tile = target?.closest("[data-streamer-id], a.treemap-node__stream-link")
+    if (!tile) {
+      interaction.focus()
+    }
+  }
+
+  const handleFocusButton = () => {
+    if (interaction.isFocused()) interaction.blur()
+    else interaction.focus()
+  }
 
   controls.zoomInButton?.addEventListener("click", interaction.zoomIn)
   controls.zoomOutButton?.addEventListener("click", interaction.zoomOut)
   controls.zoomResetButton?.addEventListener("click", interaction.reset)
+  controls.focusButton?.addEventListener("click", handleFocusButton)
+  root.addEventListener("pointerdown", handleStageFocus)
+
+  applyFocusUi(interaction.isFocused())
 
   return () => {
     controls.zoomInButton?.removeEventListener("click", interaction.zoomIn)
     controls.zoomOutButton?.removeEventListener("click", interaction.zoomOut)
     controls.zoomResetButton?.removeEventListener("click", interaction.reset)
+    controls.focusButton?.removeEventListener("click", handleFocusButton)
+    root.removeEventListener("pointerdown", handleStageFocus)
     interaction.destroy()
   }
 }
