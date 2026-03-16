@@ -1,13 +1,8 @@
 import type { HeatmapNode } from "../../../../../packages/shared/src/types/heatmap"
 import { readAnimationEnabled } from "../../../shared/runtime/animation-mode"
 import { getActivityState } from "../activity-state"
-
-type Rect = { x: number; y: number; w: number; h: number }
-
-type TileCell = {
-  node: HeatmapNode
-  rect: Rect
-}
+import { computeSquarifiedTreemap } from "./layout"
+import { mountTreemapInteraction, type TreemapInteractionHandle } from "./interaction"
 
 function escapeHtml(value: string): string {
   return value
@@ -16,41 +11,6 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;")
-}
-
-function layoutTreemap(nodes: HeatmapNode[], rect: Rect): TileCell[] {
-  if (nodes.length === 0) return []
-  if (nodes.length === 1) return [{ node: nodes[0], rect }]
-
-  const total = nodes.reduce((sum, node) => sum + Math.max(node.viewers, 1), 0)
-  const half = total / 2
-  let running = 0
-  let splitIndex = 1
-
-  for (let i = 0; i < nodes.length; i += 1) {
-    running += Math.max(nodes[i].viewers, 1)
-    splitIndex = i + 1
-    if (running >= half) break
-  }
-
-  const left = nodes.slice(0, splitIndex)
-  const right = nodes.slice(splitIndex)
-  const leftWeight = left.reduce((sum, node) => sum + Math.max(node.viewers, 1), 0)
-  const ratio = leftWeight / total
-
-  if (rect.w >= rect.h) {
-    const splitW = rect.w * ratio
-    return [
-      ...layoutTreemap(left, { x: rect.x, y: rect.y, w: splitW, h: rect.h }),
-      ...layoutTreemap(right, { x: rect.x + splitW, y: rect.y, w: rect.w - splitW, h: rect.h })
-    ]
-  }
-
-  const splitH = rect.h * ratio
-  return [
-    ...layoutTreemap(left, { x: rect.x, y: rect.y, w: rect.w, h: splitH }),
-    ...layoutTreemap(right, { x: rect.x, y: rect.y + splitH, w: rect.w, h: rect.h - splitH })
-  ]
 }
 
 function getMomentumClass(momentum: number): string {
@@ -69,36 +29,38 @@ function getActivityBadge(node: HeatmapNode): string {
   if (state === "active") return '<span class="tile-node__badge tile-node__badge--active">activity sampled</span>'
   if (state === "sampled_zero") return '<span class="tile-node__badge tile-node__badge--sampled-zero">sampled · no activity</span>'
   if (state === "unavailable_sampled") return '<span class="tile-node__badge tile-node__badge--unavailable">sampled · unavailable</span>'
-  return '<span class="tile-node__badge tile-node__badge--not-sampled">activity unavailable</span>'
+  return '<span class="tile-node__badge tile-node__badge--not-sampled">not sampled</span>'
+}
+
+function renderTile(node: HeatmapNode, selectedId: string, rect: { x: number; y: number; w: number; h: number }): string {
+  const state = getActivityState(node)
+  const selected = node.streamerId === selectedId
+  const area = rect.w * rect.h
+  const showMeta = area > 160
+  const showName = area > 52
+  return `<article class="tile-node ${getMomentumClass(node.momentum)} tile-node--${state} ${selected ? "tile-node--selected" : ""}" style="left:${rect.x.toFixed(3)}%;top:${rect.y.toFixed(3)}%;width:${rect.w.toFixed(3)}%;height:${rect.h.toFixed(3)}%;">
+      <button type="button" class="tile-node__select" data-streamer-id="${escapeHtml(node.streamerId)}" aria-label="Select ${escapeHtml(node.name)} tile">
+        <span class="tile-node__tone" aria-hidden="true"></span>
+        <span class="tile-node__micro" aria-hidden="true"></span>
+        ${showName ? `<span class="tile-node__name">${escapeHtml(node.name)}</span>` : ""}
+        ${showMeta ? `<span class="tile-node__viewers">${node.viewers.toLocaleString()} viewers</span>${getActivityBadge(node)}` : ""}
+      </button>
+      <a class="tile-node__stream-link" href="${escapeHtml(node.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(node.name)} stream">↗</a>
+    </article>`
 }
 
 export function mountTileMockRenderer(
   root: HTMLElement,
   nodes: HeatmapNode[],
   selectedId: string,
-  onSelect: (nextId: string) => void
-): void {
+  onSelect: (nextId: string) => void,
+  controls: { zoomInButton?: HTMLButtonElement | null; zoomOutButton?: HTMLButtonElement | null; zoomResetButton?: HTMLButtonElement | null } = {}
+): () => void {
   const sorted = [...nodes].sort((a, b) => b.viewers - a.viewers)
-  const cells = layoutTreemap(sorted, { x: 0, y: 0, w: 100, h: 100 })
+  const cells = computeSquarifiedTreemap(sorted, { x: 0, y: 0, w: 100, h: 100 })
 
   root.dataset.animation = readAnimationEnabled() ? "on" : "off"
-
-  root.innerHTML = cells
-    .map(({ node, rect }) => {
-      const state = getActivityState(node)
-      const selected = node.streamerId === selectedId
-      const showMeta = rect.w > 16 && rect.h > 16
-      const showTitle = rect.w > 10 && rect.h > 9
-      return `<article class="tile-node ${getMomentumClass(node.momentum)} tile-node--${state} ${selected ? "tile-node--selected" : ""}" style="left:${rect.x.toFixed(3)}%;top:${rect.y.toFixed(3)}%;width:${rect.w.toFixed(3)}%;height:${rect.h.toFixed(3)};">
-        <button type="button" class="tile-node__select" data-streamer-id="${escapeHtml(node.streamerId)}" aria-label="Select ${escapeHtml(node.name)} tile">
-          <span class="tile-node__tone" aria-hidden="true"></span>
-          ${showTitle ? `<span class="tile-node__name">${escapeHtml(node.name)}</span>` : ""}
-          ${showMeta ? `<span class="tile-node__viewers">${node.viewers.toLocaleString()} viewers</span>${getActivityBadge(node)}` : ""}
-        </button>
-        <a class="tile-node__stream-link" href="${escapeHtml(node.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(node.name)} stream">↗</a>
-      </article>`
-    })
-    .join("")
+  root.innerHTML = `<div class="heatmap-tile-stage__surface">${cells.map(({ node, rect }) => renderTile(node, selectedId, rect)).join("")}</div>`
 
   root.querySelectorAll<HTMLButtonElement>("[data-streamer-id]").forEach((button) => {
     button.onclick = () => {
@@ -106,4 +68,19 @@ export function mountTileMockRenderer(
       if (nextId) onSelect(nextId)
     }
   })
+
+  const surface = root.querySelector<HTMLElement>(".heatmap-tile-stage__surface")
+  if (!surface) return () => undefined
+
+  const interaction: TreemapInteractionHandle = mountTreemapInteraction(root, surface)
+  controls.zoomInButton?.addEventListener("click", interaction.zoomIn)
+  controls.zoomOutButton?.addEventListener("click", interaction.zoomOut)
+  controls.zoomResetButton?.addEventListener("click", interaction.reset)
+
+  return () => {
+    controls.zoomInButton?.removeEventListener("click", interaction.zoomIn)
+    controls.zoomOutButton?.removeEventListener("click", interaction.zoomOut)
+    controls.zoomResetButton?.removeEventListener("click", interaction.reset)
+    interaction.destroy()
+  }
 }

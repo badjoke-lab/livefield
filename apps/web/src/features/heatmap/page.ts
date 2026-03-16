@@ -10,6 +10,7 @@ import { mountTileMockRenderer } from "./renderer/tile-mock"
 import { loadHeatmapPageState, type HeatmapMode } from "./state"
 
 let pollTimer: number | null = null
+let cleanupRenderer: (() => void) | null = null
 
 function escapeHtml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;")
@@ -46,6 +47,9 @@ function getModeNote(mode: HeatmapMode, payload: HeatmapPayload, lowLoad: boolea
 }
 
 function renderReady(root: HTMLElement, payload: HeatmapPayload, mode: HeatmapMode, selectedStreamerId?: string): void {
+  cleanupRenderer?.()
+  cleanupRenderer = null
+
   const lowLoad = readLowLoadEnabled()
   const animationEnabled = readAnimationEnabled()
   const visibleCount = lowLoad ? 24 : 50
@@ -54,7 +58,7 @@ function renderReady(root: HTMLElement, payload: HeatmapPayload, mode: HeatmapMo
 
   if (!selected) {
     root.className = "site-shell"
-    root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production tile view of what is live on Twitch right now.", note: `Treemap area = viewers / color = momentum / badges = sampled activity state. Current state: ${getModeLabel(mode)}`, actions: [{ href: "/status/", label: "Open Status" }, { href: "/day-flow/", label: "Open Day Flow" }] })}<div class="controls"><span class="pill">Top ${visibleCount}</span><span class="pill">1m sampled activity</span><span class="pill">Visible tiles: 0</span><span class="pill">${getModeLabel(mode)}</span><span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span></div><section class="card page-section"><h2>No live streams in current snapshot</h2><p>${escapeHtml(payload.note ?? "The API returned no English Twitch streams for this moment.")}</p></section>${renderStatusNote(getModeNote(mode, payload, lowLoad, animationEnabled))}${renderFooter()}`
+    root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production treemap of live Twitch streams right now.", note: `Treemap area = viewers / color = momentum / badges = sampled activity state. Current state: ${getModeLabel(mode)}`, actions: [{ href: "/status/", label: "Open Status" }, { href: "/day-flow/", label: "Open Day Flow" }] })}<div class="controls"><span class="pill">Top ${visibleCount}</span><span class="pill">1m sampled activity</span><span class="pill">Visible tiles: 0</span><span class="pill">${getModeLabel(mode)}</span><span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span></div><section class="card page-section"><h2>No live streams in current snapshot</h2><p>${escapeHtml(payload.note ?? "The API returned no English Twitch streams for this moment.")}</p></section>${renderStatusNote(getModeNote(mode, payload, lowLoad, animationEnabled))}${renderFooter()}`
     return
   }
 
@@ -72,24 +76,23 @@ function renderReady(root: HTMLElement, payload: HeatmapPayload, mode: HeatmapMo
 
   root.className = "site-shell"
   root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production treemap for reading Twitch momentum at a glance.", note: `Area = viewers / green-red-blue-gray = momentum / activity is secondary. Current state: ${getModeLabel(mode)}`, actions: [{ href: "/status/", label: "Open Status" }, { href: "/day-flow/", label: "Open Day Flow" }] })}
-    <div class="controls"><span class="pill">Top ${visibleCount}</span><span class="pill">1m sampled activity</span><button type="button" class="pill" data-low-load-toggle>Low Load: ${lowLoad ? "ON" : "OFF"}</button><button type="button" class="pill" data-animation-toggle>Animation: ${animationEnabled ? "ON" : "OFF"}</button><span class="pill">Visible tiles: ${visibleNodes.length}</span><span class="pill">${getModeLabel(mode)}</span><span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span></div>
+    <div class="controls"><span class="pill">Top ${visibleCount}</span><span class="pill">1m sampled activity</span><button type="button" class="pill" data-low-load-toggle>Low Load: ${lowLoad ? "ON" : "OFF"}</button><button type="button" class="pill" data-animation-toggle>Animation: ${animationEnabled ? "ON" : "OFF"}</button><button type="button" class="pill" data-zoom-in>Zoom in</button><button type="button" class="pill" data-zoom-out>Zoom out</button><button type="button" class="pill" data-zoom-reset>Reset zoom</button><span class="pill">Visible tiles: ${visibleNodes.length}</span><span class="pill">${getModeLabel(mode)}</span><span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span></div>
     ${payload.note ? `<section class="card page-section"><p>${escapeHtml(payload.note)}</p></section>` : ""}
     <section class="summary-strip page-section"><div class="summary-item"><strong>Active streams</strong><span>${payload.summary.activeStreams}</span></div><div class="summary-item"><strong>Total viewers observed</strong><span>${payload.summary.totalViewers.toLocaleString()}</span></div><div class="summary-item"><strong>Highest activity</strong><span>${escapeHtml(payload.summary.highestAgitationName)}</span></div><div class="summary-item"><strong>Strongest momentum</strong><span>${escapeHtml(payload.summary.strongestMomentumName)}</span></div></section>
-    <section class="card page-section"><h2>Now view treemap</h2><p class="muted">Tile area follows viewers. Momentum uses green (rising), red (falling), and blue-gray (flat). Activity markers only annotate sampled state and never override momentum color.</p><div class="heatmap-tile-stage" id="heatmapTileStage"></div></section>
-    <section class="card page-section"><h2>Activity sampling legend</h2><p class="muted">Sampled coverage in current window: ${activityBreakdown.active + activityBreakdown.sampledZero + activityBreakdown.sampledUnavailable} / ${visibleNodes.length} tiles. Sampled-zero and unavailable are intentionally distinct.</p><div class="heatmap-state-legend"><span class="heatmap-state-chip heatmap-state-chip--active">activity sampled (${activityBreakdown.active})</span><span class="heatmap-state-chip heatmap-state-chip--sampled-zero">sampled · no activity (${activityBreakdown.sampledZero})</span><span class="heatmap-state-chip heatmap-state-chip--sampled-unavailable">sampled · unavailable (${activityBreakdown.sampledUnavailable})</span><span class="heatmap-state-chip heatmap-state-chip--not-sampled">activity unavailable (${activityBreakdown.notSampled})</span></div></section>
-    <section class="grid-2 page-section"><section class="heatmap-side"><section class="card"><h2>Quick select</h2><div class="focus-chip-row">${visibleNodes.slice(0, 8).map((node) => `<button type="button" class="focus-chip ${node.streamerId === selected.streamerId ? "focus-chip--active" : ""}" data-focus-streamer-id="${node.streamerId}">${escapeHtml(node.name)}</button>`).join("")}</div></section></section><section class="card"><h2>Selected details</h2><div class="kv"><div class="kv-row"><span>Streamer</span><strong>${escapeHtml(selected.name)}</strong></div><div class="kv-row"><span>Current viewers</span><strong>${selected.viewers.toLocaleString()}</strong></div><div class="kv-row"><span>Momentum</span><strong>${formatMomentum(selected.momentum)}</strong></div><div class="kv-row"><span>Activity state</span><strong>${escapeHtml(formatActivityState(selected))}</strong></div><div class="kv-row"><span>Comments / min</span><strong>${selected.activityAvailable ? selected.commentsPerMin.toLocaleString() : "-"}</strong></div><div class="kv-row"><span>Activity level</span><strong>${selected.activityAvailable ? `Lv${selected.agitationLevel}` : "-"}</strong></div><div class="kv-row"><span>Viewer rank</span><strong>#${selected.rankViewers}</strong></div><div class="kv-row"><span>Open stream</span><strong><a href="${escapeHtml(selected.url)}" target="_blank" rel="noopener noreferrer">Open stream ↗</a></strong></div></div></section></section>
+    <section class="card page-section"><h2>Now view treemap</h2><p class="muted">Tile area follows viewers. Momentum uses green (rising), red (falling), and blue-gray (flat). Activity markers only annotate sampled state and never override momentum color.</p><div class="heatmap-tile-stage" id="heatmapTileStage"></div><p class="muted">Wheel or pinch-like trackpad gesture to zoom. Drag while zoomed to pan.</p></section>
+    <section class="card page-section"><h2>Activity sampling legend</h2><p class="muted">Sampled coverage in current window: ${activityBreakdown.active + activityBreakdown.sampledZero + activityBreakdown.sampledUnavailable} / ${visibleNodes.length} tiles. Sampled-zero and unavailable are intentionally distinct.</p><div class="heatmap-state-legend"><span class="heatmap-state-chip heatmap-state-chip--active">observed and active (${activityBreakdown.active})</span><span class="heatmap-state-chip heatmap-state-chip--sampled-zero">sampled · no activity (${activityBreakdown.sampledZero})</span><span class="heatmap-state-chip heatmap-state-chip--sampled-unavailable">sampled · unavailable (${activityBreakdown.sampledUnavailable})</span><span class="heatmap-state-chip heatmap-state-chip--not-sampled">not sampled in this window (${activityBreakdown.notSampled})</span></div></section>
+    <section class="grid-2 page-section"><section class="card"><h2>Selected details</h2><div class="kv"><div class="kv-row"><span>Streamer</span><strong>${escapeHtml(selected.name)}</strong></div><div class="kv-row"><span>Current viewers</span><strong>${selected.viewers.toLocaleString()}</strong></div><div class="kv-row"><span>Momentum</span><strong>${formatMomentum(selected.momentum)}</strong></div><div class="kv-row"><span>Activity state</span><strong>${escapeHtml(formatActivityState(selected))}</strong></div><div class="kv-row"><span>Comments / min</span><strong>${selected.activityAvailable ? selected.commentsPerMin.toLocaleString() : "-"}</strong></div><div class="kv-row"><span>Activity level</span><strong>${selected.activityAvailable ? `Lv${selected.agitationLevel}` : "-"}</strong></div><div class="kv-row"><span>Viewer rank</span><strong>#${selected.rankViewers}</strong></div><div class="kv-row"><span>Open stream</span><strong><a href="${escapeHtml(selected.url)}" target="_blank" rel="noopener noreferrer">Open stream ↗</a></strong></div></div></section></section>
     ${renderStatusNote(getModeNote(mode, payload, lowLoad, animationEnabled))}${renderFooter()}`
 
   const tileStage = root.querySelector<HTMLElement>("#heatmapTileStage")
   if (!tileStage) throw new Error("tile stage not found")
-  mountTileMockRenderer(tileStage, visibleNodes, selected.streamerId, (nextId) => renderReady(root, payload, mode, nextId))
 
-  root.querySelectorAll<HTMLButtonElement>("[data-focus-streamer-id]").forEach((button) =>
-    button.addEventListener("click", () => {
-      const nextId = button.dataset.focusStreamerId
-      if (nextId) renderReady(root, payload, mode, nextId)
-    })
-  )
+  cleanupRenderer = mountTileMockRenderer(tileStage, visibleNodes, selected.streamerId, (nextId) => renderReady(root, payload, mode, nextId), {
+    zoomInButton: root.querySelector<HTMLButtonElement>("[data-zoom-in]"),
+    zoomOutButton: root.querySelector<HTMLButtonElement>("[data-zoom-out]"),
+    zoomResetButton: root.querySelector<HTMLButtonElement>("[data-zoom-reset]")
+  })
+
   root.querySelector<HTMLButtonElement>("[data-low-load-toggle]")?.addEventListener("click", () => {
     writeLowLoadEnabled(!readLowLoadEnabled())
     renderReady(root, payload, mode, selected.streamerId)
@@ -102,12 +105,14 @@ function renderReady(root: HTMLElement, payload: HeatmapPayload, mode: HeatmapMo
 
 function renderLoading(root: HTMLElement): void {
   root.className = "site-shell"
-  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production tile view of what is live on Twitch right now.", note: "Loading Heatmap data" })}<section class="card page-section"><h2>Loading</h2><p>Loading Heatmap data...</p></section>${renderFooter()}`
+  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production treemap of live Twitch streams right now.", note: "Loading Heatmap data" })}<section class="card page-section"><h2>Loading</h2><p>Loading Heatmap data...</p></section>${renderFooter()}`
 }
 
 function renderError(root: HTMLElement, message: string): void {
+  cleanupRenderer?.()
+  cleanupRenderer = null
   root.className = "site-shell"
-  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production tile view of what is live on Twitch right now.", note: "Heatmap data load failed" })}<section class="card page-section"><h2>Load failed</h2><p>${escapeHtml(message)}</p></section>${renderFooter()}`
+  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production treemap of live Twitch streams right now.", note: "Heatmap data load failed" })}<section class="card page-section"><h2>Load failed</h2><p>${escapeHtml(message)}</p></section>${renderFooter()}`
 }
 
 export function renderHeatmapPage(root: HTMLElement): void {
