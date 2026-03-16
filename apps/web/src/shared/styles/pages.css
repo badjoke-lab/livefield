@@ -1088,7 +1088,7 @@
   overflow: hidden;
   border: 1px solid rgba(122, 162, 255, 0.12);
   background: linear-gradient(180deg, rgba(8, 16, 30, 0.94) 0%, rgba(11, 18, 34, 0.96) 100%);
-  touch-action: none;
+  touch-action: pan-y pinch-zoom;
   cursor: grab;
 }
 
@@ -1213,6 +1213,97 @@
 
 @media (max-width: 900px) {
   .heatmap-tile-stage {
-    min-height: 420px;
+    min-height: 460px;
+  }
+}
+
+
+.controls--heatmap {
+  gap: 8px;
+}
+
+.heatmap-state-note {
+  padding: 12px 14px;
+}
+
+.heatmap-state-note p {
+  margin: 0;
+}
+
+.heatmap-map-helper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.heatmap-map-helper__hint {
+  background: rgba(42, 56, 86, 0.45);
+}
+
+.heatmap-tile-stage[data-focused="off"] {
+  cursor: default;
+}
+
+.heatmap-tile-stage[data-focused="on"] {
+  cursor: grab;
+  touch-action: none;
+}
+
+.heatmap-tile-stage[data-focused="on"][data-dragging="on"] {
+  cursor: grabbing;
+}
+
+.heatmap-legend-section .muted {
+  margin-top: 0;
+}
+
+@media (max-width: 760px) {
+  .controls--heatmap {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin: 10px 0;
+    padding-bottom: 2px;
+  }
+
+  .heatmap-map-section h2,
+  .heatmap-legend-section h2 {
+    margin-bottom: 8px;
+  }
+
+  .heatmap-map-section .muted,
+  .heatmap-legend-section .muted {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .heatmap-map-helper {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .heatmap-tile-stage {
+    min-height: 58vh;
+    max-height: 74vh;
+  }
+
+  .heatmap-state-chip {
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+
+  .summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .summary-item {
+    border-radius: 12px;
+    padding: 10px;
+  }
+
+  .summary-item strong {
+    margin-bottom: 4px;
+    font-size: 13px;
   }
 }

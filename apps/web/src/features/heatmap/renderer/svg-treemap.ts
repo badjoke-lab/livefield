@@ -124,62 +124,141 @@ function updateLabelVisibility(root: HTMLElement, zoomScale: number): void {
   })
 }
 
+function getTreemapBounds(viewport: HTMLElement): { x: number; y: number; w: number; h: number; viewportWidth: number; viewportHeight: number } {
+  const viewportWidth = Math.max(320, Math.round(viewport.clientWidth || 1000))
+  const viewportHeight = Math.max(260, Math.round(viewport.clientHeight || 620))
+  const pad = viewportWidth <= 760 ? 8 : 12
+
+  return {
+    x: pad,
+    y: pad,
+    w: Math.max(40, viewportWidth - pad * 2),
+    h: Math.max(40, viewportHeight - pad * 2),
+    viewportWidth,
+    viewportHeight
+  }
+}
+
+function renderTreemapSvg(svg: SVGSVGElement, sorted: HeatmapNode[], selectedId: string, viewport: HTMLElement): void {
+  const bounds = getTreemapBounds(viewport)
+  const cells = computeSquarifiedTreemap(sorted, { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h })
+
+  svg.setAttribute("viewBox", `0 0 ${bounds.viewportWidth} ${bounds.viewportHeight}`)
+  svg.setAttribute("preserveAspectRatio", "none")
+  svg.innerHTML = `<defs>
+      <pattern id="heatmap-unavailable-pattern" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,173,126,0.38)" stroke-width="2"></line>
+      </pattern>
+    </defs>
+    ${cells.map(({ node, rect }) => renderNode(node, selectedId, rect)).join("")}`
+}
+
 export function mountSvgTreemapRenderer(
   root: HTMLElement,
   nodes: HeatmapNode[],
   selectedId: string,
   onSelect: (nextId: string) => void,
-  controls: { zoomInButton?: HTMLButtonElement | null; zoomOutButton?: HTMLButtonElement | null; zoomResetButton?: HTMLButtonElement | null } = {}
+  controls: {
+    zoomInButton?: HTMLButtonElement | null
+    zoomOutButton?: HTMLButtonElement | null
+    zoomResetButton?: HTMLButtonElement | null
+    focusButton?: HTMLButtonElement | null
+    focusStatus?: HTMLElement | null
+  } = {}
 ): () => void {
   const sorted = [...nodes].sort((a, b) => b.viewers - a.viewers)
-  const bounds = { x: 0, y: 0, w: 1000, h: 620 }
-  const cells = computeSquarifiedTreemap(sorted, bounds)
 
   root.dataset.animation = readAnimationEnabled() ? "on" : "off"
-  root.innerHTML = `<div class="heatmap-tile-stage__surface"><svg class="heatmap-svg" viewBox="0 0 ${bounds.w} ${bounds.h}" aria-label="Live stream treemap">
-      <defs>
-        <pattern id="heatmap-unavailable-pattern" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,173,126,0.38)" stroke-width="2"></line>
-        </pattern>
-      </defs>
-      ${cells.map(({ node, rect }) => renderNode(node, selectedId, rect)).join("")}
-    </svg></div>`
+  root.innerHTML = `<div class="heatmap-tile-stage__surface"><svg class="heatmap-svg" aria-label="Live stream treemap"></svg></div>`
 
   const svg = root.querySelector<SVGSVGElement>(".heatmap-svg")
   const surface = root.querySelector<HTMLElement>(".heatmap-tile-stage__surface")
   if (!svg || !surface) return () => undefined
 
-  svg.querySelectorAll<SVGAElement>("a.treemap-node__stream-link").forEach((a) => {
-    a.addEventListener("click", (event) => event.stopPropagation())
-  })
+  renderTreemapSvg(svg, sorted, selectedId, root)
 
-  svg.querySelectorAll<SVGRectElement>("[data-streamer-id]").forEach((element) => {
-    const handleSelect = () => {
-      const nextId = element.dataset.streamerId
-      if (nextId) onSelect(nextId)
+  const applyFocusUi = (focused: boolean) => {
+    root.dataset.focused = focused ? "on" : "off"
+    controls.focusButton?.setAttribute("aria-pressed", focused ? "true" : "false")
+    if (controls.focusButton) controls.focusButton.textContent = focused ? "Exit map focus" : "Focus map"
+    if (controls.focusStatus) {
+      controls.focusStatus.textContent = focused ? "Map focus: ON (wheel zoom + drag pan, Esc to exit)" : "Map focus: OFF (wheel scrolls page)"
     }
-    element.addEventListener("click", handleSelect)
-    element.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault()
-        handleSelect()
-      }
-    })
-  })
+  }
 
-  const interaction: TreemapInteractionHandle = mountTreemapInteraction(root, surface, (transform) => {
-    updateLabelVisibility(svg, transform.scale)
-  })
+  const interaction: TreemapInteractionHandle = mountTreemapInteraction(
+    root,
+    surface,
+    (transform) => {
+      updateLabelVisibility(svg, transform.scale)
+    },
+    (focused) => applyFocusUi(focused)
+  )
   updateLabelVisibility(svg, 1)
 
+  const handleSvgClick = (event: Event) => {
+    const target = event.target as Element | null
+    const link = target?.closest("a.treemap-node__stream-link")
+    if (link) {
+      event.stopPropagation()
+      return
+    }
+
+    const tile = target?.closest<SVGRectElement>("[data-streamer-id]")
+    const nextId = tile?.dataset.streamerId
+    if (nextId) onSelect(nextId)
+  }
+
+  const handleSvgKeydown = (event: KeyboardEvent) => {
+    const target = event.target as Element | null
+    const tile = target?.closest<SVGRectElement>("[data-streamer-id]")
+    const nextId = tile?.dataset.streamerId
+    if (!nextId) return
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
+      onSelect(nextId)
+    }
+  }
+
+  const handleStageFocus = (event: PointerEvent) => {
+    const target = event.target as Element | null
+    const tile = target?.closest("[data-streamer-id], a.treemap-node__stream-link")
+    if (!tile) {
+      interaction.focus()
+    }
+  }
+
+  const handleFocusButton = () => {
+    if (interaction.isFocused()) interaction.blur()
+    else interaction.focus()
+  }
+
+  const handleWindowResize = () => {
+    renderTreemapSvg(svg, sorted, selectedId, root)
+    updateLabelVisibility(svg, 1)
+  }
+
+  svg.addEventListener("click", handleSvgClick)
+  svg.addEventListener("keydown", handleSvgKeydown)
   controls.zoomInButton?.addEventListener("click", interaction.zoomIn)
   controls.zoomOutButton?.addEventListener("click", interaction.zoomOut)
   controls.zoomResetButton?.addEventListener("click", interaction.reset)
+  controls.focusButton?.addEventListener("click", handleFocusButton)
+  root.addEventListener("pointerdown", handleStageFocus)
+  window.addEventListener("resize", handleWindowResize)
+
+  applyFocusUi(interaction.isFocused())
 
   return () => {
+    svg.removeEventListener("click", handleSvgClick)
+    svg.removeEventListener("keydown", handleSvgKeydown)
+    window.removeEventListener("resize", handleWindowResize)
     controls.zoomInButton?.removeEventListener("click", interaction.zoomIn)
     controls.zoomOutButton?.removeEventListener("click", interaction.zoomOut)
     controls.zoomResetButton?.removeEventListener("click", interaction.reset)
+    controls.focusButton?.removeEventListener("click", handleFocusButton)
+    root.removeEventListener("pointerdown", handleStageFocus)
     interaction.destroy()
   }
 }
