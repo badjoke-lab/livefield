@@ -82,7 +82,7 @@ function resolveInitialBucketIndex(payload: DayFlowPayload, preferredBucket: str
 function renderLegend(payload: DayFlowPayload): string {
   return payload.bands
     .slice(0, 8)
-    .map((band) => `<li><span class="dayflow-dot" style="background:${band.color}"></span>${band.name}${band.isOthers ? " (Others)" : ""}</li>`)
+    .map((band) => `<li data-streamer-id="${band.streamerId}"><span class="dayflow-dot" style="background:${band.color}"></span>${band.name}${band.isOthers ? " (Others)" : ""}</li>`)
     .join("")
 }
 
@@ -113,7 +113,7 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
     ctx.fillStyle = "#0a1120"
     ctx.fillRect(0, 0, width, height)
 
-    ctx.strokeStyle = "rgba(122,162,255,0.16)"
+    ctx.strokeStyle = "rgba(122,162,255,0.12)"
     ctx.strokeRect(pad.left, pad.top, chartW, chartH)
 
     const futureStart = getFutureBlankStartIndex(payload)
@@ -147,7 +147,7 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
     ctx.globalAlpha = 1
 
     const sx = pad.left + (selectedIndex / Math.max(1, payload.buckets.length - 1)) * chartW
-    ctx.strokeStyle = "rgba(255,255,255,0.8)"
+    ctx.strokeStyle = "rgba(210,228,255,0.82)"
     ctx.beginPath()
     ctx.moveTo(sx, pad.top)
     ctx.lineTo(sx, pad.top + chartH)
@@ -223,10 +223,19 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
 
     if (payload.dateScope === "today" && futureStart < payload.buckets.length) {
       const blankStartX = pad.left + (futureStart / Math.max(1, payload.buckets.length - 1)) * chartW
-      ctx.fillStyle = "rgba(8, 11, 19, 0.65)"
+      ctx.fillStyle = "rgba(8, 11, 19, 0.34)"
       ctx.fillRect(blankStartX, pad.top, pad.left + chartW - blankStartX, chartH)
-      ctx.fillStyle = "#93a0bf"
+      ctx.strokeStyle = "rgba(255,255,255,0.14)"
+      ctx.beginPath()
+      ctx.moveTo(blankStartX, pad.top)
+      ctx.lineTo(blankStartX, pad.top + chartH)
+      ctx.stroke()
+      ctx.fillStyle = "#7f8db2"
       ctx.fillText("Future (blank)", blankStartX + 6, pad.top + 16)
+      ctx.fillStyle = "#9ed6ff"
+      ctx.fillRect(blankStartX - 1, pad.top, 2, chartH)
+      ctx.fillStyle = "#d9e8ff"
+      ctx.fillText("NOW", blankStartX + 6, pad.top + 32)
     }
   }
 
@@ -243,20 +252,22 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
 }
 
 function renderSummary(payload: DayFlowPayload): string {
+  const unavailable = payload.summary.highestActivity.toLowerCase().includes("unavailable")
   return `
-    <section class="summary-strip page-section">
+    <section class="summary-strip summary-strip--dayflow page-section">
       <div class="summary-item"><strong>Peak leader</strong><span>${payload.summary.peakLeader}</span></div>
       <div class="summary-item"><strong>Longest dominance</strong><span>${payload.summary.longestDominance}</span></div>
-      <div class="summary-item"><strong>Highest activity</strong><span>${payload.summary.highestActivity}</span></div>
+      <div class="summary-item ${unavailable ? "summary-item--quiet" : ""}"><strong>Highest activity</strong><span>${payload.summary.highestActivity}</span></div>
       <div class="summary-item"><strong>Biggest rise</strong><span>${payload.summary.biggestRise}</span></div>
     </section>
   `
 }
 
 function renderStateNote(payload: DayFlowPayload): string {
+  const expanded = payload.state === "error" || payload.state === "empty"
   return `
-    <section class="card dayflow-state-card">
-      <h2>Data State</h2>
+    <section class="card dayflow-state-card ${expanded ? "dayflow-state-card--expanded" : ""}">
+      <h2>Data state</h2>
       <div class="status-chip" data-state="${payload.state}">${payload.status}</div>
       <p class="muted">${payload.note ?? "Live data render from API day rollup."}</p>
       <ul class="dayflow-notes">
@@ -273,18 +284,25 @@ function renderFrame(payload: DayFlowPayload): string {
     ${renderSummary(payload)}
     ${renderStateNote(payload)}
     <section class="grid-2 page-section dayflow-layout">
-      <section class="card">
-        <h2>Today Landscape</h2>
-        <p class="muted">Stacked bands are fixed by daily viewer-minutes ranking (Top N + Others).</p>
-        <div class="kv">
+      <section class="card dayflow-main-card">
+        <div class="dayflow-main-head">
+          <h2>Today Landscape</h2>
+          <p class="muted">Fixed band order by daily viewer-minutes (Top N + Others).</p>
+        </div>
+        <div class="kv dayflow-main-kv">
           <div class="kv-row"><span>Date</span><strong>${payload.selectedDate}</strong></div>
           <div class="kv-row"><span>Status</span><strong>${payload.status}</strong></div>
-          <div class="kv-row"><span>Coverage</span><strong>${payload.coverageNote}</strong></div>
+          <div class="kv-row"><span>Coverage</span><strong class="muted-strong">${payload.coverageNote}</strong></div>
           <div class="kv-row"><span>Bucket</span><strong>${payload.bucketSize}m</strong></div>
           <div class="kv-row"><span>Last Updated</span><strong>${payload.lastUpdated.slice(11, 16)} UTC</strong></div>
         </div>
-        <canvas id="dayflow-canvas" class="dayflow-canvas" aria-label="Day Flow chart"></canvas>
-        <input id="dayflow-time" type="range" min="0" max="${Math.max(0, payload.buckets.length - 1)}" step="1" value="${Math.max(0, payload.buckets.length - 1)}" />
+        <div class="dayflow-canvas-wrap">
+          <canvas id="dayflow-canvas" class="dayflow-canvas" aria-label="Day Flow chart"></canvas>
+        </div>
+        <div class="dayflow-time-wrap">
+          <span class="dayflow-time-label">Time selection</span>
+          <input id="dayflow-time" type="range" min="0" max="${Math.max(0, payload.buckets.length - 1)}" step="1" value="${Math.max(0, payload.buckets.length - 1)}" />
+        </div>
         <div id="dayflow-focus-mobile" class="card dayflow-focus-mobile"></div>
       </section>
 
@@ -312,6 +330,7 @@ function renderFocus(target: HTMLElement, payload: DayFlowPayload, bucketIndex: 
       const prev = band.buckets[Math.max(0, bucketIndex - 1)]
       const momentum = (curr?.viewers ?? 0) - (prev?.viewers ?? 0)
       return {
+        streamerId: band.streamerId,
         name: band.name,
         viewers: curr?.viewers ?? 0,
         share: curr?.share ?? 0,
@@ -329,9 +348,34 @@ function renderFocus(target: HTMLElement, payload: DayFlowPayload, bucketIndex: 
 
   target.innerHTML = `
     <div class="kv-row"><span>Selected</span><strong>${payload.buckets[bucketIndex]?.slice(11, 16) ?? "N/A"}</strong></div>
-    ${focusItems.map((item, idx) => `<div class="kv-row"><span>#${idx + 1} ${item.name}</span><strong>${numberFmt.format(item.viewers)} (${pctFmt.format(item.share)})</strong></div>`).join("")}
+    ${focusItems.map((item, idx) => `<div class="kv-row" data-streamer-id="${item.streamerId}"><span>#${idx + 1} ${item.name}</span><strong>${numberFmt.format(item.viewers)} (${pctFmt.format(item.share)})</strong></div>`).join("")}
     <div class="kv-row"><span>Strongest momentum</span><strong>${momentumLeader?.name ?? "N/A"}</strong></div>
     <div class="kv-row"><span>Highest activity</span><strong>${activityLeader?.name ?? (payload.activity.available ? "N/A" : "Activity unavailable")}</strong></div>
+  `
+}
+
+function renderMiniChart(payload: DayFlowPayload, streamerId: string): string {
+  const band = payload.bands.find((item) => item.streamerId === streamerId)
+  if (!band || band.buckets.length < 2) {
+    return `<div class="dayflow-mini-chart dayflow-mini-chart--empty"><p class="muted">Mini chart unavailable for this selection.</p></div>`
+  }
+
+  const maxViewers = Math.max(1, ...band.buckets.map((bucket) => bucket.viewers))
+  const points = band.buckets
+    .map((bucket, idx) => {
+      const x = (idx / Math.max(1, band.buckets.length - 1)) * 100
+      const y = 100 - (bucket.viewers / maxViewers) * 100
+      return `${x},${y}`
+    })
+    .join(" ")
+
+  return `
+    <div class="dayflow-mini-chart">
+      <div class="dayflow-mini-chart__head"><strong>Viewers trend</strong><span>${payload.selectedDate}</span></div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Selected streamer viewers mini chart">
+        <polyline points="${points}" />
+      </svg>
+    </div>
   `
 }
 
@@ -345,6 +389,7 @@ function renderDetailCard(payload: DayFlowPayload, streamerId: string | null, is
 
   return `
     <h2>Detail Panel</h2>
+    ${renderMiniChart(payload, detail.streamerId)}
     <div class="kv">
       <div class="kv-row"><span>Streamer</span><strong>${detail.name}</strong></div>
       <div class="kv-row"><span>Title</span><strong>${detail.title || "N/A"}</strong></div>
@@ -357,8 +402,9 @@ function renderDetailCard(payload: DayFlowPayload, streamerId: string | null, is
       <div class="kv-row"><span>First seen / Last seen</span><strong>${isoTimeLabel(detail.firstSeen)} / ${isoTimeLabel(detail.lastSeen)}</strong></div>
     </div>
     <div class="actions">
+      <button class="action action-toggle" type="button" id="dayflow-highlight">${isolate ? "Highlight only" : "Show all"}</button>
       <a class="action" href="${detail.url}" target="_blank" rel="noreferrer">Open stream</a>
-      <button class="action" type="button" id="dayflow-isolate">${isolate ? "Dim others: on" : "Dim others: off"}</button>
+      <button class="action action-toggle" type="button" id="dayflow-isolate">${isolate ? "Dim others: on" : "Dim others: off"}</button>
       <a class="action" href="/battle-lines/">Jump to Battle Lines</a>
     </div>
   `
@@ -443,6 +489,14 @@ function mountData(
           renderer.redraw()
         })
       }
+      const highlightButtons = content.querySelectorAll<HTMLButtonElement>("#dayflow-highlight")
+      for (const button of highlightButtons) {
+        button.addEventListener("click", () => {
+          isolate = !isolate
+          renderDetail()
+          renderer.redraw()
+        })
+      }
     }
 
     const renderDetail = () => {
@@ -458,6 +512,11 @@ function mountData(
       renderFocus(focus, payload, idx)
       renderFocus(focusMobile, payload, idx)
       renderDetail()
+      if (selectedStreamerId) {
+        for (const row of content.querySelectorAll<HTMLElement>("[data-streamer-id]")) {
+          row.dataset.selected = row.dataset.streamerId === selectedStreamerId ? "true" : "false"
+        }
+      }
       renderer.redraw()
     }
 
@@ -514,28 +573,34 @@ function mountData(
 }
 
 export function renderDayFlowPage(root: HTMLElement): void {
-  root.className = "site-shell"
+  root.className = "site-shell dayflow-page"
   root.innerHTML = `
     ${renderHeader("day-flow")}
     ${renderHero({
       eyebrow: "TODAY",
       title: "Day Flow",
-      subtitle: "Real-data Twitch day landscape (MVP+).",
-      note: "Default: Today · 5m · Top20 + Others · Volume. Fixed band order by daily viewer-minutes.",
+      subtitle: "Read who owned today, hour by hour.",
+      note: "Real-data path active · Today default · 5m buckets · Top 20 + Others.",
       actions: [
-        { href: "/heatmap/", label: "Open Heatmap" },
-        { href: "/method/", label: "Open Method" }
+        { href: "/heatmap/", label: "Heatmap" },
+        { href: "/method/", label: "Method" }
       ]
     })}
 
-    <form class="controls" id="day-flow-controls">
-      <select name="day" aria-label="Day"><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="date">Date</option></select>
-      <input type="date" name="date" aria-label="Date picker" />
-      <select name="top" aria-label="Top N"><option value="10">Top 10 + Others</option><option value="20" selected>Top 20 + Others</option><option value="50">Top 50 + Others</option></select>
-      <select name="mode" aria-label="Mode"><option value="volume" selected>Volume</option><option value="share">Share</option></select>
-      <select name="bucket" aria-label="Bucket"><option value="5" selected>5m</option><option value="10">10m</option></select>
-      <label class="pill"><input type="checkbox" id="auto-update" checked /> Auto update</label>
-      <button type="submit">Refresh</button>
+    <form class="controls controls--dayflow" id="day-flow-controls">
+      <div class="controls-group">
+        <select name="day" aria-label="Day"><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="date">Date</option></select>
+        <input type="date" name="date" aria-label="Date picker" />
+      </div>
+      <div class="controls-group">
+        <select name="top" aria-label="Top N"><option value="10">Top 10 + Others</option><option value="20" selected>Top 20 + Others</option><option value="50">Top 50 + Others</option></select>
+        <select name="mode" aria-label="Mode"><option value="volume" selected>Volume</option><option value="share">Share</option></select>
+        <select name="bucket" aria-label="Bucket"><option value="5" selected>5m</option><option value="10">10m</option></select>
+      </div>
+      <div class="controls-group controls-group--secondary">
+        <label class="pill"><input type="checkbox" id="auto-update" checked /> Auto update</label>
+        <button type="submit" class="action">Refresh</button>
+      </div>
     </form>
 
     <div id="day-flow-content"></div>

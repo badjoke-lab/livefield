@@ -191,6 +191,14 @@ button.pill:hover {
   color: var(--text);
 }
 
+button.action {
+  color: var(--text);
+  font: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
 
 @media (max-width: 760px) {
   .hero {
