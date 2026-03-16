@@ -191,18 +191,19 @@ function toBandSeries(input: {
   ordered: StreamAgg[]
   bucketSize: 5 | 10
   totalByBucket: number[]
+  bucketKeys: string[]
 }): DayFlowBandSeries[] {
   return input.ordered.map((stream, index) => {
     const peakViewers = stream.points.reduce((best, value) => Math.max(best, value), 0)
     const avgViewers = stream.points.length ? Math.round(stream.points.reduce((sum, value) => sum + value, 0) / stream.points.length) : 0
     const peakShare = stream.points.reduce((best, value, idx) => Math.max(best, input.totalByBucket[idx] > 0 ? value / input.totalByBucket[idx] : 0), 0)
-    let biggestRiseBucket: string | null = null
+    let biggestRiseIndex = -1
     let biggestRise = Number.NEGATIVE_INFINITY
     for (let i = 1; i < stream.points.length; i += 1) {
       const rise = stream.points[i] - stream.points[i - 1]
       if (rise > biggestRise) {
         biggestRise = rise
-        biggestRiseBucket = null
+        biggestRiseIndex = i
       }
     }
 
@@ -218,7 +219,7 @@ function toBandSeries(input: {
       peakViewers,
       avgViewers,
       peakShare,
-      biggestRiseBucket,
+      biggestRiseBucket: biggestRiseIndex >= 0 ? input.bucketKeys[biggestRiseIndex] ?? null : null,
       firstSeen: stream.firstSeenBucket,
       lastSeen: stream.lastSeenBucket,
       activityMax: null,
@@ -370,7 +371,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     }
   ]
 
-  const bands = toBandSeries({ ordered: withOthers, bucketSize, totalByBucket })
+  const bands = toBandSeries({ ordered: withOthers, bucketSize, totalByBucket, bucketKeys: buckets })
   const latestCollectedAt = rows.results.at(-1)?.collected_at ?? new Date().toISOString()
   const nowBucketIso = floorToBucket(latestCollectedAt, bucketSize)
   const currentBucketIndex = Math.max(0, bucketIndexByIso.get(nowBucketIso) ?? (buckets.length - 1))

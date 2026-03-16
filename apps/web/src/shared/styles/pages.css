@@ -1312,6 +1312,21 @@
   min-height: 220px;
 }
 
+.dayflow-state-card {
+  margin-top: 12px;
+}
+
+.dayflow-notes {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.dayflow-focus-mobile {
+  display: none;
+  margin-top: 12px;
+}
+
 .dayflow-canvas {
   width: 100%;
   height: 420px;
@@ -1347,8 +1362,31 @@
   margin-top: 12px;
 }
 
+@media (max-width: 900px) {
+  .dayflow-side {
+    display: none;
+  }
+
+  .dayflow-focus-mobile {
+    display: block;
+  }
+}
+
 @media (max-width: 760px) {
   .dayflow-canvas {
     height: 320px;
   }
+}
+
+
+.dayflow-sheet {
+  width: min(720px, 96vw);
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  padding: 0;
+  background: transparent;
+}
+
+.dayflow-sheet::backdrop {
+  background: rgba(4, 8, 16, 0.62);
 }
