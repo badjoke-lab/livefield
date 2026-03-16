@@ -44,43 +44,42 @@ function layoutRow(row: WeightedNode[], rect: Rect): TileCell[] {
   const rowArea = row.reduce((sum, item) => sum + item.area, 0)
   const result: TileCell[] = []
 
+  // Squarified layout: place the row along the shorter edge of available rect.
   if (rect.w >= rect.h) {
-    const rowHeight = rowArea / rect.w
-    let cursorX = rect.x
+    const rowWidth = rowArea / rect.h
+    let cursorY = rect.y
     for (const item of row) {
-      const width = item.area / rowHeight
-      result.push({ node: item.node, rect: { x: cursorX, y: rect.y, w: width, h: rowHeight } })
-      cursorX += width
+      const itemHeight = item.area / rowWidth
+      result.push({ node: item.node, rect: { x: rect.x, y: cursorY, w: rowWidth, h: itemHeight } })
+      cursorY += itemHeight
     }
-    const remaining = rect.w + rect.x - cursorX
-    if (remaining > 0 && result.length > 0) {
-      result[result.length - 1].rect.w += remaining
-    }
+
+    const remainder = rect.y + rect.h - cursorY
+    if (remainder !== 0 && result.length > 0) result[result.length - 1].rect.h += remainder
     return result
   }
 
-  const rowWidth = rowArea / rect.h
-  let cursorY = rect.y
+  const rowHeight = rowArea / rect.w
+  let cursorX = rect.x
   for (const item of row) {
-    const height = item.area / rowWidth
-    result.push({ node: item.node, rect: { x: rect.x, y: cursorY, w: rowWidth, h: height } })
-    cursorY += height
+    const itemWidth = item.area / rowHeight
+    result.push({ node: item.node, rect: { x: cursorX, y: rect.y, w: itemWidth, h: rowHeight } })
+    cursorX += itemWidth
   }
-  const remaining = rect.h + rect.y - cursorY
-  if (remaining > 0 && result.length > 0) {
-    result[result.length - 1].rect.h += remaining
-  }
+
+  const remainder = rect.x + rect.w - cursorX
+  if (remainder !== 0 && result.length > 0) result[result.length - 1].rect.w += remainder
   return result
 }
 
 function shrinkRect(rect: Rect, usedArea: number): Rect {
   if (rect.w >= rect.h) {
-    const usedHeight = usedArea / rect.w
-    return { x: rect.x, y: rect.y + usedHeight, w: rect.w, h: Math.max(0, rect.h - usedHeight) }
+    const usedWidth = usedArea / rect.h
+    return { x: rect.x + usedWidth, y: rect.y, w: Math.max(0, rect.w - usedWidth), h: rect.h }
   }
 
-  const usedWidth = usedArea / rect.h
-  return { x: rect.x + usedWidth, y: rect.y, w: Math.max(0, rect.w - usedWidth), h: rect.h }
+  const usedHeight = usedArea / rect.w
+  return { x: rect.x, y: rect.y + usedHeight, w: rect.w, h: Math.max(0, rect.h - usedHeight) }
 }
 
 export function computeSquarifiedTreemap(nodes: HeatmapNode[], bounds: Rect): TileCell[] {

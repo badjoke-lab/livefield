@@ -1103,167 +1103,92 @@
   will-change: transform;
 }
 
-.tile-node {
-  position: absolute;
-  margin: 0;
-  border-radius: 6px;
-  border: 1px solid rgba(122, 162, 255, 0.18);
-  color: #eef6ff;
-  text-align: left;
-  overflow: hidden;
-}
-
-.tile-node__select {
-  position: relative;
+.heatmap-svg {
   width: 100%;
   height: 100%;
-  margin: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  padding: 8px;
-  overflow: hidden;
-  display: grid;
-  align-content: space-between;
-  gap: 4px;
-  text-align: left;
+  display: block;
+}
+
+.treemap-node__body {
+  stroke: rgba(238, 246, 255, 0.18);
+  stroke-width: 1;
   cursor: pointer;
 }
 
-.tile-node__stream-link {
-  position: absolute;
-  right: 6px;
-  top: 6px;
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  color: rgba(238, 246, 255, 0.92);
-  text-decoration: none;
-  background: rgba(8, 16, 30, 0.62);
-  border: 1px solid rgba(238, 246, 255, 0.24);
-  z-index: 2;
+.treemap-node--selected .treemap-node__body {
+  stroke: rgba(237, 246, 255, 0.95);
+  stroke-width: 2;
 }
 
-.tile-node__tone {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  opacity: 0.22;
-}
+.treemap-node--rise-1 .treemap-node__body { fill: rgba(34, 114, 72, 0.55); }
+.treemap-node--rise-2 .treemap-node__body { fill: rgba(28, 126, 74, 0.68); }
+.treemap-node--rise-3 .treemap-node__body { fill: rgba(24, 146, 82, 0.82); }
+.treemap-node--fall-1 .treemap-node__body { fill: rgba(130, 46, 52, 0.56); }
+.treemap-node--fall-2 .treemap-node__body { fill: rgba(151, 44, 54, 0.7); }
+.treemap-node--fall-3 .treemap-node__body { fill: rgba(176, 40, 52, 0.82); }
+.treemap-node--flat .treemap-node__body { fill: rgba(70, 87, 112, 0.72); }
 
-
-.tile-node__micro {
-  position: absolute;
-  left: 8px;
-  bottom: 8px;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(255, 236, 174, 0.65);
-  opacity: 0;
-}
-
-.tile-node__name,
-.tile-node__viewers,
-.tile-node__badge {
-  position: relative;
-  z-index: 1;
-}
-
-.tile-node__name {
-  font-size: 12px;
+.treemap-node__name {
+  fill: rgba(238, 246, 255, 0.96);
   font-weight: 700;
-  line-height: 1.2;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  letter-spacing: 0.01em;
+  pointer-events: none;
 }
 
-.tile-node__viewers {
-  font-size: 12px;
-  color: rgba(235, 243, 255, 0.88);
+.treemap-node__viewers {
+  fill: rgba(227, 237, 255, 0.86);
+  font-weight: 500;
+  pointer-events: none;
 }
 
-.tile-node__badge {
-  justify-self: start;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 10px;
-  line-height: 1.2;
-  border: 1px solid transparent;
-  background: rgba(8, 16, 30, 0.34);
+.treemap-node__marker {
+  stroke: rgba(8, 16, 30, 0.66);
+  stroke-width: 1;
 }
 
-.tile-node--active .tile-node__badge--active {
-  background: rgba(38, 214, 143, 0.24);
-  border-color: rgba(38, 214, 143, 0.66);
+.treemap-node__marker--active { fill: rgba(53, 235, 160, 0.96); }
+.treemap-node__marker--sampled-zero { fill: rgba(255, 214, 126, 0.92); }
+.treemap-node__marker--unavailable {
+  fill: rgba(255, 173, 126, 0.9);
+  stroke: rgba(64, 28, 17, 0.6);
+}
+.treemap-node__marker--not-sampled { fill: rgba(150, 164, 190, 0.95); }
+
+.treemap-node__pulse {
+  fill: none;
+  stroke: rgba(53, 235, 160, 0.45);
+  stroke-width: 1;
+  transform-origin: center;
+  animation: heatmap-svg-pulse 2.4s ease-in-out infinite;
 }
 
-.tile-node--sampled_zero .tile-node__badge--sampled-zero {
-  background: rgba(255, 211, 107, 0.22);
-  border-color: rgba(255, 211, 107, 0.62);
-}
-
-.tile-node--unavailable_sampled .tile-node__badge--unavailable {
-  background: rgba(255, 160, 107, 0.2);
-  border-color: rgba(255, 160, 107, 0.58);
-}
-
-.tile-node--unavailable_not_sampled .tile-node__badge--not-sampled {
-  background: rgba(140, 150, 170, 0.24);
-  border-color: rgba(140, 150, 170, 0.65);
-}
-
-.tile-node--active .tile-node__tone {
-  animation: heatmap-activity-pulse 2.8s ease-in-out infinite;
-}
-
-.tile-node--active .tile-node__micro {
-  opacity: 0.9;
-  animation: heatmap-activity-dot 1.8s ease-in-out infinite;
-}
-
-.tile-node--sampled_zero .tile-node__micro {
-  opacity: 0.45;
-  background: rgba(255, 223, 148, 0.62);
-}
-
-.heatmap-tile-stage[data-animation="off"] .tile-node--active .tile-node__tone,
-.heatmap-tile-stage[data-animation="off"] .tile-node--active .tile-node__badge,
-.heatmap-tile-stage[data-animation="off"] .tile-node--active .tile-node__micro {
+.heatmap-tile-stage[data-animation="off"] .treemap-node__pulse {
   animation: none;
 }
 
-.tile-node--sampled_zero .tile-node__tone {
-  opacity: 0.22;
-  background: linear-gradient(150deg, rgba(126, 156, 198, 0.22), rgba(90, 116, 150, 0.14));
+.treemap-node__unavailable-overlay {
+  fill: url(#heatmap-unavailable-pattern);
+  opacity: 0.38;
+  pointer-events: none;
 }
 
-.tile-node--unavailable_sampled .tile-node__tone {
-  opacity: 0.11;
-  background: linear-gradient(150deg, rgba(130, 140, 162, 0.17), rgba(86, 95, 116, 0.12));
+.treemap-node__stream-link text {
+  fill: rgba(238, 246, 255, 0.95);
+  font-size: 12px;
+  pointer-events: none;
 }
 
-.tile-node--unavailable_not_sampled .tile-node__tone {
-  opacity: 0.06;
-  background: linear-gradient(150deg, rgba(98, 108, 130, 0.15), rgba(72, 82, 104, 0.1));
+.treemap-node__link-hit {
+  fill: rgba(8, 16, 30, 0.6);
+  stroke: rgba(238, 246, 255, 0.24);
+  stroke-width: 1;
 }
 
-.tile-node--selected {
-  box-shadow: inset 0 0 0 2px rgba(237, 246, 255, 0.72);
-  z-index: 3;
+@keyframes heatmap-svg-pulse {
+  0%,
+  100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.5); }
 }
-
-.tile-node--rise-1 { background: rgba(34, 114, 72, 0.32); box-shadow: inset 0 0 0 1px rgba(66, 197, 129, 0.42); }
-.tile-node--rise-2 { background: rgba(28, 126, 74, 0.45); box-shadow: inset 0 0 0 1px rgba(72, 218, 144, 0.58), 0 0 20px rgba(47, 181, 117, 0.16); }
-.tile-node--rise-3 { background: rgba(24, 146, 82, 0.58); box-shadow: inset 0 0 0 2px rgba(91, 234, 160, 0.74), 0 0 26px rgba(48, 205, 131, 0.22); }
-
-.tile-node--fall-1 { background: rgba(130, 46, 52, 0.3); box-shadow: inset 0 0 0 1px rgba(241, 108, 118, 0.4); }
-.tile-node--fall-2 { background: rgba(151, 44, 54, 0.44); box-shadow: inset 0 0 0 1px rgba(255, 128, 138, 0.56), 0 0 18px rgba(221, 78, 92, 0.14); }
-.tile-node--fall-3 { background: rgba(176, 40, 52, 0.58); box-shadow: inset 0 0 0 2px rgba(255, 146, 155, 0.72), 0 0 24px rgba(226, 76, 90, 0.2); }
-
-.tile-node--flat-0 { background: rgba(61, 75, 96, 0.34); box-shadow: inset 0 0 0 1px rgba(145, 160, 183, 0.32); }
-.tile-node--flat-1 { background: rgba(68, 84, 108, 0.44); box-shadow: inset 0 0 0 1px rgba(156, 172, 198, 0.42); }
 
 .heatmap-state-legend {
   display: flex;
@@ -1285,18 +1210,6 @@
 .heatmap-state-chip--sampled-zero { border-color: rgba(255, 211, 107, 0.6); }
 .heatmap-state-chip--sampled-unavailable { border-color: rgba(255, 160, 107, 0.58); }
 .heatmap-state-chip--not-sampled { border-color: rgba(140, 150, 170, 0.6); }
-
-@keyframes heatmap-activity-pulse {
-  0%,
-  100% { opacity: 0.2; }
-  50% { opacity: 0.36; }
-}
-
-@keyframes heatmap-activity-dot {
-  0%,
-  100% { transform: scale(1); }
-  50% { transform: scale(1.45); }
-}
 
 @media (max-width: 900px) {
   .heatmap-tile-stage {
