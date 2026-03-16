@@ -17,6 +17,11 @@ type UiFilters = {
   bucket: 5 | 10
 }
 
+type DayFlowMountController = {
+  payload: DayFlowPayload
+  destroy: () => void
+}
+
 function parseFilters(form: HTMLFormElement): UiFilters {
   const data = new FormData(form)
   return {
@@ -26,6 +31,10 @@ function parseFilters(form: HTMLFormElement): UiFilters {
     mode: (data.get("mode") as UiFilters["mode"]) ?? "volume",
     bucket: Number(data.get("bucket") ?? 5) as UiFilters["bucket"]
   }
+}
+
+function isoTimeLabel(iso: string | null | undefined): string {
+  return iso ? iso.slice(11, 16) : "N/A"
 }
 
 function indexByBucket(payload: DayFlowPayload, selectedBucket: string | null): number {
@@ -53,7 +62,7 @@ function bandAtPosition(payload: DayFlowPayload, bucketIndex: number, yRatio: nu
   return null
 }
 
-function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, selectedBucket: string | null, selectedStreamerId: string | null, mode: "volume" | "share") {
+function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState: () => { selectedBucket: string | null; selectedStreamerId: string | null; mode: "volume" | "share"; isolate: boolean }) {
   const host = createCanvasHost(canvas, { maxDpr: 2 })
 
   const draw = () => {
@@ -61,6 +70,8 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, selectedB
     const pad = { left: 44, right: 16, top: 20, bottom: 34 }
     const chartW = Math.max(1, width - pad.left - pad.right)
     const chartH = Math.max(1, height - pad.top - pad.bottom)
+    const { selectedBucket, selectedStreamerId, mode, isolate } = getState()
+    const selectedIndex = indexByBucket(payload, selectedBucket)
 
     ctx.clearRect(0, 0, width, height)
     ctx.fillStyle = "#0a1120"
@@ -84,7 +95,9 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, selectedB
         const y = pad.top + chartH - yOffset - h
 
         ctx.fillStyle = band.color
-        ctx.globalAlpha = selectedStreamerId && selectedStreamerId !== band.streamerId ? 0.35 : 0.85
+        const isSelected = selectedStreamerId === band.streamerId
+        const isDimmed = isolate && selectedStreamerId && !isSelected
+        ctx.globalAlpha = isDimmed ? 0.12 : (selectedStreamerId && !isSelected ? 0.35 : 0.88)
         if (i === 0 || i === drawBucketCount - 1) {
           ctx.fillRect(x - 1.2, y, 2.4, h)
         } else {
@@ -97,7 +110,6 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, selectedB
     }
     ctx.globalAlpha = 1
 
-    const selectedIndex = indexByBucket(payload, selectedBucket)
     const sx = pad.left + (selectedIndex / Math.max(1, payload.buckets.length - 1)) * chartW
     ctx.strokeStyle = "rgba(255,255,255,0.8)"
     ctx.beginPath()
@@ -105,11 +117,73 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, selectedB
     ctx.lineTo(sx, pad.top + chartH)
     ctx.stroke()
 
+    const mobile = width <= 720
+    const labels = payload.bands.filter((b) => !b.isOthers).slice(0, mobile ? 2 : 3)
+    const others = payload.bands.find((b) => b.isOthers)
+    if (others) labels.push(others)
+
+    const selectedLineY = pad.top + 16
+    for (const band of labels) {
+      const bucket = band.buckets[selectedIndex]
+      const total = payload.totalViewersByBucket[selectedIndex] || 1
+      const ratio = mode === "share" ? bucket?.share ?? 0 : (bucket?.viewers ?? 0) / total
+      if (ratio < (mobile ? 0.08 : 0.05)) continue
+
+      let yStart = pad.top + chartH
+      for (const candidate of payload.bands) {
+        const cBucket = candidate.buckets[selectedIndex]
+        const cRatio = mode === "share" ? cBucket?.share ?? 0 : ((payload.totalViewersByBucket[selectedIndex] ?? 0) > 0 ? (cBucket?.viewers ?? 0) / (payload.totalViewersByBucket[selectedIndex] ?? 1) : 0)
+        yStart -= cRatio * chartH
+        if (candidate.streamerId === band.streamerId) {
+          const yMid = yStart + (cRatio * chartH) / 2
+          if (yMid < pad.top + 12 || yMid > pad.top + chartH - 10) break
+          ctx.fillStyle = "rgba(8,16,30,0.86)"
+          const text = band.name
+          ctx.font = "11px ui-sans-serif"
+          const textW = Math.min(130, ctx.measureText(text).width + 10)
+          ctx.fillRect(sx + 8, yMid - 8, textW, 16)
+          ctx.fillStyle = "#dbe8ff"
+          ctx.fillText(text, sx + 12, yMid + 4)
+          break
+        }
+      }
+    }
+
+    const markerBands = payload.bands.filter((b) => !b.isOthers).slice(0, mobile ? 2 : 4)
+    for (const band of markerBands) {
+      const bucket = band.buckets[selectedIndex]
+      if (!bucket) continue
+      let yStart = pad.top + chartH
+      for (const candidate of payload.bands) {
+        const cBucket = candidate.buckets[selectedIndex]
+        const cRatio = mode === "share" ? cBucket?.share ?? 0 : ((payload.totalViewersByBucket[selectedIndex] ?? 0) > 0 ? (cBucket?.viewers ?? 0) / (payload.totalViewersByBucket[selectedIndex] ?? 1) : 0)
+        yStart -= cRatio * chartH
+        if (candidate.streamerId !== band.streamerId) continue
+
+        const yMid = yStart + (cRatio * chartH) / 2
+        if (bucket.peak) {
+          ctx.fillStyle = "#83f0b7"
+          ctx.beginPath()
+          ctx.arc(sx, yMid, mobile ? 3 : 4, 0, Math.PI * 2)
+          ctx.fill()
+        } else if (bucket.rise && cRatio > 0.05) {
+          ctx.fillStyle = "#ff8fbd"
+          ctx.beginPath()
+          ctx.moveTo(sx, yMid - 4)
+          ctx.lineTo(sx + 4, yMid + 4)
+          ctx.lineTo(sx - 4, yMid + 4)
+          ctx.closePath()
+          ctx.fill()
+        }
+      }
+    }
+
     ctx.fillStyle = "#c9d4f5"
     ctx.font = "12px ui-sans-serif"
     ctx.fillText("00:00", pad.left - 4, height - 10)
     ctx.fillText("24:00", width - 42, height - 10)
     ctx.fillText(mode === "share" ? "Share" : "Volume", 8, 14)
+    ctx.fillText(isoTimeLabel(payload.buckets[selectedIndex]), sx + 4, selectedLineY)
 
     if (payload.dateScope === "today" && nowCutIndex < payload.buckets.length - 1) {
       const blankStartX = pad.left + ((nowCutIndex + 1) / Math.max(1, payload.buckets.length - 1)) * chartW
@@ -135,9 +209,25 @@ function renderSummary(payload: DayFlowPayload): string {
   `
 }
 
+function renderStateNote(payload: DayFlowPayload): string {
+  return `
+    <section class="card dayflow-state-card">
+      <h2>Data State</h2>
+      <div class="status-chip" data-state="${payload.state}">${payload.status}</div>
+      <p class="muted">${payload.note ?? "Live data render from API day rollup."}</p>
+      <ul class="dayflow-notes">
+        <li>${payload.coverageNote}</li>
+        ${payload.partialNote ? `<li>Partial: ${payload.partialNote}</li>` : ""}
+        <li>${payload.activity.note}</li>
+      </ul>
+    </section>
+  `
+}
+
 function renderFrame(payload: DayFlowPayload): string {
   return `
     ${renderSummary(payload)}
+    ${renderStateNote(payload)}
     <section class="grid-2 page-section dayflow-layout">
       <section class="card">
         <h2>Today Landscape</h2>
@@ -151,10 +241,11 @@ function renderFrame(payload: DayFlowPayload): string {
         </div>
         <canvas id="dayflow-canvas" class="dayflow-canvas" aria-label="Day Flow chart"></canvas>
         <input id="dayflow-time" type="range" min="0" max="${Math.max(0, payload.buckets.length - 1)}" step="1" value="${Math.max(0, payload.buckets.length - 1)}" />
+        <div id="dayflow-focus-mobile" class="card dayflow-focus-mobile"></div>
       </section>
 
       <section class="dayflow-side">
-        <section class="card">
+        <section class="card dayflow-focus-card">
           <h2>Time Focus</h2>
           <div id="dayflow-focus" class="kv"></div>
         </section>
@@ -165,6 +256,7 @@ function renderFrame(payload: DayFlowPayload): string {
         <section class="card" id="dayflow-detail"></section>
       </section>
     </section>
+    <dialog id="dayflow-detail-sheet" class="dayflow-sheet"><section class="card" id="dayflow-detail-mobile"></section></dialog>
   `
 }
 
@@ -179,108 +271,168 @@ function renderFocus(target: HTMLElement, payload: DayFlowPayload, bucketIndex: 
         name: band.name,
         viewers: curr?.viewers ?? 0,
         share: curr?.share ?? 0,
-        momentum
+        momentum,
+        activity: curr?.activity
       }
     })
     .sort((a, b) => b.viewers - a.viewers)
     .slice(0, 5)
 
   const momentumLeader = [...focusItems].sort((a, b) => b.momentum - a.momentum)[0]
+  const activityLeader = payload.activity.available
+    ? [...focusItems].filter((item) => typeof item.activity === "number").sort((a, b) => (b.activity ?? 0) - (a.activity ?? 0))[0]
+    : null
+
   target.innerHTML = `
     <div class="kv-row"><span>Selected</span><strong>${payload.buckets[bucketIndex]?.slice(11, 16) ?? "N/A"}</strong></div>
     ${focusItems.map((item, idx) => `<div class="kv-row"><span>#${idx + 1} ${item.name}</span><strong>${numberFmt.format(item.viewers)} (${pctFmt.format(item.share)})</strong></div>`).join("")}
     <div class="kv-row"><span>Strongest momentum</span><strong>${momentumLeader?.name ?? "N/A"}</strong></div>
-    <div class="kv-row"><span>Highest activity</span><strong>${payload.activity.available ? "Available" : "Activity unavailable"}</strong></div>
+    <div class="kv-row"><span>Highest activity</span><strong>${activityLeader?.name ?? (payload.activity.available ? "N/A" : "Activity unavailable")}</strong></div>
   `
 }
 
-function renderDetail(target: HTMLElement, payload: DayFlowPayload, streamerId: string | null) {
+function renderDetailCard(payload: DayFlowPayload, streamerId: string | null, isolate: boolean): string {
   const id = streamerId ?? payload.detailPanelSource.defaultStreamerId
   const detail = payload.detailPanelSource.streamers.find((streamer) => streamer.streamerId === id)
 
   if (!detail) {
-    target.innerHTML = `<h2>Detail</h2><p class="muted">Tap a band to inspect streamer details.</p>`
-    return
+    return `<h2>Detail</h2><p class="muted">Tap a band to inspect streamer details.</p>`
   }
 
-  target.innerHTML = `
+  return `
     <h2>Detail Panel</h2>
     <div class="kv">
       <div class="kv-row"><span>Streamer</span><strong>${detail.name}</strong></div>
       <div class="kv-row"><span>Title</span><strong>${detail.title || "N/A"}</strong></div>
-      <div class="kv-row"><span>Peak viewers</span><strong>${numberFmt.format(detail.peakViewers)}</strong></div>
+      <div class="kv-row"><span>Today peak viewers</span><strong>${numberFmt.format(detail.peakViewers)}</strong></div>
       <div class="kv-row"><span>Avg viewers</span><strong>${numberFmt.format(detail.avgViewers)}</strong></div>
       <div class="kv-row"><span>Viewer-minutes</span><strong>${numberFmt.format(detail.viewerMinutes)}</strong></div>
       <div class="kv-row"><span>Peak share</span><strong>${pctFmt.format(detail.peakShare)}</strong></div>
       <div class="kv-row"><span>Highest activity</span><strong>${detail.highestActivity ?? "Activity unavailable"}</strong></div>
-      <div class="kv-row"><span>Biggest rise time</span><strong>${detail.biggestRiseTime?.slice(11, 16) ?? "N/A"}</strong></div>
-      <div class="kv-row"><span>First seen / Last seen</span><strong>${detail.firstSeen?.slice(11, 16) ?? "N/A"} / ${detail.lastSeen?.slice(11, 16) ?? "N/A"}</strong></div>
+      <div class="kv-row"><span>Biggest rise time</span><strong>${isoTimeLabel(detail.biggestRiseTime)}</strong></div>
+      <div class="kv-row"><span>First seen / Last seen</span><strong>${isoTimeLabel(detail.firstSeen)} / ${isoTimeLabel(detail.lastSeen)}</strong></div>
     </div>
     <div class="actions">
       <a class="action" href="${detail.url}" target="_blank" rel="noreferrer">Open stream</a>
+      <button class="action" type="button" id="dayflow-isolate">${isolate ? "Dim others: on" : "Dim others: off"}</button>
       <a class="action" href="/battle-lines/">Jump to Battle Lines</a>
     </div>
   `
 }
 
-async function mountData(form: HTMLFormElement, content: HTMLElement): Promise<void> {
+function mountData(form: HTMLFormElement, content: HTMLElement, previousGood: DayFlowPayload | null): { promise: Promise<DayFlowMountController | null>; abort: () => void } {
+  let destroyed = false
   content.innerHTML = `<section class="card"><h2>Loading Day Flow…</h2></section>`
 
-  let payload: DayFlowPayload
-  try {
-    payload = await getDayFlowPayload(parseFilters(form))
-  } catch {
-    content.innerHTML = `<section class="card"><h2>Error</h2><p>Could not load /api/day-flow. <button id="retry-dayflow">Retry</button></p></section>`
-    content.querySelector("#retry-dayflow")?.addEventListener("click", () => {
-      void mountData(form, content)
-    })
-    return
-  }
+  const promise = (async () => {
+    let payload: DayFlowPayload
+    try {
+      payload = await getDayFlowPayload(parseFilters(form))
+    } catch {
+      const staleMessage = previousGood
+        ? `<p class="muted">Last good render (${previousGood.lastUpdated.slice(11, 16)} UTC) is preserved below.</p>`
+        : ""
+      content.innerHTML = `<section class="card"><h2>Error</h2><p>Could not load /api/day-flow. <button id="retry-dayflow">Retry</button></p>${staleMessage}</section>${previousGood ? renderFrame(previousGood) : ""}`
+      content.querySelector("#retry-dayflow")?.addEventListener("click", () => {
+        const next = mountData(form, content, previousGood)
+        void next.promise
+      })
+      return null
+    }
 
-  content.innerHTML = renderFrame(payload)
+    if (destroyed) return null
+    content.innerHTML = renderFrame(payload)
 
-  const canvas = content.querySelector<HTMLCanvasElement>("#dayflow-canvas")
-  const slider = content.querySelector<HTMLInputElement>("#dayflow-time")
-  const focus = content.querySelector<HTMLElement>("#dayflow-focus")
-  const detail = content.querySelector<HTMLElement>("#dayflow-detail")
-  if (!canvas || !slider || !focus || !detail) return
+    const canvas = content.querySelector<HTMLCanvasElement>("#dayflow-canvas")
+    const slider = content.querySelector<HTMLInputElement>("#dayflow-time")
+    const focus = content.querySelector<HTMLElement>("#dayflow-focus")
+    const focusMobile = content.querySelector<HTMLElement>("#dayflow-focus-mobile")
+    const detail = content.querySelector<HTMLElement>("#dayflow-detail")
+    const detailMobile = content.querySelector<HTMLElement>("#dayflow-detail-mobile")
+    const detailSheet = content.querySelector<HTMLDialogElement>("#dayflow-detail-sheet")
+    if (!canvas || !slider || !focus || !detail || !focusMobile || !detailMobile || !detailSheet) return null
 
-  let selectedBucket = payload.buckets[Math.max(0, payload.buckets.length - 1)] ?? null
-  let selectedStreamerId = payload.detailPanelSource.defaultStreamerId
-  let mode = parseFilters(form).mode
+    let selectedBucket = payload.buckets[Math.max(0, payload.buckets.length - 1)] ?? null
+    let selectedStreamerId = payload.detailPanelSource.defaultStreamerId
+    let mode = parseFilters(form).mode
+    let isolate = false
 
-  const renderer = drawChart(canvas, payload, selectedBucket, selectedStreamerId, mode)
+    const state = () => ({ selectedBucket, selectedStreamerId, mode, isolate })
+    const renderer = drawChart(canvas, payload, state)
 
-  const refresh = () => {
-    const idx = Number(slider.value)
-    selectedBucket = payload.buckets[idx] ?? selectedBucket
-    renderFocus(focus, payload, idx)
-    renderDetail(detail, payload, selectedStreamerId)
-    renderer.redraw()
-  }
+    const wireDetailActions = () => {
+      const isolateButtons = content.querySelectorAll<HTMLButtonElement>("#dayflow-isolate")
+      for (const button of isolateButtons) {
+        button.addEventListener("click", () => {
+          isolate = !isolate
+          renderDetail()
+          renderer.redraw()
+        })
+      }
+    }
 
-  slider.addEventListener("input", refresh)
+    const renderDetail = () => {
+      detail.innerHTML = renderDetailCard(payload, selectedStreamerId, isolate)
+      detailMobile.innerHTML = `<h2>Selected Stream</h2>${renderDetailCard(payload, selectedStreamerId, isolate)}`
+      wireDetailActions()
+    }
 
-  canvas.addEventListener("click", (event) => {
-    const rect = canvas.getBoundingClientRect()
-    const xRatio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
-    const yRatio = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
-    const bucketIndex = Math.min(payload.buckets.length - 1, Math.max(0, Math.round(xRatio * (payload.buckets.length - 1))))
-    slider.value = String(bucketIndex)
-    selectedBucket = payload.buckets[bucketIndex] ?? selectedBucket
-    const band = bandAtPosition(payload, bucketIndex, 1 - yRatio, mode)
-    selectedStreamerId = band?.streamerId ?? selectedStreamerId
-    refresh()
-  })
-
-  form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("select[name='mode']").forEach((field) => {
-    field.addEventListener("change", () => {
-      mode = parseFilters(form).mode
+    const refresh = () => {
+      const idx = Number(slider.value)
+      selectedBucket = payload.buckets[idx] ?? selectedBucket
+      renderFocus(focus, payload, idx)
+      renderFocus(focusMobile, payload, idx)
+      renderDetail()
       renderer.redraw()
-    })
-  })
+    }
 
-  refresh()
+    slider.addEventListener("input", refresh)
+
+    canvas.addEventListener("click", (event) => {
+      const rect = canvas.getBoundingClientRect()
+      const xRatio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+      const yRatio = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
+      const bucketIndex = Math.min(payload.buckets.length - 1, Math.max(0, Math.round(xRatio * (payload.buckets.length - 1))))
+      slider.value = String(bucketIndex)
+      selectedBucket = payload.buckets[bucketIndex] ?? selectedBucket
+      const band = bandAtPosition(payload, bucketIndex, 1 - yRatio, mode)
+      selectedStreamerId = band?.streamerId ?? selectedStreamerId
+      refresh()
+      if (window.matchMedia("(max-width: 900px)").matches && typeof detailSheet.showModal === "function") {
+        detailSheet.showModal()
+      }
+    })
+
+    detailSheet.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement
+      if (target.tagName === "DIALOG") {
+        detailSheet.close()
+      }
+    })
+
+    form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("select[name='mode']").forEach((field) => {
+      field.addEventListener("change", () => {
+        mode = parseFilters(form).mode
+        renderer.redraw()
+      })
+    })
+
+    refresh()
+
+    return {
+      payload,
+      destroy: () => {
+        renderer.destroy()
+      }
+    }
+  })()
+
+  return {
+    promise,
+    abort: () => {
+      destroyed = true
+    }
+  }
 }
 
 export function renderDayFlowPage(root: HTMLElement): void {
@@ -290,7 +442,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
     ${renderHero({
       eyebrow: "TODAY",
       title: "Day Flow",
-      subtitle: "Real-data Twitch day landscape (MVP).",
+      subtitle: "Real-data Twitch day landscape (MVP+).",
       note: "Default: Today · 5m · Top20 + Others · Volume. Fixed band order by daily viewer-minutes.",
       actions: [
         { href: "/heatmap/", label: "Open Heatmap" },
@@ -319,14 +471,27 @@ export function renderDayFlowPage(root: HTMLElement): void {
   const autoUpdate = root.querySelector<HTMLInputElement>("#auto-update")
   if (!form || !content || !autoUpdate) return
 
+  let mounted: DayFlowMountController | null = null
+  let previousGood: DayFlowPayload | null = null
+
+  const remount = async () => {
+    mounted?.destroy()
+    const active = mountData(form, content, previousGood)
+    const next = await active.promise
+    mounted = next
+    if (next) {
+      previousGood = next.payload
+    }
+  }
+
   form.addEventListener("submit", (event) => {
     event.preventDefault()
-    void mountData(form, content)
+    void remount()
   })
 
   let timer: number | null = window.setInterval(() => {
     if (autoUpdate.checked && parseFilters(form).day === "today") {
-      void mountData(form, content)
+      void remount()
     }
   }, 60_000)
 
@@ -340,11 +505,11 @@ export function renderDayFlowPage(root: HTMLElement): void {
     if (autoUpdate.checked && timer === null) {
       timer = window.setInterval(() => {
         if (parseFilters(form).day === "today") {
-          void mountData(form, content)
+          void remount()
         }
       }, 60_000)
     }
   })
 
-  void mountData(form, content)
+  void remount()
 }
