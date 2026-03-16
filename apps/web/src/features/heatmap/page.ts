@@ -6,7 +6,7 @@ import { renderStatusNote } from "../../shared/app-shell/status-note"
 import { readAnimationEnabled, writeAnimationEnabled } from "../../shared/runtime/animation-mode"
 import { readLowLoadEnabled, writeLowLoadEnabled } from "../../shared/runtime/low-load-mode"
 import { formatActivityState, getActivityState } from "./activity-state"
-import { mountTileMockRenderer } from "./renderer/tile-mock"
+import { mountSvgTreemapRenderer } from "./renderer/svg-treemap"
 import { loadHeatmapPageState, type HeatmapMode } from "./state"
 
 let pollTimer: number | null = null
@@ -87,7 +87,7 @@ function renderReady(root: HTMLElement, payload: HeatmapPayload, mode: HeatmapMo
   const tileStage = root.querySelector<HTMLElement>("#heatmapTileStage")
   if (!tileStage) throw new Error("tile stage not found")
 
-  cleanupRenderer = mountTileMockRenderer(tileStage, visibleNodes, selected.streamerId, (nextId) => renderReady(root, payload, mode, nextId), {
+  cleanupRenderer = mountSvgTreemapRenderer(tileStage, visibleNodes, selected.streamerId, (nextId) => renderReady(root, payload, mode, nextId), {
     zoomInButton: root.querySelector<HTMLButtonElement>("[data-zoom-in]"),
     zoomOutButton: root.querySelector<HTMLButtonElement>("[data-zoom-out]"),
     zoomResetButton: root.querySelector<HTMLButtonElement>("[data-zoom-reset]")

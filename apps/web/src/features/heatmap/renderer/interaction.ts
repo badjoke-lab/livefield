@@ -39,6 +39,10 @@ export function mountTreemapInteraction(viewport: HTMLElement, content: HTMLElem
   let dragging = false
   let dragStart = { x: 0, y: 0, tx: 0, ty: 0 }
 
+  const pointers = new Map<number, { x: number; y: number }>()
+  let pinchStartDistance = 0
+  let pinchStartScale = 1
+
   const render = () => {
     content.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`
   }
@@ -68,7 +72,31 @@ export function mountTreemapInteraction(viewport: HTMLElement, content: HTMLElem
     zoomAt(state.scale + direction * ZOOM_STEP, focusX, focusY)
   }
 
+  const getPointerDistance = (): number => {
+    const values = [...pointers.values()]
+    if (values.length < 2) return 0
+    return Math.hypot(values[0].x - values[1].x, values[0].y - values[1].y)
+  }
+
+  const pointerFocus = (): { x: number; y: number } => {
+    const values = [...pointers.values()]
+    if (values.length === 0) return { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 }
+    const sum = values.reduce((acc, pointer) => ({ x: acc.x + pointer.x, y: acc.y + pointer.y }), { x: 0, y: 0 })
+    return { x: sum.x / values.length, y: sum.y / values.length }
+  }
+
   const handlePointerDown = (event: PointerEvent) => {
+    const rect = viewport.getBoundingClientRect()
+    pointers.set(event.pointerId, { x: event.clientX - rect.left, y: event.clientY - rect.top })
+
+    if (pointers.size === 2) {
+      pinchStartDistance = getPointerDistance()
+      pinchStartScale = state.scale
+      dragging = false
+      viewport.dataset.dragging = "off"
+      return
+    }
+
     if (state.scale <= 1) return
     dragging = true
     dragStart = { x: event.clientX, y: event.clientY, tx: state.tx, ty: state.ty }
@@ -77,6 +105,20 @@ export function mountTreemapInteraction(viewport: HTMLElement, content: HTMLElem
   }
 
   const handlePointerMove = (event: PointerEvent) => {
+    if (!pointers.has(event.pointerId)) return
+
+    const rect = viewport.getBoundingClientRect()
+    pointers.set(event.pointerId, { x: event.clientX - rect.left, y: event.clientY - rect.top })
+
+    if (pointers.size >= 2) {
+      const distance = getPointerDistance()
+      if (pinchStartDistance > 0) {
+        const focus = pointerFocus()
+        zoomAt(pinchStartScale * (distance / pinchStartDistance), focus.x, focus.y)
+      }
+      return
+    }
+
     if (!dragging) return
     const dx = event.clientX - dragStart.x
     const dy = event.clientY - dragStart.y
@@ -84,6 +126,9 @@ export function mountTreemapInteraction(viewport: HTMLElement, content: HTMLElem
   }
 
   const stopDragging = (event?: PointerEvent) => {
+    if (event) pointers.delete(event.pointerId)
+    if (pointers.size < 2) pinchStartDistance = 0
+
     if (!dragging) return
     dragging = false
     viewport.dataset.dragging = "off"
