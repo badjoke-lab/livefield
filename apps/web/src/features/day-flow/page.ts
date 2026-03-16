@@ -19,6 +19,8 @@ type UiFilters = {
 
 type DayFlowMountController = {
   payload: DayFlowPayload
+  getSelectedBucket: () => string | null
+  showNotice: (kind: "updating" | "error" | null, message?: string) => void
   destroy: () => void
 }
 
@@ -41,6 +43,40 @@ function indexByBucket(payload: DayFlowPayload, selectedBucket: string | null): 
   if (!selectedBucket) return Math.max(0, payload.buckets.length - 1)
   const idx = payload.buckets.indexOf(selectedBucket)
   return idx < 0 ? Math.max(0, payload.buckets.length - 1) : idx
+}
+
+function getFutureBlankStartIndex(payload: DayFlowPayload): number {
+  if (!payload.timeline.futureBlankFrom) return payload.buckets.length
+  const idx = payload.buckets.indexOf(payload.timeline.futureBlankFrom)
+  return idx < 0 ? payload.buckets.length : idx
+}
+
+function getLatestObservedBucketIndex(payload: DayFlowPayload): number {
+  const futureStart = getFutureBlankStartIndex(payload)
+  for (let idx = Math.min(payload.buckets.length - 1, futureStart - 1); idx >= 0; idx -= 1) {
+    if ((payload.totalViewersByBucket[idx] ?? 0) > 0) return idx
+  }
+  return -1
+}
+
+function resolveInitialBucketIndex(payload: DayFlowPayload, preferredBucket: string | null): number {
+  if (payload.buckets.length === 0) return 0
+
+  const latestObserved = getLatestObservedBucketIndex(payload)
+  const futureStart = getFutureBlankStartIndex(payload)
+  const preferred = preferredBucket ? payload.buckets.indexOf(preferredBucket) : -1
+
+  if (preferred >= 0 && preferred < futureStart && (payload.totalViewersByBucket[preferred] ?? 0) > 0) {
+    return preferred
+  }
+  if (latestObserved >= 0) return latestObserved
+
+  if (payload.dateScope !== "today") {
+    const nonFuture = Math.max(0, Math.min(payload.buckets.length - 1, futureStart - 1))
+    return nonFuture
+  }
+
+  return Math.max(0, Math.min(payload.buckets.length - 1, futureStart - 1))
 }
 
 function renderLegend(payload: DayFlowPayload): string {
@@ -80,8 +116,8 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
     ctx.strokeStyle = "rgba(122,162,255,0.16)"
     ctx.strokeRect(pad.left, pad.top, chartW, chartH)
 
-    const nowCutIndex = payload.timeline.futureBlankFrom ? payload.buckets.indexOf(payload.timeline.futureBlankFrom) : payload.buckets.length - 1
-    const drawBucketCount = Math.max(1, Math.min(payload.buckets.length, nowCutIndex + 1))
+    const futureStart = getFutureBlankStartIndex(payload)
+    const drawBucketCount = Math.max(1, Math.min(payload.buckets.length, futureStart))
 
     for (let i = 0; i < drawBucketCount; i += 1) {
       const x = pad.left + (i / Math.max(1, payload.buckets.length - 1)) * chartW
@@ -185,8 +221,8 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
     ctx.fillText(mode === "share" ? "Share" : "Volume", 8, 14)
     ctx.fillText(isoTimeLabel(payload.buckets[selectedIndex]), sx + 4, selectedLineY)
 
-    if (payload.dateScope === "today" && nowCutIndex < payload.buckets.length - 1) {
-      const blankStartX = pad.left + ((nowCutIndex + 1) / Math.max(1, payload.buckets.length - 1)) * chartW
+    if (payload.dateScope === "today" && futureStart < payload.buckets.length) {
+      const blankStartX = pad.left + (futureStart / Math.max(1, payload.buckets.length - 1)) * chartW
       ctx.fillStyle = "rgba(8, 11, 19, 0.65)"
       ctx.fillRect(blankStartX, pad.top, pad.left + chartW - blankStartX, chartH)
       ctx.fillStyle = "#93a0bf"
@@ -194,8 +230,16 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
     }
   }
 
+  const ro = new ResizeObserver(() => {
+    requestAnimationFrame(draw)
+  })
+  ro.observe(canvas)
+
   draw()
-  return { destroy: () => host.destroy(), redraw: draw }
+  return { destroy: () => {
+    ro.disconnect()
+    host.destroy()
+  }, redraw: draw }
 }
 
 function renderSummary(payload: DayFlowPayload): string {
@@ -320,21 +364,51 @@ function renderDetailCard(payload: DayFlowPayload, streamerId: string | null, is
   `
 }
 
-function mountData(form: HTMLFormElement, content: HTMLElement, previousGood: DayFlowPayload | null): { promise: Promise<DayFlowMountController | null>; abort: () => void } {
+function mountData(
+  form: HTMLFormElement,
+  content: HTMLElement,
+  previousGood: DayFlowPayload | null,
+  preferredBucket: string | null
+): { promise: Promise<DayFlowMountController | null>; abort: () => void } {
   let destroyed = false
-  content.innerHTML = `<section class="card"><h2>Loading Day Flow…</h2></section>`
+  if (!previousGood) {
+    content.innerHTML = `<section class="card"><h2>Loading Day Flow…</h2></section>`
+  }
+
+  const showNotice = (kind: "updating" | "error" | null, message?: string) => {
+    const existing = content.querySelector<HTMLElement>("#dayflow-transient-note")
+    if (!kind) {
+      existing?.remove()
+      return
+    }
+
+    const text = message ?? (kind === "updating" ? "Updating data…" : "Update failed. Showing last good chart.")
+    if (existing) {
+      existing.dataset.kind = kind
+      existing.innerHTML = `<p class="muted">${text}</p>`
+      return
+    }
+
+    const note = document.createElement("section")
+    note.className = "card dayflow-transient-note"
+    note.id = "dayflow-transient-note"
+    note.dataset.kind = kind
+    note.innerHTML = `<p class="muted">${text}</p>`
+    content.prepend(note)
+  }
 
   const promise = (async () => {
     let payload: DayFlowPayload
     try {
       payload = await getDayFlowPayload(parseFilters(form))
     } catch {
-      const staleMessage = previousGood
-        ? `<p class="muted">Last good render (${previousGood.lastUpdated.slice(11, 16)} UTC) is preserved below.</p>`
-        : ""
-      content.innerHTML = `<section class="card"><h2>Error</h2><p>Could not load /api/day-flow. <button id="retry-dayflow">Retry</button></p>${staleMessage}</section>${previousGood ? renderFrame(previousGood) : ""}`
+      if (previousGood) {
+        return null
+      }
+
+      content.innerHTML = `<section class="card"><h2>Error</h2><p>Could not load /api/day-flow. <button id="retry-dayflow">Retry</button></p></section>`
       content.querySelector("#retry-dayflow")?.addEventListener("click", () => {
-        const next = mountData(form, content, previousGood)
+        const next = mountData(form, content, previousGood, preferredBucket)
         void next.promise
       })
       return null
@@ -352,7 +426,7 @@ function mountData(form: HTMLFormElement, content: HTMLElement, previousGood: Da
     const detailSheet = content.querySelector<HTMLDialogElement>("#dayflow-detail-sheet")
     if (!canvas || !slider || !focus || !detail || !focusMobile || !detailMobile || !detailSheet) return null
 
-    let selectedBucket = payload.buckets[Math.max(0, payload.buckets.length - 1)] ?? null
+    let selectedBucket = payload.buckets[resolveInitialBucketIndex(payload, preferredBucket)] ?? null
     let selectedStreamerId = payload.detailPanelSource.defaultStreamerId
     let mode = parseFilters(form).mode
     let isolate = false
@@ -378,8 +452,9 @@ function mountData(form: HTMLFormElement, content: HTMLElement, previousGood: Da
     }
 
     const refresh = () => {
-      const idx = Number(slider.value)
+      const idx = Math.max(0, Math.min(payload.buckets.length - 1, Number(slider.value)))
       selectedBucket = payload.buckets[idx] ?? selectedBucket
+      slider.value = String(idx)
       renderFocus(focus, payload, idx)
       renderFocus(focusMobile, payload, idx)
       renderDetail()
@@ -417,10 +492,13 @@ function mountData(form: HTMLFormElement, content: HTMLElement, previousGood: Da
       })
     })
 
+    slider.value = String(resolveInitialBucketIndex(payload, selectedBucket))
     refresh()
 
     return {
       payload,
+      getSelectedBucket: () => selectedBucket,
+      showNotice,
       destroy: () => {
         renderer.destroy()
       }
@@ -475,13 +553,27 @@ export function renderDayFlowPage(root: HTMLElement): void {
   let previousGood: DayFlowPayload | null = null
 
   const remount = async () => {
-    mounted?.destroy()
-    const active = mountData(form, content, previousGood)
-    const next = await active.promise
-    mounted = next
-    if (next) {
-      previousGood = next.payload
+    const preferredBucket = mounted?.getSelectedBucket() ?? null
+    if (mounted) {
+      mounted.showNotice("updating")
     }
+
+    const active = mountData(form, content, previousGood, preferredBucket)
+    const next = await active.promise
+    if (next) {
+      mounted?.destroy()
+      mounted = next
+      previousGood = next.payload
+      mounted.showNotice(null)
+      return
+    }
+
+    if (mounted) {
+      mounted.showNotice("error")
+      return
+    }
+
+    mounted = null
   }
 
   form.addEventListener("submit", (event) => {
