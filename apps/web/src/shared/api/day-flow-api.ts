@@ -1,7 +1,7 @@
 import type { DayFlowPayload } from "../../../../../packages/shared/src/types/day-flow"
 
 function buildQuery(filters: {
-  day: "today" | "yesterday" | "date"
+  day: "today" | "rolling24h" | "yesterday" | "date"
   date: string
   top: 10 | 20 | 50
   mode: "volume" | "share"
@@ -19,7 +19,7 @@ function buildQuery(filters: {
 }
 
 export async function getDayFlowPayload(filters: {
-  day: "today" | "yesterday" | "date"
+  day: "today" | "rolling24h" | "yesterday" | "date"
   date: string
   top: 10 | 20 | 50
   mode: "volume" | "share"

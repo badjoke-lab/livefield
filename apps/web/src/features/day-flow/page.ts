@@ -10,7 +10,7 @@ const numberFmt = new Intl.NumberFormat("en-US")
 const pctFmt = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 })
 
 type UiFilters = {
-  day: "today" | "yesterday" | "date"
+  day: "today" | "rolling24h" | "yesterday" | "date"
   date: string
   top: 10 | 20 | 50
   mode: "volume" | "share"
@@ -256,7 +256,7 @@ function renderFrame(payload: DayFlowPayload): string {
         <div class="dayflow-main-head dayflow-meta-strip">
           <h2>Live 24h Landscape</h2>
           <div class="dayflow-meta-inline">
-            <span><strong>Date</strong> ${payload.selectedDate}</span>
+            <span><strong>Range</strong> ${payload.isRolling ? `${payload.windowStart.slice(11, 16)} → ${payload.windowEnd.slice(11, 16)} UTC` : payload.selectedDate}</span>
             <span><strong>Status</strong> ${payload.status}</span>
             <span><strong>Coverage</strong> ${payload.coverageNote}</span>
             <span><strong>Bucket</strong> ${payload.bucketSize}m</span>
@@ -335,7 +335,7 @@ function renderMiniChart(payload: DayFlowPayload, streamerId: string): string {
 
   return `
     <div class="dayflow-mini-chart">
-      <div class="dayflow-mini-chart__head"><strong>Viewers trend</strong><span>${payload.selectedDate}</span></div>
+      <div class="dayflow-mini-chart__head"><strong>Viewers trend</strong><span>${payload.isRolling ? "Rolling 24h" : payload.selectedDate}</span></div>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Selected streamer viewers mini chart">
         <polyline points="${points}" />
       </svg>
@@ -357,7 +357,7 @@ function renderDetailCard(payload: DayFlowPayload, streamerId: string | null, is
     <div class="kv">
       <div class="kv-row"><span>Streamer</span><strong>${detail.name}</strong></div>
       <div class="kv-row"><span>Title</span><strong>${detail.title || "N/A"}</strong></div>
-      <div class="kv-row"><span>Today peak viewers</span><strong>${numberFmt.format(detail.peakViewers)}</strong></div>
+      <div class="kv-row"><span>Window peak viewers</span><strong>${numberFmt.format(detail.peakViewers)}</strong></div>
       <div class="kv-row"><span>Avg viewers</span><strong>${numberFmt.format(detail.avgViewers)}</strong></div>
       <div class="kv-row"><span>Viewer-minutes</span><strong>${numberFmt.format(detail.viewerMinutes)}</strong></div>
       <div class="kv-row"><span>Peak share</span><strong>${pctFmt.format(detail.peakShare)}</strong></div>
@@ -566,7 +566,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
       eyebrow: "TODAY",
       title: "Day Flow",
       subtitle: "Read today’s ownership landscape, hour by hour.",
-      note: "Real-data path active · Today default · 5m buckets.",
+      note: "Real-data path active · Today default · Rolling 24h available · 5m buckets.",
       actions: [
         { href: "/heatmap/", label: "Heatmap (support)" },
         { href: "/method/", label: "Method (support)" }
@@ -575,7 +575,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
 
     <form class="controls controls--dayflow" id="day-flow-controls">
       <div class="controls-group">
-        <select name="day" aria-label="Day"><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="date">Date</option></select>
+        <select name="day" aria-label="Day"><option value="today">Today</option><option value="rolling24h">Rolling 24h</option><option value="yesterday">Yesterday</option><option value="date">Date</option></select>
         <input type="date" name="date" aria-label="Date picker" />
       </div>
       <div class="controls-group">
@@ -602,6 +602,20 @@ export function renderDayFlowPage(root: HTMLElement): void {
 
   let mounted: DayFlowMountController | null = null
   let previousGood: DayFlowPayload | null = null
+
+  const syncDateInputState = () => {
+    const filters = parseFilters(form)
+    const dateInput = form.querySelector<HTMLInputElement>('input[name="date"]')
+    if (!dateInput) return
+    const dateMode = filters.day === "date"
+    dateInput.disabled = !dateMode
+    dateInput.style.opacity = dateMode ? "1" : "0.6"
+  }
+  syncDateInputState()
+
+  form.querySelector<HTMLSelectElement>('select[name="day"]')?.addEventListener("change", () => {
+    syncDateInputState()
+  })
 
   const remount = async () => {
     if (!mounted) {
@@ -631,7 +645,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
   })
 
   let timer: number | null = window.setInterval(() => {
-    if (autoUpdate.checked && parseFilters(form).day === "today") {
+    if (autoUpdate.checked && ["today", "rolling24h"].includes(parseFilters(form).day)) {
       void remount()
     }
   }, 60_000)
@@ -645,7 +659,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
 
     if (autoUpdate.checked && timer === null) {
       timer = window.setInterval(() => {
-        if (parseFilters(form).day === "today") {
+        if (["today", "rolling24h"].includes(parseFilters(form).day)) {
           void remount()
         }
       }, 60_000)

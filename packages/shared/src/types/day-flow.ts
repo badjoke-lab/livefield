@@ -1,7 +1,7 @@
 export type DayFlowState = "loading" | "live" | "partial" | "complete" | "empty" | "error" | "demo"
 
 export type DayFlowMode = "volume" | "share"
-export type DayFlowDayScope = "today" | "yesterday" | "date"
+export type DayFlowDayScope = "today" | "rolling24h" | "yesterday" | "date"
 
 export type DayFlowBandBucket = {
   viewers: number
@@ -57,6 +57,12 @@ export type DayFlowPayload = {
   topN: 10 | 20 | 50
   defaultMode: DayFlowMode
   dateScope: DayFlowDayScope
+  rangeMode: DayFlowDayScope
+  windowStart: string
+  windowEnd: string
+  rankingWindowStart: string
+  rankingWindowEnd: string
+  isRolling: boolean
   summary: {
     peakLeader: string
     longestDominance: string
