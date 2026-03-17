@@ -292,7 +292,10 @@ function renderStateNote(payload: DayFlowPayload): string {
 
 function renderFrame(payload: DayFlowPayload): string {
   return `
-        <section class="grid-2 page-section dayflow-layout">
+    <section class="dayflow-status-rail" id="dayflow-status-slot" aria-live="polite">
+      <span class="dayflow-status-indicator" id="dayflow-status-indicator" hidden></span>
+    </section>
+    <section class="grid-2 page-section dayflow-layout">
       <section class="card dayflow-main-card">
         <div class="dayflow-main-head dayflow-meta-strip">
           <h2>Live 24h Landscape</h2>
@@ -305,6 +308,7 @@ function renderFrame(payload: DayFlowPayload): string {
           </div>
         </div>
         <div class="dayflow-canvas-wrap">
+          <div class="dayflow-overlay-status" id="dayflow-overlay-status" hidden></div>
           <canvas id="dayflow-canvas" class="dayflow-canvas" aria-label="Day Flow chart"></canvas>
         </div>
         <div class="dayflow-time-wrap">
@@ -324,6 +328,26 @@ function renderFrame(payload: DayFlowPayload): string {
       </section>
     </section>
     <dialog id="dayflow-detail-sheet" class="dayflow-sheet"><section class="card" id="dayflow-detail-mobile"></section></dialog>
+  `
+}
+
+function renderBootSkeleton(): string {
+  return `
+    <section class="dayflow-status-rail" id="dayflow-status-slot" aria-live="polite">
+      <span class="dayflow-status-indicator" id="dayflow-status-indicator">Loading initial Day Flow…</span>
+    </section>
+    <section class="grid-2 page-section dayflow-layout dayflow-layout--skeleton">
+      <section class="card dayflow-main-card">
+        <div class="dayflow-main-head dayflow-meta-strip">
+          <h2>Live 24h Landscape</h2>
+        </div>
+        <div class="dayflow-canvas-wrap dayflow-canvas-wrap--skeleton" aria-hidden="true"></div>
+      </section>
+      <section class="dayflow-side" aria-hidden="true">
+        <section class="card dayflow-skeleton-card"></section>
+        <section class="card dayflow-skeleton-card dayflow-skeleton-card--detail"></section>
+      </section>
+    </section>
   `
 }
 
@@ -422,29 +446,30 @@ function mountData(
 ): { promise: Promise<DayFlowMountController | null>; abort: () => void } {
   let destroyed = false
   if (!previousGood) {
-    content.innerHTML = `<section class="card"><h2>Loading Day Flow…</h2></section>`
+    content.innerHTML = renderBootSkeleton()
   }
 
   const showNotice = (kind: "updating" | "error" | null, message?: string) => {
-    const existing = content.querySelector<HTMLElement>("#dayflow-transient-note")
+    const inline = content.querySelector<HTMLElement>("#dayflow-status-indicator")
+    const overlay = content.querySelector<HTMLElement>("#dayflow-overlay-status")
+    if (!inline || !overlay) return
     if (!kind) {
-      existing?.remove()
+      inline.hidden = true
+      inline.removeAttribute("data-kind")
+      inline.textContent = ""
+      overlay.hidden = true
+      overlay.removeAttribute("data-kind")
+      overlay.textContent = ""
       return
     }
 
     const text = message ?? (kind === "updating" ? "Updating data…" : "Update failed. Showing last good chart.")
-    if (existing) {
-      existing.dataset.kind = kind
-      existing.innerHTML = `<p class="muted">${text}</p>`
-      return
-    }
-
-    const note = document.createElement("section")
-    note.className = "card dayflow-transient-note"
-    note.id = "dayflow-transient-note"
-    note.dataset.kind = kind
-    note.innerHTML = `<p class="muted">${text}</p>`
-    content.prepend(note)
+    inline.hidden = false
+    inline.dataset.kind = kind
+    inline.textContent = text
+    overlay.hidden = false
+    overlay.dataset.kind = kind
+    overlay.textContent = kind === "updating" ? "Updating…" : "Refresh failed"
   }
 
   const promise = (async () => {
@@ -460,8 +485,13 @@ function mountData(
         return null
       }
 
-      content.innerHTML = `<section class="card dayflow-error-compact"><h2>Day Flow unavailable</h2><p>Could not load /api/day-flow.</p><p><button id="retry-dayflow" class="action">Retry</button></p></section>`
-      content.querySelector("#retry-dayflow")?.addEventListener("click", () => {
+      const inline = content.querySelector<HTMLElement>("#dayflow-status-indicator")
+      if (inline) {
+        inline.hidden = false
+        inline.dataset.kind = "error"
+        inline.innerHTML = `Initial load failed. <button type="button" id="retry-dayflow" class="action dayflow-inline-retry">Retry</button>`
+      }
+      content.querySelector<HTMLButtonElement>("#retry-dayflow")?.addEventListener("click", () => {
         const next = mountData(form, content, previousGood, preferredBucket)
         void next.promise
       })

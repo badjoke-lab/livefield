@@ -1444,11 +1444,82 @@
   letter-spacing: 0.01em;
 }
 
+
+.dayflow-status-rail {
+  min-height: 30px;
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+}
+
+.dayflow-status-indicator {
+  font-size: 12px;
+  color: #c9d4f5;
+  background: rgba(18, 26, 42, 0.7);
+  border: 1px solid rgba(122, 162, 255, 0.2);
+  border-radius: 999px;
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dayflow-status-indicator[data-kind="error"] {
+  color: #ffd5df;
+  border-color: rgba(255, 143, 189, 0.42);
+  background: rgba(52, 18, 34, 0.56);
+}
+
+.dayflow-inline-retry {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
 .dayflow-canvas-wrap {
+  position: relative;
   border-radius: 12px;
   border: 1px solid rgba(122, 162, 255, 0.12);
   background: rgba(7, 12, 24, 0.45);
   overflow: hidden;
+}
+
+.dayflow-overlay-status {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  pointer-events: none;
+  font-size: 11px;
+  color: #d7e6ff;
+  background: rgba(8, 16, 30, 0.76);
+  border: 1px solid rgba(122, 162, 255, 0.25);
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+.dayflow-overlay-status[data-kind="error"] {
+  color: #ffd5df;
+  border-color: rgba(255, 143, 189, 0.42);
+  background: rgba(52, 18, 34, 0.72);
+}
+
+.dayflow-layout--skeleton .dayflow-main-head {
+  min-height: 24px;
+}
+
+.dayflow-canvas-wrap--skeleton {
+  height: min(56vh, 520px);
+  min-height: 340px;
+  background: linear-gradient(90deg, rgba(122,162,255,0.08), rgba(122,162,255,0.18), rgba(122,162,255,0.08));
+}
+
+.dayflow-skeleton-card {
+  min-height: 120px;
+  background: rgba(122, 162, 255, 0.08);
+}
+
+.dayflow-skeleton-card--detail {
+  min-height: 300px;
 }
 
 .dayflow-canvas {
@@ -1530,9 +1601,6 @@
   font-size: 15px;
 }
 
-.dayflow-transient-note {
-  margin-top: 8px;
-}
 
 .dayflow-focus-mobile {
   display: none;
@@ -1609,6 +1677,10 @@
   }
 
   .dayflow-canvas {
+    min-height: 300px;
+  }
+
+  .dayflow-canvas-wrap--skeleton {
     min-height: 300px;
   }
 }
@@ -1693,6 +1765,11 @@
     height: min(42vh, 300px);
     min-height: 220px;
   }
+
+  .dayflow-canvas-wrap--skeleton {
+    height: min(42vh, 300px);
+    min-height: 220px;
+  }
 }
 
 
@@ -1741,10 +1818,3 @@
   margin-top: 10px;
 }
 
-.dayflow-error-compact {
-  margin-top: 8px;
-}
-
-.dayflow-error-compact h2 {
-  margin-bottom: 6px;
-}
