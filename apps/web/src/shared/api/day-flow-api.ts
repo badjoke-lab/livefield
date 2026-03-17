@@ -9,6 +9,7 @@ function buildQuery(filters: {
 }): string {
   const url = new URL("/api/day-flow", window.location.origin)
   url.searchParams.set("day", filters.day)
+  url.searchParams.set("rangeMode", filters.day)
   if (filters.day === "date" && filters.date) {
     url.searchParams.set("date", filters.date)
   }

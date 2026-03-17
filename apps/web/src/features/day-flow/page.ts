@@ -27,6 +27,47 @@ type DayFlowMountController = {
   destroy: () => void
 }
 
+const DAY_FLOW_CACHE_KEY = "livefield.dayflow.last-good.v1"
+
+function isDayFlowPayloadLike(value: unknown): value is DayFlowPayload {
+  if (!value || typeof value !== "object") return false
+  const candidate = value as Partial<DayFlowPayload>
+  return candidate.ok === true
+    && candidate.tool === "day-flow"
+    && typeof candidate.state === "string"
+    && typeof candidate.status === "string"
+    && typeof candidate.lastUpdated === "string"
+    && typeof candidate.coverageNote === "string"
+    && typeof candidate.rangeMode === "string"
+    && typeof candidate.bucketSize === "number"
+    && typeof candidate.topN === "number"
+    && !!candidate.summary
+    && !!candidate.focusSnapshot
+    && !!candidate.detailPanelSource
+    && Array.isArray(candidate.bands)
+    && Array.isArray(candidate.buckets)
+    && Array.isArray(candidate.totalViewersByBucket)
+}
+
+function readCachedPayload(): DayFlowPayload | null {
+  try {
+    const raw = window.localStorage.getItem(DAY_FLOW_CACHE_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    return isDayFlowPayloadLike(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function writeCachedPayload(payload: DayFlowPayload): void {
+  try {
+    window.localStorage.setItem(DAY_FLOW_CACHE_KEY, JSON.stringify(payload))
+  } catch {
+    // ignore storage errors
+  }
+}
+
 function parseFilters(form: HTMLFormElement): UiFilters {
   const data = new FormData(form)
   return {
@@ -376,7 +417,8 @@ function mountData(
   form: HTMLFormElement,
   content: HTMLElement,
   previousGood: DayFlowPayload | null,
-  preferredBucket: string | null
+  preferredBucket: string | null,
+  skipFetch = false
 ): { promise: Promise<DayFlowMountController | null>; abort: () => void } {
   let destroyed = false
   if (!previousGood) {
@@ -408,13 +450,17 @@ function mountData(
   const promise = (async () => {
     let payload: DayFlowPayload
     try {
-      payload = await getDayFlowPayload(parseFilters(form))
+      if (skipFetch && previousGood) {
+        payload = previousGood
+      } else {
+        payload = await getDayFlowPayload(parseFilters(form))
+      }
     } catch {
       if (previousGood) {
         return null
       }
 
-      content.innerHTML = `<section class="card"><h2>Error</h2><p>Could not load /api/day-flow. <button id="retry-dayflow">Retry</button></p></section>`
+      content.innerHTML = `<section class="card dayflow-error-compact"><h2>Day Flow unavailable</h2><p>Could not load /api/day-flow.</p><p><button id="retry-dayflow" class="action">Retry</button></p></section>`
       content.querySelector("#retry-dayflow")?.addEventListener("click", () => {
         const next = mountData(form, content, previousGood, preferredBucket)
         void next.promise
@@ -423,6 +469,7 @@ function mountData(
     }
 
     if (destroyed) return null
+    writeCachedPayload(payload)
     content.innerHTML = renderFrame(payload)
 
     const canvas = content.querySelector<HTMLCanvasElement>("#dayflow-canvas")
@@ -601,7 +648,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
   if (!form || !content || !autoUpdate) return
 
   let mounted: DayFlowMountController | null = null
-  let previousGood: DayFlowPayload | null = null
+  let previousGood: DayFlowPayload | null = readCachedPayload()
 
   const syncDateInputState = () => {
     const filters = parseFilters(form)
@@ -609,7 +656,8 @@ export function renderDayFlowPage(root: HTMLElement): void {
     if (!dateInput) return
     const dateMode = filters.day === "date"
     dateInput.disabled = !dateMode
-    dateInput.style.opacity = dateMode ? "1" : "0.6"
+    dateInput.hidden = !dateMode
+    dateInput.style.display = dateMode ? "inline-flex" : "none"
   }
   syncDateInputState()
 
@@ -619,13 +667,21 @@ export function renderDayFlowPage(root: HTMLElement): void {
 
   const remount = async () => {
     if (!mounted) {
-      const active = mountData(form, content, previousGood, null)
-      const next = await active.promise
-      if (next) {
-        mounted = next
-        previousGood = next.payload
+      if (previousGood) {
+        const activeCached = mountData(form, content, previousGood, null, true)
+        const cached = await activeCached.promise
+        if (cached) mounted = cached
       }
-      return
+
+      if (!mounted) {
+        const active = mountData(form, content, previousGood, null)
+        const next = await active.promise
+        if (next) {
+          mounted = next
+          previousGood = next.payload
+        }
+        return
+      }
     }
 
     mounted.showNotice("updating")
@@ -633,6 +689,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
       const nextPayload = await getDayFlowPayload(parseFilters(form))
       mounted.updatePayload(nextPayload)
       previousGood = nextPayload
+      writeCachedPayload(nextPayload)
       mounted.showNotice(null)
     } catch {
       mounted.showNotice("error")

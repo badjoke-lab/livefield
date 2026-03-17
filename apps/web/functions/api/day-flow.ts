@@ -30,6 +30,8 @@ type SnapshotPayload = {
   streams?: StreamSnapshot[]
 }
 
+type DayScope = "today" | "rolling24h" | "yesterday" | "date"
+
 type StreamAgg = {
   id: string
   name: string
@@ -63,8 +65,35 @@ function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
 }
 
-function parseDay(rawDate: string | null, rawDay: string | null): { day: "today" | "rolling24h" | "yesterday" | "date"; date: Date } {
+function normalizeRangeMode(raw: string | null): DayScope | null {
+  if (!raw) return null
+  if (["today", "rolling24h", "yesterday", "date"].includes(raw)) return raw as DayScope
+  if (["rolling", "rolling24", "rolling-24h", "rolling_24h", "24h"].includes(raw)) return "rolling24h"
+  return null
+}
+
+function parseDay(rawDate: string | null, rawDay: string | null, rawRangeMode: string | null): { day: DayScope; date: Date } {
   const now = new Date()
+  const normalizedMode = normalizeRangeMode(rawRangeMode) ?? normalizeRangeMode(rawDay)
+  if (normalizedMode === "rolling24h") {
+    return { day: "rolling24h", date: startOfUtcDay(now) }
+  }
+
+  if (normalizedMode === "yesterday") {
+    return { day: "yesterday", date: new Date(startOfUtcDay(now).getTime() - DAY_MS) }
+  }
+
+  if (normalizedMode === "date" && rawDate) {
+    const parsed = new Date(`${rawDate}T00:00:00.000Z`)
+    if (!Number.isNaN(parsed.getTime())) {
+      return { day: "date", date: parsed }
+    }
+  }
+
+  if (normalizedMode === "today") {
+    return { day: "today", date: startOfUtcDay(now) }
+  }
+
   if (rawDay === "rolling24h") {
     return { day: "rolling24h", date: startOfUtcDay(now) }
   }
@@ -284,7 +313,7 @@ function buildFocusItems(bands: DayFlowBandSeries[], bucketIndex: number): DayFl
 
 export const onRequest = async (context: { env: Env; request: Request }) => {
   const url = new URL(context.request.url)
-  const parsed = parseDay(url.searchParams.get("date"), url.searchParams.get("day"))
+  const parsed = parseDay(url.searchParams.get("date"), url.searchParams.get("day"), url.searchParams.get("rangeMode"))
   const selectedDate = startOfUtcDay(parsed.date).toISOString().slice(0, 10)
   const bucketSize = normalizeBucket(url.searchParams.get("bucket"))
   const topN = normalizeTop(url.searchParams.get("top"))
@@ -310,15 +339,26 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     })
   }
 
-  const rows = await db
-    .prepare(
-      `SELECT bucket_minute, collected_at, has_more, payload_json, agitation_level
-       FROM minute_snapshots
-       WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute <= ?
-       ORDER BY bucket_minute ASC`
-    )
-    .bind(queryStart, queryEnd)
-    .all()
+  let rows: { results: SnapshotRow[] }
+  try {
+    rows = await db
+      .prepare(
+        `SELECT bucket_minute, collected_at, has_more, payload_json, agitation_level
+         FROM minute_snapshots
+         WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute <= ?
+         ORDER BY bucket_minute ASC`
+      )
+      .bind(queryStart, queryEnd)
+      .all()
+  } catch {
+    return json({
+      ...buildEmptyPayload({ dateScope: parsed.day, selectedDate, bucketSize, topN, mode, updatedAt: new Date().toISOString(), windowStart: rankingWindowStart, windowEnd: rankingWindowEnd, rankingWindowStart, rankingWindowEnd, isRolling }),
+      source: "api",
+      state: "partial",
+      status: "partial",
+      note: "Snapshot query failed; returning safe fallback payload shell."
+    })
+  }
 
   if (!rows.results.length) {
     return json(buildEmptyPayload({
@@ -350,7 +390,12 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     const bucketIndex = bucketIndexByIso.get(bucketIso)
     if (bucketIndex === undefined) continue
 
-    const payload = JSON.parse(row.payload_json) as SnapshotPayload
+    let payload: SnapshotPayload
+    try {
+      payload = JSON.parse(row.payload_json) as SnapshotPayload
+    } catch {
+      continue
+    }
     for (const stream of payload.streams ?? []) {
       if (!stream.userId || !stream.displayName || typeof stream.viewerCount !== "number") continue
       if (stream.language && stream.language !== "en") continue
