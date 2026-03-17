@@ -1453,8 +1453,8 @@
 
 .dayflow-canvas {
   width: 100%;
-  height: min(79vh, 900px);
-  min-height: 700px;
+  height: min(56vh, 520px);
+  min-height: 340px;
   border-radius: 12px;
   display: block;
   border: 0;
@@ -1604,16 +1604,12 @@
 }
 
 @media (max-width: 1100px) {
-  .dayflow-meta-row {
-    grid-template-columns: 1fr;
-  }
-
   .dayflow-layout {
     grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.8fr);
   }
 
   .dayflow-canvas {
-    min-height: 620px;
+    min-height: 300px;
   }
 }
 
@@ -1624,6 +1620,11 @@
 
   .dayflow-focus-mobile {
     display: block;
+  }
+
+  .dayflow-open-sheet {
+    width: 100%;
+    margin-top: 8px;
   }
 
   .controls-group--secondary {
@@ -1668,8 +1669,8 @@
   }
 
   .dayflow-canvas {
-    height: min(66vh, 560px);
-    min-height: 450px;
+    height: min(42vh, 300px);
+    min-height: 220px;
   }
 }
 
@@ -1684,4 +1685,37 @@
 
 .dayflow-sheet::backdrop {
   background: rgba(4, 8, 16, 0.62);
+}
+
+.dayflow-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: min(760px, 100vw);
+  margin: 0 auto;
+}
+
+.dayflow-sheet .card#dayflow-detail-mobile {
+  background: rgba(9, 14, 26, 0.98);
+  color: #e8efff;
+  padding: 12px;
+  max-height: 68vh;
+  overflow: auto;
+  border-radius: 16px 16px 0 0;
+}
+
+.dayflow-sheet .kv-row span {
+  color: #b8c7e8;
+}
+
+.dayflow-sheet .kv-row strong,
+.dayflow-sheet .muted,
+.dayflow-sheet .dayflow-mini-chart__head strong,
+.dayflow-sheet .dayflow-mini-chart__head span,
+.dayflow-sheet-title {
+  color: #e8efff;
+}
+
+.dayflow-close-sheet {
+  width: 100%;
+  margin-top: 10px;
 }

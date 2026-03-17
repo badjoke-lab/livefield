@@ -20,6 +20,9 @@ type UiFilters = {
 type DayFlowMountController = {
   payload: DayFlowPayload
   getSelectedBucket: () => string | null
+  getSelectedStreamerId: () => string | null
+  isDetailSheetOpen: () => boolean
+  updatePayload: (nextPayload: DayFlowPayload) => void
   showNotice: (kind: "updating" | "error" | null, message?: string) => void
   destroy: () => void
 }
@@ -45,15 +48,8 @@ function indexByBucket(payload: DayFlowPayload, selectedBucket: string | null): 
   return idx < 0 ? Math.max(0, payload.buckets.length - 1) : idx
 }
 
-function getFutureBlankStartIndex(payload: DayFlowPayload): number {
-  if (!payload.timeline.futureBlankFrom) return payload.buckets.length
-  const idx = payload.buckets.indexOf(payload.timeline.futureBlankFrom)
-  return idx < 0 ? payload.buckets.length : idx
-}
-
 function getLatestObservedBucketIndex(payload: DayFlowPayload): number {
-  const futureStart = getFutureBlankStartIndex(payload)
-  for (let idx = Math.min(payload.buckets.length - 1, futureStart - 1); idx >= 0; idx -= 1) {
+  for (let idx = payload.buckets.length - 1; idx >= 0; idx -= 1) {
     if ((payload.totalViewersByBucket[idx] ?? 0) > 0) return idx
   }
   return -1
@@ -63,20 +59,13 @@ function resolveInitialBucketIndex(payload: DayFlowPayload, preferredBucket: str
   if (payload.buckets.length === 0) return 0
 
   const latestObserved = getLatestObservedBucketIndex(payload)
-  const futureStart = getFutureBlankStartIndex(payload)
   const preferred = preferredBucket ? payload.buckets.indexOf(preferredBucket) : -1
 
-  if (preferred >= 0 && preferred < futureStart && (payload.totalViewersByBucket[preferred] ?? 0) > 0) {
+  if (preferred >= 0 && (payload.totalViewersByBucket[preferred] ?? 0) > 0) {
     return preferred
   }
   if (latestObserved >= 0) return latestObserved
-
-  if (payload.dateScope !== "today") {
-    const nonFuture = Math.max(0, Math.min(payload.buckets.length - 1, futureStart - 1))
-    return nonFuture
-  }
-
-  return Math.max(0, Math.min(payload.buckets.length - 1, futureStart - 1))
+  return Math.max(0, payload.buckets.length - 1)
 }
 
 function renderLegend(payload: DayFlowPayload): string {
@@ -116,8 +105,7 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
     ctx.strokeStyle = "rgba(122,162,255,0.12)"
     ctx.strokeRect(pad.left, pad.top, chartW, chartH)
 
-    const futureStart = getFutureBlankStartIndex(payload)
-    const drawBucketCount = Math.max(1, Math.min(payload.buckets.length, futureStart))
+    const drawBucketCount = Math.max(1, payload.buckets.length)
 
     for (let i = 0; i < drawBucketCount; i += 1) {
       const x = pad.left + (i / Math.max(1, payload.buckets.length - 1)) * chartW
@@ -216,29 +204,11 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
 
     ctx.fillStyle = "#c9d4f5"
     ctx.font = "12px ui-sans-serif"
-    ctx.fillText("00:00", pad.left - 4, height - 10)
-    ctx.fillText("24:00", width - 42, height - 10)
+    ctx.fillText(isoTimeLabel(payload.buckets[0]), pad.left - 4, height - 10)
+    ctx.fillText(isoTimeLabel(payload.buckets[payload.buckets.length - 1]), width - 42, height - 10)
     ctx.fillText(mode === "share" ? "Share" : "Volume", 8, 14)
     ctx.fillText(isoTimeLabel(payload.buckets[selectedIndex]), sx + 4, selectedLineY)
 
-    if (payload.dateScope === "today" && futureStart < payload.buckets.length) {
-      const blankStartX = pad.left + (futureStart / Math.max(1, payload.buckets.length - 1)) * chartW
-      ctx.fillStyle = "rgba(8, 11, 19, 0.1)"
-      ctx.fillRect(blankStartX, pad.top, pad.left + chartW - blankStartX, chartH)
-      ctx.strokeStyle = "rgba(255,255,255,0.06)"
-      ctx.beginPath()
-      ctx.moveTo(blankStartX, pad.top)
-      ctx.lineTo(blankStartX, pad.top + chartH)
-      ctx.stroke()
-      ctx.fillStyle = "#5d6c8f"
-      ctx.font = "10px ui-sans-serif"
-      ctx.fillText("Future blank", blankStartX + 6, pad.top + 14)
-      ctx.fillStyle = "#b8deff"
-      ctx.fillRect(blankStartX - 1, pad.top, 2, chartH)
-      ctx.fillStyle = "#dff0ff"
-      ctx.font = "11px ui-sans-serif"
-      ctx.fillText("NOW", blankStartX + 6, pad.top + 28)
-    }
   }
 
   const ro = new ResizeObserver(() => {
@@ -281,14 +251,10 @@ function renderStateNote(payload: DayFlowPayload): string {
 
 function renderFrame(payload: DayFlowPayload): string {
   return `
-    <section class="dayflow-meta-row page-section">
-      ${renderSummary(payload)}
-      ${renderStateNote(payload)}
-    </section>
-    <section class="grid-2 page-section dayflow-layout">
+        <section class="grid-2 page-section dayflow-layout">
       <section class="card dayflow-main-card">
         <div class="dayflow-main-head dayflow-meta-strip">
-          <h2>Today Landscape</h2>
+          <h2>Live 24h Landscape</h2>
           <div class="dayflow-meta-inline">
             <span><strong>Date</strong> ${payload.selectedDate}</span>
             <span><strong>Status</strong> ${payload.status}</span>
@@ -305,6 +271,7 @@ function renderFrame(payload: DayFlowPayload): string {
           <input id="dayflow-time" type="range" min="0" max="${Math.max(0, payload.buckets.length - 1)}" step="1" value="${Math.max(0, payload.buckets.length - 1)}" />
         </div>
         <div id="dayflow-focus-mobile" class="card dayflow-focus-mobile"></div>
+        <button type="button" id="dayflow-open-sheet" class="action dayflow-open-sheet">Open detail</button>
       </section>
 
       <section class="dayflow-side">
@@ -312,11 +279,7 @@ function renderFrame(payload: DayFlowPayload): string {
           <h2>Time Focus</h2>
           <div id="dayflow-focus" class="kv"></div>
         </section>
-        <section class="card">
-          <h2>Legend</h2>
-          <ul class="dayflow-legend">${renderLegend(payload)}</ul>
-        </section>
-        <section class="card" id="dayflow-detail"></section>
+                <section class="card" id="dayflow-detail"></section>
       </section>
     </section>
     <dialog id="dayflow-detail-sheet" class="dayflow-sheet"><section class="card" id="dayflow-detail-mobile"></section></dialog>
@@ -380,7 +343,7 @@ function renderMiniChart(payload: DayFlowPayload, streamerId: string): string {
   `
 }
 
-function renderDetailCard(payload: DayFlowPayload, streamerId: string | null, isolate: boolean): string {
+function renderDetailCard(payload: DayFlowPayload, streamerId: string | null, isolate: boolean, mobile = false): string {
   const id = streamerId ?? payload.detailPanelSource.defaultStreamerId
   const detail = payload.detailPanelSource.streamers.find((streamer) => streamer.streamerId === id)
 
@@ -398,14 +361,13 @@ function renderDetailCard(payload: DayFlowPayload, streamerId: string | null, is
       <div class="kv-row"><span>Avg viewers</span><strong>${numberFmt.format(detail.avgViewers)}</strong></div>
       <div class="kv-row"><span>Viewer-minutes</span><strong>${numberFmt.format(detail.viewerMinutes)}</strong></div>
       <div class="kv-row"><span>Peak share</span><strong>${pctFmt.format(detail.peakShare)}</strong></div>
-      <div class="kv-row"><span>Highest activity</span><strong>${detail.highestActivity ?? "Activity unavailable"}</strong></div>
       <div class="kv-row"><span>Biggest rise time</span><strong>${isoTimeLabel(detail.biggestRiseTime)}</strong></div>
       <div class="kv-row"><span>First seen / Last seen</span><strong>${isoTimeLabel(detail.firstSeen)} / ${isoTimeLabel(detail.lastSeen)}</strong></div>
     </div>
     <div class="actions">
-      <button class="action action-toggle" type="button" id="dayflow-highlight">${isolate ? "Highlight only" : "Show all"}</button>
+      ${mobile ? "" : `<button class="action action-toggle" type="button" id="dayflow-highlight">${isolate ? "Highlight only" : "Show all"}</button>`}
       <a class="action" href="${detail.url}" target="_blank" rel="noreferrer">Open stream</a>
-      <button class="action action-toggle" type="button" id="dayflow-isolate">${isolate ? "Dim others: on" : "Dim others: off"}</button>
+      ${mobile ? "" : `<button class="action action-toggle" type="button" id="dayflow-isolate">${isolate ? "Dim others: on" : "Dim others: off"}</button>`}
     </div>
   `
 }
@@ -470,6 +432,7 @@ function mountData(
     const detail = content.querySelector<HTMLElement>("#dayflow-detail")
     const detailMobile = content.querySelector<HTMLElement>("#dayflow-detail-mobile")
     const detailSheet = content.querySelector<HTMLDialogElement>("#dayflow-detail-sheet")
+    const openSheetButton = content.querySelector<HTMLButtonElement>("#dayflow-open-sheet")
     if (!canvas || !slider || !focus || !detail || !focusMobile || !detailMobile || !detailSheet) return null
 
     let selectedBucket = payload.buckets[resolveInitialBucketIndex(payload, preferredBucket)] ?? null
@@ -501,7 +464,7 @@ function mountData(
 
     const renderDetail = () => {
       detail.innerHTML = renderDetailCard(payload, selectedStreamerId, isolate)
-      detailMobile.innerHTML = `<h2>Selected Stream</h2>${renderDetailCard(payload, selectedStreamerId, isolate)}`
+      detailMobile.innerHTML = `<h2 class="dayflow-sheet-title">Selected Stream</h2>${renderDetailCard(payload, selectedStreamerId, isolate, true)}<button type="button" class="action dayflow-close-sheet" id="dayflow-close-sheet">Close</button>`
       wireDetailActions()
     }
 
@@ -532,9 +495,18 @@ function mountData(
       const band = bandAtPosition(payload, bucketIndex, 1 - yRatio, mode)
       selectedStreamerId = band?.streamerId ?? selectedStreamerId
       refresh()
-      if (window.matchMedia("(max-width: 900px)").matches && typeof detailSheet.showModal === "function") {
+      if (window.matchMedia("(max-width: 900px)").matches && typeof detailSheet.showModal === "function" && !detailSheet.open) {
         detailSheet.showModal()
       }
+    })
+
+    openSheetButton?.addEventListener("click", () => {
+      if (typeof detailSheet.showModal === "function" && !detailSheet.open) detailSheet.showModal()
+    })
+
+    detailMobile.addEventListener("click", (event) => {
+      const t = event.target as HTMLElement
+      if (t.id === "dayflow-close-sheet") detailSheet.close()
     })
 
     detailSheet.addEventListener("click", (event) => {
@@ -554,9 +526,23 @@ function mountData(
     slider.value = String(resolveInitialBucketIndex(payload, selectedBucket))
     refresh()
 
+    const updatePayload = (nextPayload: DayFlowPayload) => {
+      payload = nextPayload
+      if (!payload.detailPanelSource.streamers.some((s) => s.streamerId === selectedStreamerId)) {
+        selectedStreamerId = payload.detailPanelSource.defaultStreamerId
+      }
+      const nextIndex = resolveInitialBucketIndex(payload, selectedBucket)
+      slider.max = String(Math.max(0, payload.buckets.length - 1))
+      slider.value = String(nextIndex)
+      refresh()
+    }
+
     return {
       payload,
       getSelectedBucket: () => selectedBucket,
+      getSelectedStreamerId: () => selectedStreamerId,
+      isDetailSheetOpen: () => detailSheet.open,
+      updatePayload,
       showNotice,
       destroy: () => {
         renderer.destroy()
@@ -618,27 +604,25 @@ export function renderDayFlowPage(root: HTMLElement): void {
   let previousGood: DayFlowPayload | null = null
 
   const remount = async () => {
-    const preferredBucket = mounted?.getSelectedBucket() ?? null
-    if (mounted) {
-      mounted.showNotice("updating")
+    if (!mounted) {
+      const active = mountData(form, content, previousGood, null)
+      const next = await active.promise
+      if (next) {
+        mounted = next
+        previousGood = next.payload
+      }
+      return
     }
 
-    const active = mountData(form, content, previousGood, preferredBucket)
-    const next = await active.promise
-    if (next) {
-      mounted?.destroy()
-      mounted = next
-      previousGood = next.payload
+    mounted.showNotice("updating")
+    try {
+      const nextPayload = await getDayFlowPayload(parseFilters(form))
+      mounted.updatePayload(nextPayload)
+      previousGood = nextPayload
       mounted.showNotice(null)
-      return
-    }
-
-    if (mounted) {
+    } catch {
       mounted.showNotice("error")
-      return
     }
-
-    mounted = null
   }
 
   form.addEventListener("submit", (event) => {
