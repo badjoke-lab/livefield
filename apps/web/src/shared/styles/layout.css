@@ -36,7 +36,7 @@
 
 .grid-2 {
   display: grid;
-  grid-template-columns: minmax(0, 1.22fr) minmax(300px, 0.78fr);
+  grid-template-columns: minmax(0, 1.5fr) minmax(250px, 0.5fr);
   gap: 16px;
 }
 
