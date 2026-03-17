@@ -101,6 +101,18 @@ function buildBuckets(day: Date, bucketMinutes: 5 | 10): string[] {
   return buckets
 }
 
+function buildRollingBuckets(endIso: string, bucketMinutes: 5 | 10): string[] {
+  const end = new Date(endIso)
+  end.setUTCSeconds(0, 0)
+  end.setUTCMinutes(end.getUTCMinutes() - (end.getUTCMinutes() % bucketMinutes))
+  const start = new Date(end.getTime() - DAY_MS)
+  const buckets: string[] = []
+  for (let ts = start.getTime(); ts <= end.getTime(); ts += bucketMinutes * 60 * 1000) {
+    buckets.push(toIsoMinute(new Date(ts)))
+  }
+  return buckets
+}
+
 function isoMinuteLabel(iso: string | null): string {
   if (!iso) return "N/A"
   return iso.slice(11, 16)
@@ -279,6 +291,12 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
   const dayStart = `${selectedDate}T00:00:00.000Z`
   const dayEnd = `${selectedDate}T23:59:59.999Z`
+  const queryStart = parsed.day === "today"
+    ? toIsoMinute(new Date(Date.now() - DAY_MS))
+    : dayStart
+  const queryEnd = parsed.day === "today"
+    ? toIsoMinute(new Date())
+    : dayEnd
 
   const rows = await db
     .prepare(
@@ -287,7 +305,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
        WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute <= ?
        ORDER BY bucket_minute ASC`
     )
-    .bind(dayStart, dayEnd)
+    .bind(queryStart, queryEnd)
     .all()
 
   if (!rows.results.length) {
@@ -301,7 +319,9 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     }))
   }
 
-  const buckets = buildBuckets(new Date(`${selectedDate}T00:00:00.000Z`), bucketSize)
+  const buckets = parsed.day === "today"
+    ? buildRollingBuckets(rows.results.at(-1)?.bucket_minute ?? new Date().toISOString(), bucketSize)
+    : buildBuckets(new Date(`${selectedDate}T00:00:00.000Z`), bucketSize)
   const bucketIndexByIso = new Map(buckets.map((bucket, index) => [bucket, index]))
   const streamAggById = new Map<string, StreamAgg>()
   const totalByBucket = new Array<number>(buckets.length).fill(0)
@@ -434,7 +454,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       dayEnd: `${selectedDate}T24:00:00.000Z`,
       nowBucket: parsed.day === "today" ? nowBucketIso : null,
       bucketCount: buckets.length,
-      futureBlankFrom: parsed.day === "today" ? nowBucketIso : null
+      futureBlankFrom: null
     },
     buckets,
     totalViewersByBucket: totalByBucket,
