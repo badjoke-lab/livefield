@@ -53,12 +53,24 @@ function normalizeTop(raw: string | null): 10 | 20 | 50 {
   return 20
 }
 
+function parseTop(rawTop: string | null, rawTopN: string | null): 10 | 20 | 50 {
+  return normalizeTop(rawTopN ?? rawTop)
+}
+
 function normalizeBucket(raw: string | null): 5 | 10 {
   return raw === "10" ? 10 : 5
 }
 
+function parseBucket(rawBucket: string | null, rawBucketSize: string | null): 5 | 10 {
+  return normalizeBucket(rawBucketSize ?? rawBucket)
+}
+
 function normalizeMode(raw: string | null): "volume" | "share" {
   return raw === "share" ? "share" : "volume"
+}
+
+function parseMode(rawMetric: string | null, rawValueMode: string | null): "volume" | "share" {
+  return normalizeMode(rawValueMode ?? rawMetric)
 }
 
 function startOfUtcDay(date: Date): Date {
@@ -72,7 +84,7 @@ function normalizeRangeMode(raw: string | null): DayScope | null {
   return null
 }
 
-function parseDay(rawDate: string | null, rawDay: string | null, rawRangeMode: string | null): { day: DayScope; date: Date } {
+function parseDay(rawDate: string | null, rawSelectedDate: string | null, rawDay: string | null, rawRangeMode: string | null): { day: DayScope; date: Date } {
   const now = new Date()
   const normalizedMode = normalizeRangeMode(rawRangeMode) ?? normalizeRangeMode(rawDay)
   if (normalizedMode === "rolling24h") {
@@ -83,8 +95,10 @@ function parseDay(rawDate: string | null, rawDay: string | null, rawRangeMode: s
     return { day: "yesterday", date: new Date(startOfUtcDay(now).getTime() - DAY_MS) }
   }
 
-  if (normalizedMode === "date" && rawDate) {
-    const parsed = new Date(`${rawDate}T00:00:00.000Z`)
+  const effectiveDate = rawSelectedDate ?? rawDate
+
+  if (normalizedMode === "date" && effectiveDate) {
+    const parsed = new Date(`${effectiveDate}T00:00:00.000Z`)
     if (!Number.isNaN(parsed.getTime())) {
       return { day: "date", date: parsed }
     }
@@ -102,8 +116,8 @@ function parseDay(rawDate: string | null, rawDay: string | null, rawRangeMode: s
     return { day: "yesterday", date: new Date(startOfUtcDay(now).getTime() - DAY_MS) }
   }
 
-  if (rawDate) {
-    const parsed = new Date(`${rawDate}T00:00:00.000Z`)
+  if (effectiveDate) {
+    const parsed = new Date(`${effectiveDate}T00:00:00.000Z`)
     if (!Number.isNaN(parsed.getTime())) {
       return { day: "date", date: parsed }
     }
@@ -313,11 +327,11 @@ function buildFocusItems(bands: DayFlowBandSeries[], bucketIndex: number): DayFl
 
 export const onRequest = async (context: { env: Env; request: Request }) => {
   const url = new URL(context.request.url)
-  const parsed = parseDay(url.searchParams.get("date"), url.searchParams.get("day"), url.searchParams.get("rangeMode"))
+  const parsed = parseDay(url.searchParams.get("date"), url.searchParams.get("selectedDate"), url.searchParams.get("day"), url.searchParams.get("rangeMode"))
   const selectedDate = startOfUtcDay(parsed.date).toISOString().slice(0, 10)
-  const bucketSize = normalizeBucket(url.searchParams.get("bucket"))
-  const topN = normalizeTop(url.searchParams.get("top"))
-  const mode = normalizeMode(url.searchParams.get("metric"))
+  const bucketSize = parseBucket(url.searchParams.get("bucket"), url.searchParams.get("bucketSize"))
+  const topN = parseTop(url.searchParams.get("top"), url.searchParams.get("topN"))
+  const mode = parseMode(url.searchParams.get("metric"), url.searchParams.get("valueMode"))
 
   const dayStart = `${selectedDate}T00:00:00.000Z`
   const dayEnd = `${selectedDate}T24:00:00.000Z`
@@ -425,7 +439,14 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     }
   }
 
-  const ordered = [...streamAggById.values()].sort((a, b) => b.totalViewerMinutes - a.totalViewerMinutes)
+  const ordered = [...streamAggById.values()].sort((a, b) => {
+    if (mode === "share") {
+      const aPeakShare = a.points.reduce((best, value, idx) => Math.max(best, totalByBucket[idx] > 0 ? value / totalByBucket[idx] : 0), 0)
+      const bPeakShare = b.points.reduce((best, value, idx) => Math.max(best, totalByBucket[idx] > 0 ? value / totalByBucket[idx] : 0), 0)
+      if (bPeakShare !== aPeakShare) return bPeakShare - aPeakShare
+    }
+    return b.totalViewerMinutes - a.totalViewerMinutes
+  })
   if (!ordered.length) {
     return json(buildEmptyPayload({
       dateScope: parsed.day,
@@ -510,7 +531,9 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     state,
     status,
     note: state === "partial" ? "Coverage or freshness is partial for selected date." : undefined,
-    coverageNote: `Top ${topN} + Others by viewer-minutes in selected window`,
+    coverageNote: mode === "share"
+      ? `Top ${topN} + Others by peak share in selected window`
+      : `Top ${topN} + Others by viewer-minutes in selected window`,
     degradationNote: "Activity overlay is intentionally disabled in MVP until per-stream activity is fully wired.",
     partialNote: rows.results.some((r) => r.has_more === 1) ? "Collector reported partial page coverage in one or more buckets." : undefined,
     lastUpdated: latestCollectedAt,
@@ -522,8 +545,8 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     rangeMode: parsed.day,
     windowStart,
     windowEnd,
-    rankingWindowStart: windowStart,
-    rankingWindowEnd: windowEnd,
+    rankingWindowStart,
+    rankingWindowEnd,
     isRolling,
     summary: {
       peakLeader: leaderBand?.name ?? "N/A",
