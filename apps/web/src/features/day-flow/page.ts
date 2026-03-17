@@ -23,8 +23,9 @@ type DayFlowViewState = {
   topN: UiFilters["top"]
   valueMode: UiFilters["mode"]
   bucketSize: UiFilters["bucket"]
-  selectedBucket: string | null
-  selectedStreamer: string | null
+  selectedBucketIndex: number
+  selectedStreamerId: string | null
+  autoUpdateEnabled: boolean
   isolate: boolean
 }
 
@@ -92,12 +93,6 @@ function isoTimeLabel(iso: string | null | undefined): string {
   return iso ? iso.slice(11, 16) : "N/A"
 }
 
-function indexByBucket(payload: DayFlowPayload, selectedBucket: string | null): number {
-  if (!selectedBucket) return Math.max(0, payload.buckets.length - 1)
-  const idx = payload.buckets.indexOf(selectedBucket)
-  return idx < 0 ? Math.max(0, payload.buckets.length - 1) : idx
-}
-
 function getLatestObservedBucketIndex(payload: DayFlowPayload): number {
   for (let idx = payload.buckets.length - 1; idx >= 0; idx -= 1) {
     if ((payload.totalViewersByBucket[idx] ?? 0) > 0) return idx
@@ -105,13 +100,13 @@ function getLatestObservedBucketIndex(payload: DayFlowPayload): number {
   return -1
 }
 
-function resolveInitialBucketIndex(payload: DayFlowPayload, preferredBucket: string | null): number {
+function resolveInitialBucketIndex(payload: DayFlowPayload, preferredBucketIndex: number | null): number {
   if (payload.buckets.length === 0) return 0
 
   const latestObserved = getLatestObservedBucketIndex(payload)
-  const preferred = preferredBucket ? payload.buckets.indexOf(preferredBucket) : -1
+  const preferred = preferredBucketIndex ?? -1
 
-  if (preferred >= 0 && (payload.totalViewersByBucket[preferred] ?? 0) > 0) {
+  if (preferred >= 0 && preferred < payload.buckets.length && (payload.totalViewersByBucket[preferred] ?? 0) > 0) {
     return preferred
   }
   if (latestObserved >= 0) return latestObserved
@@ -126,10 +121,10 @@ function renderLegend(payload: DayFlowPayload): string {
 }
 
 function bandAtPosition(payload: DayFlowPayload, bucketIndex: number, yRatio: number, mode: "volume" | "share"): DayFlowBandSeries | null {
-  const total = payload.totalViewersByBucket[bucketIndex] ?? 0
+  const maxTotal = Math.max(1, ...payload.totalViewersByBucket)
   let acc = 0
   for (const band of payload.bands) {
-    const value = mode === "share" ? (band.buckets[bucketIndex]?.share ?? 0) : (total > 0 ? (band.buckets[bucketIndex]?.viewers ?? 0) / total : 0)
+    const value = mode === "share" ? (band.buckets[bucketIndex]?.share ?? 0) : ((band.buckets[bucketIndex]?.viewers ?? 0) / maxTotal)
     const next = acc + value
     if (yRatio >= acc && yRatio <= next) return band
     acc = next
@@ -137,7 +132,7 @@ function bandAtPosition(payload: DayFlowPayload, bucketIndex: number, yRatio: nu
   return null
 }
 
-function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState: () => { selectedBucket: string | null; selectedStreamerId: string | null; mode: "volume" | "share"; isolate: boolean }) {
+function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState: () => { selectedBucketIndex: number; selectedStreamerId: string | null; mode: "volume" | "share"; isolate: boolean }) {
   const host = createCanvasHost(canvas, { maxDpr: 2 })
 
   const draw = () => {
@@ -145,8 +140,9 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
     const pad = { left: 38, right: 10, top: 10, bottom: 24 }
     const chartW = Math.max(1, width - pad.left - pad.right)
     const chartH = Math.max(1, height - pad.top - pad.bottom)
-    const { selectedBucket, selectedStreamerId, mode, isolate } = getState()
-    const selectedIndex = indexByBucket(payload, selectedBucket)
+    const { selectedBucketIndex, selectedStreamerId, mode, isolate } = getState()
+    const selectedIndex = Math.max(0, Math.min(payload.buckets.length - 1, selectedBucketIndex))
+    const maxTotal = Math.max(1, ...payload.totalViewersByBucket)
 
     ctx.clearRect(0, 0, width, height)
     ctx.fillStyle = "#0a1120"
@@ -164,7 +160,7 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
       for (const band of payload.bands) {
         const val = mode === "share"
           ? (band.buckets[i]?.share ?? 0)
-          : ((payload.totalViewersByBucket[i] ?? 0) > 0 ? (band.buckets[i]?.viewers ?? 0) / (payload.totalViewersByBucket[i] ?? 1) : 0)
+          : ((band.buckets[i]?.viewers ?? 0) / maxTotal)
         const h = val * chartH
         const y = pad.top + chartH - yOffset - h
 
@@ -199,14 +195,13 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
     const selectedLineY = pad.top + 16
     for (const band of labels) {
       const bucket = band.buckets[selectedIndex]
-      const total = payload.totalViewersByBucket[selectedIndex] || 1
-      const ratio = mode === "share" ? bucket?.share ?? 0 : (bucket?.viewers ?? 0) / total
+      const ratio = mode === "share" ? bucket?.share ?? 0 : ((bucket?.viewers ?? 0) / maxTotal)
       if (ratio < (mobile ? 0.08 : 0.05)) continue
 
       let yStart = pad.top + chartH
       for (const candidate of payload.bands) {
         const cBucket = candidate.buckets[selectedIndex]
-        const cRatio = mode === "share" ? cBucket?.share ?? 0 : ((payload.totalViewersByBucket[selectedIndex] ?? 0) > 0 ? (cBucket?.viewers ?? 0) / (payload.totalViewersByBucket[selectedIndex] ?? 1) : 0)
+        const cRatio = mode === "share" ? cBucket?.share ?? 0 : ((cBucket?.viewers ?? 0) / maxTotal)
         yStart -= cRatio * chartH
         if (candidate.streamerId === band.streamerId) {
           const yMid = yStart + (cRatio * chartH) / 2
@@ -230,7 +225,7 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
       let yStart = pad.top + chartH
       for (const candidate of payload.bands) {
         const cBucket = candidate.buckets[selectedIndex]
-        const cRatio = mode === "share" ? cBucket?.share ?? 0 : ((payload.totalViewersByBucket[selectedIndex] ?? 0) > 0 ? (cBucket?.viewers ?? 0) / (payload.totalViewersByBucket[selectedIndex] ?? 1) : 0)
+        const cRatio = mode === "share" ? cBucket?.share ?? 0 : ((cBucket?.viewers ?? 0) / maxTotal)
         yStart -= cRatio * chartH
         if (candidate.streamerId !== band.streamerId) continue
 
@@ -527,12 +522,12 @@ function mountData(
     const openSheetButton = content.querySelector<HTMLButtonElement>("#dayflow-open-sheet")
     if (!canvas || !slider || !focus || !detail || !focusMobile || !detailMobile || !detailSheet) return null
 
-    viewState.selectedBucket = payload.buckets[resolveInitialBucketIndex(payload, viewState.selectedBucket)] ?? null
-    if (!payload.detailPanelSource.streamers.some((s) => s.streamerId === viewState.selectedStreamer)) {
-      viewState.selectedStreamer = payload.detailPanelSource.defaultStreamerId
+    viewState.selectedBucketIndex = resolveInitialBucketIndex(payload, viewState.selectedBucketIndex)
+    if (!payload.detailPanelSource.streamers.some((s) => s.streamerId === viewState.selectedStreamerId)) {
+      viewState.selectedStreamerId = payload.detailPanelSource.defaultStreamerId
     }
 
-    const state = () => ({ selectedBucket: viewState.selectedBucket, selectedStreamerId: viewState.selectedStreamer, mode: viewState.valueMode, isolate: viewState.isolate })
+    const state = () => ({ selectedBucketIndex: viewState.selectedBucketIndex, selectedStreamerId: viewState.selectedStreamerId, mode: viewState.valueMode, isolate: viewState.isolate })
     const renderer = drawChart(canvas, payload, state)
 
     const wireDetailActions = () => {
@@ -555,21 +550,21 @@ function mountData(
     }
 
     const renderDetail = () => {
-      detail.innerHTML = renderDetailCard(payload, viewState.selectedStreamer, viewState.isolate)
-      detailMobile.innerHTML = `<h2 class="dayflow-sheet-title">Selected Stream</h2>${renderDetailCard(payload, viewState.selectedStreamer, viewState.isolate, true)}<button type="button" class="action dayflow-close-sheet" id="dayflow-close-sheet">Close</button>`
+      detail.innerHTML = renderDetailCard(payload, viewState.selectedStreamerId, viewState.isolate)
+      detailMobile.innerHTML = `<h2 class="dayflow-sheet-title">Selected Stream</h2>${renderDetailCard(payload, viewState.selectedStreamerId, viewState.isolate, true)}<button type="button" class="action dayflow-close-sheet" id="dayflow-close-sheet">Close</button>`
       wireDetailActions()
     }
 
     const syncViewState = () => {
       const idx = Math.max(0, Math.min(payload.buckets.length - 1, Number(slider.value)))
-      viewState.selectedBucket = payload.buckets[idx] ?? viewState.selectedBucket
+      viewState.selectedBucketIndex = idx
       slider.value = String(idx)
       renderFocus(focus, payload, idx)
       renderFocus(focusMobile, payload, idx)
       renderDetail()
-      if (viewState.selectedStreamer) {
+      if (viewState.selectedStreamerId) {
         for (const row of content.querySelectorAll<HTMLElement>("[data-streamer-id]")) {
-          row.dataset.selected = row.dataset.streamerId === viewState.selectedStreamer ? "true" : "false"
+          row.dataset.selected = row.dataset.streamerId === viewState.selectedStreamerId ? "true" : "false"
         }
       }
       renderer.redraw()
@@ -583,9 +578,9 @@ function mountData(
       const yRatio = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
       const bucketIndex = Math.min(payload.buckets.length - 1, Math.max(0, Math.round(xRatio * (payload.buckets.length - 1))))
       slider.value = String(bucketIndex)
-      viewState.selectedBucket = payload.buckets[bucketIndex] ?? viewState.selectedBucket
+      viewState.selectedBucketIndex = bucketIndex
       const band = bandAtPosition(payload, bucketIndex, 1 - yRatio, viewState.valueMode)
-      viewState.selectedStreamer = band?.streamerId ?? viewState.selectedStreamer
+      viewState.selectedStreamerId = band?.streamerId ?? viewState.selectedStreamerId
       syncViewState()
       if (window.matchMedia("(max-width: 900px)").matches && typeof detailSheet.showModal === "function" && !detailSheet.open) {
         detailSheet.showModal()
@@ -616,16 +611,16 @@ function mountData(
       })
     })
 
-    slider.value = String(resolveInitialBucketIndex(payload, viewState.selectedBucket))
+    slider.value = String(resolveInitialBucketIndex(payload, viewState.selectedBucketIndex))
     syncViewState()
 
     const updatePayload = (nextPayload: DayFlowPayload) => {
       payload = nextPayload
-      if (!payload.detailPanelSource.streamers.some((s) => s.streamerId === viewState.selectedStreamer)) {
-        viewState.selectedStreamer = payload.detailPanelSource.defaultStreamerId
+      if (!payload.detailPanelSource.streamers.some((s) => s.streamerId === viewState.selectedStreamerId)) {
+        viewState.selectedStreamerId = payload.detailPanelSource.defaultStreamerId
       }
-      const nextIndex = resolveInitialBucketIndex(payload, viewState.selectedBucket)
-      viewState.selectedBucket = payload.buckets[nextIndex] ?? null
+      const nextIndex = resolveInitialBucketIndex(payload, viewState.selectedBucketIndex)
+      viewState.selectedBucketIndex = nextIndex
       slider.max = String(Math.max(0, payload.buckets.length - 1))
       slider.value = String(nextIndex)
       syncViewState()
@@ -701,8 +696,9 @@ export function renderDayFlowPage(root: HTMLElement): void {
     topN: initial.top,
     valueMode: initial.mode,
     bucketSize: initial.bucket,
-    selectedBucket: null,
-    selectedStreamer: null,
+    selectedBucketIndex: 0,
+    selectedStreamerId: null,
+    autoUpdateEnabled: autoUpdate.checked,
     isolate: false
   }
 
@@ -788,19 +784,20 @@ export function renderDayFlowPage(root: HTMLElement): void {
   attachControlListeners("select[name='bucket']")
 
   let timer: number | null = window.setInterval(() => {
-    if (autoUpdate.checked && ["today", "rolling24h"].includes(parseFilters(form).day)) {
+    if (viewState.autoUpdateEnabled && ["today", "rolling24h"].includes(parseFilters(form).day)) {
       void remount()
     }
   }, 60_000)
 
   autoUpdate.addEventListener("change", () => {
-    if (!autoUpdate.checked && timer !== null) {
+    viewState.autoUpdateEnabled = autoUpdate.checked
+    if (!viewState.autoUpdateEnabled && timer !== null) {
       window.clearInterval(timer)
       timer = null
       return
     }
 
-    if (autoUpdate.checked && timer === null) {
+    if (viewState.autoUpdateEnabled && timer === null) {
       timer = window.setInterval(() => {
         if (["today", "rolling24h"].includes(parseFilters(form).day)) {
           void remount()
