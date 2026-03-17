@@ -17,11 +17,20 @@ type UiFilters = {
   bucket: 5 | 10
 }
 
+type DayFlowViewState = {
+  rangeMode: UiFilters["day"]
+  selectedDate: string
+  topN: UiFilters["top"]
+  valueMode: UiFilters["mode"]
+  bucketSize: UiFilters["bucket"]
+  selectedBucket: string | null
+  selectedStreamer: string | null
+  isolate: boolean
+}
+
 type DayFlowMountController = {
   payload: DayFlowPayload
-  getSelectedBucket: () => string | null
-  getSelectedStreamerId: () => string | null
-  isDetailSheetOpen: () => boolean
+  syncViewState: () => void
   updatePayload: (nextPayload: DayFlowPayload) => void
   showNotice: (kind: "updating" | "error" | null, message?: string) => void
   destroy: () => void
@@ -440,8 +449,8 @@ function renderDetailCard(payload: DayFlowPayload, streamerId: string | null, is
 function mountData(
   form: HTMLFormElement,
   content: HTMLElement,
+  viewState: DayFlowViewState,
   previousGood: DayFlowPayload | null,
-  preferredBucket: string | null,
   skipFetch = false
 ): { promise: Promise<DayFlowMountController | null>; abort: () => void } {
   let destroyed = false
@@ -478,7 +487,13 @@ function mountData(
       if (skipFetch && previousGood) {
         payload = previousGood
       } else {
-        payload = await getDayFlowPayload(parseFilters(form))
+        payload = await getDayFlowPayload({
+          day: viewState.rangeMode,
+          date: viewState.selectedDate,
+          top: viewState.topN,
+          mode: viewState.valueMode,
+          bucket: viewState.bucketSize
+        })
       }
     } catch {
       if (previousGood) {
@@ -492,7 +507,7 @@ function mountData(
         inline.innerHTML = `Initial load failed. <button type="button" id="retry-dayflow" class="action dayflow-inline-retry">Retry</button>`
       }
       content.querySelector<HTMLButtonElement>("#retry-dayflow")?.addEventListener("click", () => {
-        const next = mountData(form, content, previousGood, preferredBucket)
+        const next = mountData(form, content, viewState, previousGood)
         void next.promise
       })
       return null
@@ -512,19 +527,19 @@ function mountData(
     const openSheetButton = content.querySelector<HTMLButtonElement>("#dayflow-open-sheet")
     if (!canvas || !slider || !focus || !detail || !focusMobile || !detailMobile || !detailSheet) return null
 
-    let selectedBucket = payload.buckets[resolveInitialBucketIndex(payload, preferredBucket)] ?? null
-    let selectedStreamerId = payload.detailPanelSource.defaultStreamerId
-    let mode = parseFilters(form).mode
-    let isolate = false
+    viewState.selectedBucket = payload.buckets[resolveInitialBucketIndex(payload, viewState.selectedBucket)] ?? null
+    if (!payload.detailPanelSource.streamers.some((s) => s.streamerId === viewState.selectedStreamer)) {
+      viewState.selectedStreamer = payload.detailPanelSource.defaultStreamerId
+    }
 
-    const state = () => ({ selectedBucket, selectedStreamerId, mode, isolate })
+    const state = () => ({ selectedBucket: viewState.selectedBucket, selectedStreamerId: viewState.selectedStreamer, mode: viewState.valueMode, isolate: viewState.isolate })
     const renderer = drawChart(canvas, payload, state)
 
     const wireDetailActions = () => {
       const isolateButtons = content.querySelectorAll<HTMLButtonElement>("#dayflow-isolate")
       for (const button of isolateButtons) {
         button.addEventListener("click", () => {
-          isolate = !isolate
+          viewState.isolate = !viewState.isolate
           renderDetail()
           renderer.redraw()
         })
@@ -532,7 +547,7 @@ function mountData(
       const highlightButtons = content.querySelectorAll<HTMLButtonElement>("#dayflow-highlight")
       for (const button of highlightButtons) {
         button.addEventListener("click", () => {
-          isolate = !isolate
+          viewState.isolate = !viewState.isolate
           renderDetail()
           renderer.redraw()
         })
@@ -540,27 +555,27 @@ function mountData(
     }
 
     const renderDetail = () => {
-      detail.innerHTML = renderDetailCard(payload, selectedStreamerId, isolate)
-      detailMobile.innerHTML = `<h2 class="dayflow-sheet-title">Selected Stream</h2>${renderDetailCard(payload, selectedStreamerId, isolate, true)}<button type="button" class="action dayflow-close-sheet" id="dayflow-close-sheet">Close</button>`
+      detail.innerHTML = renderDetailCard(payload, viewState.selectedStreamer, viewState.isolate)
+      detailMobile.innerHTML = `<h2 class="dayflow-sheet-title">Selected Stream</h2>${renderDetailCard(payload, viewState.selectedStreamer, viewState.isolate, true)}<button type="button" class="action dayflow-close-sheet" id="dayflow-close-sheet">Close</button>`
       wireDetailActions()
     }
 
-    const refresh = () => {
+    const syncViewState = () => {
       const idx = Math.max(0, Math.min(payload.buckets.length - 1, Number(slider.value)))
-      selectedBucket = payload.buckets[idx] ?? selectedBucket
+      viewState.selectedBucket = payload.buckets[idx] ?? viewState.selectedBucket
       slider.value = String(idx)
       renderFocus(focus, payload, idx)
       renderFocus(focusMobile, payload, idx)
       renderDetail()
-      if (selectedStreamerId) {
+      if (viewState.selectedStreamer) {
         for (const row of content.querySelectorAll<HTMLElement>("[data-streamer-id]")) {
-          row.dataset.selected = row.dataset.streamerId === selectedStreamerId ? "true" : "false"
+          row.dataset.selected = row.dataset.streamerId === viewState.selectedStreamer ? "true" : "false"
         }
       }
       renderer.redraw()
     }
 
-    slider.addEventListener("input", refresh)
+    slider.addEventListener("input", syncViewState)
 
     canvas.addEventListener("click", (event) => {
       const rect = canvas.getBoundingClientRect()
@@ -568,10 +583,10 @@ function mountData(
       const yRatio = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
       const bucketIndex = Math.min(payload.buckets.length - 1, Math.max(0, Math.round(xRatio * (payload.buckets.length - 1))))
       slider.value = String(bucketIndex)
-      selectedBucket = payload.buckets[bucketIndex] ?? selectedBucket
-      const band = bandAtPosition(payload, bucketIndex, 1 - yRatio, mode)
-      selectedStreamerId = band?.streamerId ?? selectedStreamerId
-      refresh()
+      viewState.selectedBucket = payload.buckets[bucketIndex] ?? viewState.selectedBucket
+      const band = bandAtPosition(payload, bucketIndex, 1 - yRatio, viewState.valueMode)
+      viewState.selectedStreamer = band?.streamerId ?? viewState.selectedStreamer
+      syncViewState()
       if (window.matchMedia("(max-width: 900px)").matches && typeof detailSheet.showModal === "function" && !detailSheet.open) {
         detailSheet.showModal()
       }
@@ -595,30 +610,30 @@ function mountData(
 
     form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("select[name='mode']").forEach((field) => {
       field.addEventListener("change", () => {
-        mode = parseFilters(form).mode
+        viewState.valueMode = parseFilters(form).mode
         renderer.redraw()
+        syncViewState()
       })
     })
 
-    slider.value = String(resolveInitialBucketIndex(payload, selectedBucket))
-    refresh()
+    slider.value = String(resolveInitialBucketIndex(payload, viewState.selectedBucket))
+    syncViewState()
 
     const updatePayload = (nextPayload: DayFlowPayload) => {
       payload = nextPayload
-      if (!payload.detailPanelSource.streamers.some((s) => s.streamerId === selectedStreamerId)) {
-        selectedStreamerId = payload.detailPanelSource.defaultStreamerId
+      if (!payload.detailPanelSource.streamers.some((s) => s.streamerId === viewState.selectedStreamer)) {
+        viewState.selectedStreamer = payload.detailPanelSource.defaultStreamerId
       }
-      const nextIndex = resolveInitialBucketIndex(payload, selectedBucket)
+      const nextIndex = resolveInitialBucketIndex(payload, viewState.selectedBucket)
+      viewState.selectedBucket = payload.buckets[nextIndex] ?? null
       slider.max = String(Math.max(0, payload.buckets.length - 1))
       slider.value = String(nextIndex)
-      refresh()
+      syncViewState()
     }
 
     return {
       payload,
-      getSelectedBucket: () => selectedBucket,
-      getSelectedStreamerId: () => selectedStreamerId,
-      isDetailSheetOpen: () => detailSheet.open,
+      syncViewState,
       updatePayload,
       showNotice,
       destroy: () => {
@@ -679,12 +694,31 @@ export function renderDayFlowPage(root: HTMLElement): void {
 
   let mounted: DayFlowMountController | null = null
   let previousGood: DayFlowPayload | null = readCachedPayload()
+  const initial = parseFilters(form)
+  const viewState: DayFlowViewState = {
+    rangeMode: initial.day,
+    selectedDate: initial.date,
+    topN: initial.top,
+    valueMode: initial.mode,
+    bucketSize: initial.bucket,
+    selectedBucket: null,
+    selectedStreamer: null,
+    isolate: false
+  }
+
+  const syncControlsToViewState = () => {
+    const filters = parseFilters(form)
+    viewState.rangeMode = filters.day
+    viewState.selectedDate = filters.date
+    viewState.topN = filters.top
+    viewState.valueMode = filters.mode
+    viewState.bucketSize = filters.bucket
+  }
 
   const syncDateInputState = () => {
-    const filters = parseFilters(form)
     const dateInput = form.querySelector<HTMLInputElement>('input[name="date"]')
     if (!dateInput) return
-    const dateMode = filters.day === "date"
+    const dateMode = viewState.rangeMode === "date"
     dateInput.disabled = !dateMode
     dateInput.hidden = !dateMode
     dateInput.style.display = dateMode ? "inline-flex" : "none"
@@ -692,19 +726,22 @@ export function renderDayFlowPage(root: HTMLElement): void {
   syncDateInputState()
 
   form.querySelector<HTMLSelectElement>('select[name="day"]')?.addEventListener("change", () => {
+    syncControlsToViewState()
     syncDateInputState()
   })
 
   const remount = async () => {
+    syncControlsToViewState()
+    syncDateInputState()
     if (!mounted) {
       if (previousGood) {
-        const activeCached = mountData(form, content, previousGood, null, true)
+        const activeCached = mountData(form, content, viewState, previousGood, true)
         const cached = await activeCached.promise
         if (cached) mounted = cached
       }
 
       if (!mounted) {
-        const active = mountData(form, content, previousGood, null)
+        const active = mountData(form, content, viewState, previousGood)
         const next = await active.promise
         if (next) {
           mounted = next
@@ -716,7 +753,13 @@ export function renderDayFlowPage(root: HTMLElement): void {
 
     mounted.showNotice("updating")
     try {
-      const nextPayload = await getDayFlowPayload(parseFilters(form))
+      const nextPayload = await getDayFlowPayload({
+        day: viewState.rangeMode,
+        date: viewState.selectedDate,
+        top: viewState.topN,
+        mode: viewState.valueMode,
+        bucket: viewState.bucketSize
+      })
       mounted.updatePayload(nextPayload)
       previousGood = nextPayload
       writeCachedPayload(nextPayload)
@@ -730,6 +773,19 @@ export function renderDayFlowPage(root: HTMLElement): void {
     event.preventDefault()
     void remount()
   })
+
+  const attachControlListeners = (selector: string) => {
+    form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(selector).forEach((field) => {
+      field.addEventListener("change", () => {
+        void remount()
+      })
+    })
+  }
+  attachControlListeners("select[name='day']")
+  attachControlListeners("input[name='date']")
+  attachControlListeners("select[name='top']")
+  attachControlListeners("select[name='mode']")
+  attachControlListeners("select[name='bucket']")
 
   let timer: number | null = window.setInterval(() => {
     if (autoUpdate.checked && ["today", "rolling24h"].includes(parseFilters(form).day)) {
