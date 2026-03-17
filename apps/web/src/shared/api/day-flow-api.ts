@@ -10,12 +10,16 @@ function buildQuery(filters: {
   const url = new URL("/api/day-flow", window.location.origin)
   url.searchParams.set("day", filters.day)
   url.searchParams.set("rangeMode", filters.day)
+  url.searchParams.set("selectedDate", filters.date)
   if (filters.day === "date" && filters.date) {
     url.searchParams.set("date", filters.date)
   }
   url.searchParams.set("top", String(filters.top))
+  url.searchParams.set("topN", String(filters.top))
   url.searchParams.set("metric", filters.mode)
+  url.searchParams.set("valueMode", filters.mode)
   url.searchParams.set("bucket", String(filters.bucket))
+  url.searchParams.set("bucketSize", String(filters.bucket))
   return url.toString()
 }
 
