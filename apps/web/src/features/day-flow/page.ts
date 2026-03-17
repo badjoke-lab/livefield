@@ -103,7 +103,7 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
 
   const draw = () => {
     const { ctx, width, height } = host.get()
-    const pad = { left: 44, right: 12, top: 16, bottom: 30 }
+    const pad = { left: 38, right: 10, top: 10, bottom: 24 }
     const chartW = Math.max(1, width - pad.left - pad.right)
     const chartH = Math.max(1, height - pad.top - pad.bottom)
     const { selectedBucket, selectedStreamerId, mode, isolate } = getState()
@@ -223,19 +223,21 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
 
     if (payload.dateScope === "today" && futureStart < payload.buckets.length) {
       const blankStartX = pad.left + (futureStart / Math.max(1, payload.buckets.length - 1)) * chartW
-      ctx.fillStyle = "rgba(8, 11, 19, 0.2)"
+      ctx.fillStyle = "rgba(8, 11, 19, 0.1)"
       ctx.fillRect(blankStartX, pad.top, pad.left + chartW - blankStartX, chartH)
-      ctx.strokeStyle = "rgba(255,255,255,0.1)"
+      ctx.strokeStyle = "rgba(255,255,255,0.06)"
       ctx.beginPath()
       ctx.moveTo(blankStartX, pad.top)
       ctx.lineTo(blankStartX, pad.top + chartH)
       ctx.stroke()
-      ctx.fillStyle = "#6f7d9f"
-      ctx.fillText("Future (blank)", blankStartX + 6, pad.top + 16)
-      ctx.fillStyle = "#b4d9ff"
+      ctx.fillStyle = "#5d6c8f"
+      ctx.font = "10px ui-sans-serif"
+      ctx.fillText("Future blank", blankStartX + 6, pad.top + 14)
+      ctx.fillStyle = "#b8deff"
       ctx.fillRect(blankStartX - 1, pad.top, 2, chartH)
       ctx.fillStyle = "#dff0ff"
-      ctx.fillText("NOW", blankStartX + 6, pad.top + 32)
+      ctx.font = "11px ui-sans-serif"
+      ctx.fillText("NOW", blankStartX + 6, pad.top + 28)
     }
   }
 
@@ -268,15 +270,11 @@ function renderStateNote(payload: DayFlowPayload): string {
   return `
     <section class="card dayflow-state-card ${expanded ? "dayflow-state-card--expanded" : ""}">
       <div class="dayflow-state-head">
-        <h2>Data state</h2>
+        <h2>Data</h2>
         <div class="status-chip" data-state="${payload.state}">${payload.status}</div>
       </div>
       <p class="muted">${payload.note ?? "Live data render from API day rollup."}</p>
-      <ul class="dayflow-notes">
-        <li>${payload.coverageNote}</li>
-        ${payload.partialNote ? `<li>Partial: ${payload.partialNote}</li>` : ""}
-        <li>${payload.activity.note}</li>
-      </ul>
+      <p class="dayflow-notes-inline">${payload.coverageNote}${payload.partialNote ? ` · Partial: ${payload.partialNote}` : ""} · ${payload.activity.note}</p>
     </section>
   `
 }
@@ -289,16 +287,15 @@ function renderFrame(payload: DayFlowPayload): string {
     </section>
     <section class="grid-2 page-section dayflow-layout">
       <section class="card dayflow-main-card">
-        <div class="dayflow-main-head">
+        <div class="dayflow-main-head dayflow-meta-strip">
           <h2>Today Landscape</h2>
-          <p class="muted">Fixed band order by daily viewer-minutes (Top N + Others).</p>
-        </div>
-        <div class="kv dayflow-main-kv">
-          <div class="kv-row"><span>Date</span><strong>${payload.selectedDate}</strong></div>
-          <div class="kv-row"><span>Status</span><strong>${payload.status}</strong></div>
-          <div class="kv-row"><span>Coverage</span><strong class="muted-strong">${payload.coverageNote}</strong></div>
-          <div class="kv-row"><span>Bucket</span><strong>${payload.bucketSize}m</strong></div>
-          <div class="kv-row"><span>Last Updated</span><strong>${payload.lastUpdated.slice(11, 16)} UTC</strong></div>
+          <div class="dayflow-meta-inline">
+            <span><strong>Date</strong> ${payload.selectedDate}</span>
+            <span><strong>Status</strong> ${payload.status}</span>
+            <span><strong>Coverage</strong> ${payload.coverageNote}</span>
+            <span><strong>Bucket</strong> ${payload.bucketSize}m</span>
+            <span><strong>Updated</strong> ${payload.lastUpdated.slice(11, 16)} UTC</span>
+          </div>
         </div>
         <div class="dayflow-canvas-wrap">
           <canvas id="dayflow-canvas" class="dayflow-canvas" aria-label="Day Flow chart"></canvas>
@@ -583,10 +580,10 @@ export function renderDayFlowPage(root: HTMLElement): void {
       eyebrow: "TODAY",
       title: "Day Flow",
       subtitle: "Read today’s ownership landscape, hour by hour.",
-      note: "Real-data path active · Today default · 5m buckets · Top 20 + Others.",
+      note: "Real-data path active · Today default · 5m buckets.",
       actions: [
-        { href: "/heatmap/", label: "Heatmap" },
-        { href: "/method/", label: "Method" }
+        { href: "/heatmap/", label: "Heatmap (support)" },
+        { href: "/method/", label: "Method (support)" }
       ]
     })}
 
