@@ -14,6 +14,7 @@ function buildQuery(filters: {
     url.searchParams.set("date", filters.date)
   }
   url.searchParams.set("top", String(filters.top))
+  url.searchParams.set("mode", filters.mode)
   url.searchParams.set("metric", filters.mode)
   url.searchParams.set("bucket", String(filters.bucket))
   return url.toString()

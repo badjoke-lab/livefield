@@ -55,6 +55,7 @@ export type DayFlowPayload = {
   selectedDate: string
   bucketSize: 5 | 10
   topN: 10 | 20 | 50
+  valueMode: DayFlowMode
   defaultMode: DayFlowMode
   dateScope: DayFlowDayScope
   rangeMode: DayFlowDayScope

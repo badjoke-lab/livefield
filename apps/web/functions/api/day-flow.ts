@@ -176,6 +176,7 @@ function buildEmptyPayload(input: {
     selectedDate: input.selectedDate,
     bucketSize: input.bucketSize,
     topN: input.topN,
+    valueMode: input.mode,
     defaultMode: input.mode,
     dateScope: input.dateScope,
     rangeMode: input.dateScope,
@@ -317,27 +318,55 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
   const selectedDate = startOfUtcDay(parsed.date).toISOString().slice(0, 10)
   const bucketSize = normalizeBucket(url.searchParams.get("bucket"))
   const topN = normalizeTop(url.searchParams.get("top"))
-  const mode = normalizeMode(url.searchParams.get("metric"))
+  const mode = normalizeMode(url.searchParams.get("mode") ?? url.searchParams.get("metric"))
 
   const dayStart = `${selectedDate}T00:00:00.000Z`
   const dayEnd = `${selectedDate}T24:00:00.000Z`
   const isRolling = parsed.day === "rolling24h"
   const isToday = parsed.day === "today"
-  const queryStart = isRolling ? toIsoMinute(new Date(Date.now() - DAY_MS)) : dayStart
-  const queryEnd = isRolling ? toIsoMinute(new Date()) : `${selectedDate}T23:59:59.999Z`
-  const rankingWindowStart = queryStart
-  const rankingWindowEnd = isRolling ? queryEnd : dayEnd
+  const queryEnd = `${selectedDate}T23:59:59.999Z`
+
+  const fallbackQueryStart = isRolling ? toIsoMinute(new Date(Date.now() - DAY_MS)) : dayStart
+  const fallbackQueryEnd = isRolling ? toIsoMinute(new Date()) : queryEnd
 
   const db = context.env.DB
   if (!db) {
     return json({
-      ...buildEmptyPayload({ dateScope: parsed.day, selectedDate, bucketSize, topN, mode, updatedAt: new Date().toISOString(), windowStart: rankingWindowStart, windowEnd: rankingWindowEnd, rankingWindowStart, rankingWindowEnd, isRolling }),
+      ...buildEmptyPayload({ dateScope: parsed.day, selectedDate, bucketSize, topN, mode, updatedAt: new Date().toISOString(), windowStart: fallbackQueryStart, windowEnd: isRolling ? fallbackQueryEnd : dayEnd, rankingWindowStart: fallbackQueryStart, rankingWindowEnd: isRolling ? fallbackQueryEnd : dayEnd, isRolling }),
       source: "demo",
       state: "demo",
       status: "demo",
       note: "DB unavailable in this environment; returning demo-compatible payload shell."
     })
   }
+
+  let rollingWindowStartIso: string | null = null
+  let rollingWindowEndIso: string | null = null
+  if (isRolling) {
+    try {
+      const latest = await db
+        .prepare(
+          `SELECT bucket_minute
+           FROM minute_snapshots
+           WHERE provider = 'twitch'
+           ORDER BY bucket_minute DESC
+           LIMIT 1`
+        )
+        .all()
+      const latestBucket = latest.results[0]?.bucket_minute
+      if (latestBucket) {
+        rollingWindowEndIso = toIsoMinute(new Date(latestBucket))
+        rollingWindowStartIso = toIsoMinute(new Date(new Date(rollingWindowEndIso).getTime() - DAY_MS))
+      }
+    } catch {
+      // fallback to empty response below
+    }
+  }
+
+  const queryStart = isRolling ? (rollingWindowStartIso ?? toIsoMinute(new Date(Date.now() - DAY_MS))) : dayStart
+  const effectiveQueryEnd = isRolling ? (rollingWindowEndIso ?? toIsoMinute(new Date())) : queryEnd
+  const rankingWindowStart = queryStart
+  const rankingWindowEnd = isRolling ? effectiveQueryEnd : dayEnd
 
   let rows: { results: SnapshotRow[] }
   try {
@@ -348,7 +377,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
          WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute <= ?
          ORDER BY bucket_minute ASC`
       )
-      .bind(queryStart, queryEnd)
+      .bind(queryStart, effectiveQueryEnd)
       .all()
   } catch {
     return json({
@@ -517,6 +546,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     selectedDate,
     bucketSize,
     topN,
+    valueMode: mode,
     defaultMode: mode,
     dateScope: parsed.day,
     rangeMode: parsed.day,
