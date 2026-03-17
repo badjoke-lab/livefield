@@ -1650,13 +1650,34 @@
 
   .controls--dayflow {
     margin: 4px 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    align-items: stretch;
   }
 
-  .controls-group {
+  .controls--dayflow .controls-group {
     width: 100%;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 2px;
+    flex-wrap: wrap;
+    overflow: visible;
+    padding-bottom: 0;
+    align-content: start;
+  }
+
+  .controls--dayflow .controls-group:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .controls--dayflow .controls-group--secondary {
+    justify-content: space-between;
+  }
+
+  .controls--dayflow select,
+  .controls--dayflow input[type="date"],
+  .controls--dayflow .action,
+  .controls--dayflow .pill {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .dayflow-meta-inline {
@@ -1718,4 +1739,12 @@
 .dayflow-close-sheet {
   width: 100%;
   margin-top: 10px;
+}
+
+.dayflow-error-compact {
+  margin-top: 8px;
+}
+
+.dayflow-error-compact h2 {
+  margin-bottom: 6px;
 }
