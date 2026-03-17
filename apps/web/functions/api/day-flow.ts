@@ -63,8 +63,12 @@ function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
 }
 
-function parseDay(rawDate: string | null, rawDay: string | null): { day: "today" | "yesterday" | "date"; date: Date } {
+function parseDay(rawDate: string | null, rawDay: string | null): { day: "today" | "rolling24h" | "yesterday" | "date"; date: Date } {
   const now = new Date()
+  if (rawDay === "rolling24h") {
+    return { day: "rolling24h", date: startOfUtcDay(now) }
+  }
+
   if (rawDay === "yesterday") {
     return { day: "yesterday", date: new Date(startOfUtcDay(now).getTime() - DAY_MS) }
   }
@@ -113,20 +117,22 @@ function buildRollingBuckets(endIso: string, bucketMinutes: 5 | 10): string[] {
   return buckets
 }
 
-function isoMinuteLabel(iso: string | null): string {
-  if (!iso) return "N/A"
-  return iso.slice(11, 16)
-}
-
 function buildEmptyPayload(input: {
-  dateScope: "today" | "yesterday" | "date"
+  dateScope: "today" | "rolling24h" | "yesterday" | "date"
   selectedDate: string
   bucketSize: 5 | 10
   topN: 10 | 20 | 50
   mode: "volume" | "share"
   updatedAt: string
+  windowStart: string
+  windowEnd: string
+  rankingWindowStart: string
+  rankingWindowEnd: string
+  isRolling: boolean
 }): DayFlowPayload {
-  const buckets = buildBuckets(new Date(`${input.selectedDate}T00:00:00.000Z`), input.bucketSize)
+  const buckets = input.isRolling
+    ? buildRollingBuckets(input.windowEnd, input.bucketSize)
+    : buildBuckets(new Date(`${input.selectedDate}T00:00:00.000Z`), input.bucketSize)
 
   return {
     ok: true,
@@ -135,7 +141,7 @@ function buildEmptyPayload(input: {
     state: "empty",
     status: "empty",
     note: "No stream snapshots were available for the selected date.",
-    coverageNote: `Top ${input.topN} + Others by daily viewer-minutes`,
+    coverageNote: `Top ${input.topN} + Others by viewer-minutes in selected window`,
     partialNote: "No activity layer in current Twitch snapshot ingest.",
     lastUpdated: input.updatedAt,
     selectedDate: input.selectedDate,
@@ -143,6 +149,12 @@ function buildEmptyPayload(input: {
     topN: input.topN,
     defaultMode: input.mode,
     dateScope: input.dateScope,
+    rangeMode: input.dateScope,
+    windowStart: input.windowStart,
+    windowEnd: input.windowEnd,
+    rankingWindowStart: input.rankingWindowStart,
+    rankingWindowEnd: input.rankingWindowEnd,
+    isRolling: input.isRolling,
     summary: {
       peakLeader: "N/A",
       longestDominance: "N/A",
@@ -150,8 +162,8 @@ function buildEmptyPayload(input: {
       biggestRise: "N/A"
     },
     timeline: {
-      dayStart: `${input.selectedDate}T00:00:00.000Z`,
-      dayEnd: `${input.selectedDate}T24:00:00.000Z`,
+      dayStart: input.windowStart,
+      dayEnd: input.windowEnd,
       nowBucket: null,
       bucketCount: buckets.length,
       futureBlankFrom: null
@@ -278,25 +290,25 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
   const topN = normalizeTop(url.searchParams.get("top"))
   const mode = normalizeMode(url.searchParams.get("metric"))
 
+  const dayStart = `${selectedDate}T00:00:00.000Z`
+  const dayEnd = `${selectedDate}T24:00:00.000Z`
+  const isRolling = parsed.day === "rolling24h"
+  const isToday = parsed.day === "today"
+  const queryStart = isRolling ? toIsoMinute(new Date(Date.now() - DAY_MS)) : dayStart
+  const queryEnd = isRolling ? toIsoMinute(new Date()) : `${selectedDate}T23:59:59.999Z`
+  const rankingWindowStart = queryStart
+  const rankingWindowEnd = isRolling ? queryEnd : dayEnd
+
   const db = context.env.DB
   if (!db) {
     return json({
-      ...buildEmptyPayload({ dateScope: parsed.day, selectedDate, bucketSize, topN, mode, updatedAt: new Date().toISOString() }),
+      ...buildEmptyPayload({ dateScope: parsed.day, selectedDate, bucketSize, topN, mode, updatedAt: new Date().toISOString(), windowStart: rankingWindowStart, windowEnd: rankingWindowEnd, rankingWindowStart, rankingWindowEnd, isRolling }),
       source: "demo",
       state: "demo",
       status: "demo",
       note: "DB unavailable in this environment; returning demo-compatible payload shell."
     })
   }
-
-  const dayStart = `${selectedDate}T00:00:00.000Z`
-  const dayEnd = `${selectedDate}T23:59:59.999Z`
-  const queryStart = parsed.day === "today"
-    ? toIsoMinute(new Date(Date.now() - DAY_MS))
-    : dayStart
-  const queryEnd = parsed.day === "today"
-    ? toIsoMinute(new Date())
-    : dayEnd
 
   const rows = await db
     .prepare(
@@ -315,12 +327,19 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       bucketSize,
       topN,
       mode,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      windowStart: rankingWindowStart,
+      windowEnd: rankingWindowEnd,
+      rankingWindowStart,
+      rankingWindowEnd,
+      isRolling
     }))
   }
 
-  const buckets = parsed.day === "today"
-    ? buildRollingBuckets(rows.results.at(-1)?.bucket_minute ?? new Date().toISOString(), bucketSize)
+  const windowEnd = isRolling ? (rows.results.at(-1)?.bucket_minute ?? new Date().toISOString()) : dayEnd
+  const windowStart = isRolling ? toIsoMinute(new Date(new Date(windowEnd).getTime() - DAY_MS)) : dayStart
+  const buckets = isRolling
+    ? buildRollingBuckets(windowEnd, bucketSize)
     : buildBuckets(new Date(`${selectedDate}T00:00:00.000Z`), bucketSize)
   const bucketIndexByIso = new Map(buckets.map((bucket, index) => [bucket, index]))
   const streamAggById = new Map<string, StreamAgg>()
@@ -363,7 +382,19 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
   const ordered = [...streamAggById.values()].sort((a, b) => b.totalViewerMinutes - a.totalViewerMinutes)
   if (!ordered.length) {
-    return json(buildEmptyPayload({ dateScope: parsed.day, selectedDate, bucketSize, topN, mode, updatedAt: rows.results.at(-1)?.collected_at ?? new Date().toISOString() }))
+    return json(buildEmptyPayload({
+      dateScope: parsed.day,
+      selectedDate,
+      bucketSize,
+      topN,
+      mode,
+      updatedAt: rows.results.at(-1)?.collected_at ?? new Date().toISOString(),
+      windowStart: rankingWindowStart,
+      windowEnd: rankingWindowEnd,
+      rankingWindowStart,
+      rankingWindowEnd,
+      isRolling
+    }))
   }
 
   const topStreams = ordered.slice(0, topN)
@@ -420,7 +451,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
   const baseState = resolveApiState({
     source: "api",
     hasSnapshot: true,
-    isFresh: parsed.day === "today" ? minutesSinceLatest <= 2 : true,
+    isFresh: isRolling || isToday ? minutesSinceLatest <= 2 : true,
     isPartial: rows.results.some((r) => r.has_more === 1),
     hasError: false
   })
@@ -434,7 +465,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     state,
     status,
     note: state === "partial" ? "Coverage or freshness is partial for selected date." : undefined,
-    coverageNote: `Top ${topN} + Others by daily viewer-minutes`,
+    coverageNote: `Top ${topN} + Others by viewer-minutes in selected window`,
     degradationNote: "Activity overlay is intentionally disabled in MVP until per-stream activity is fully wired.",
     partialNote: rows.results.some((r) => r.has_more === 1) ? "Collector reported partial page coverage in one or more buckets." : undefined,
     lastUpdated: latestCollectedAt,
@@ -443,6 +474,12 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     topN,
     defaultMode: mode,
     dateScope: parsed.day,
+    rangeMode: parsed.day,
+    windowStart,
+    windowEnd,
+    rankingWindowStart: windowStart,
+    rankingWindowEnd: windowEnd,
+    isRolling,
     summary: {
       peakLeader: leaderBand?.name ?? "N/A",
       longestDominance,
@@ -450,9 +487,9 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       biggestRise: biggestRiseBand?.name ?? "N/A"
     },
     timeline: {
-      dayStart,
-      dayEnd: `${selectedDate}T24:00:00.000Z`,
-      nowBucket: parsed.day === "today" ? nowBucketIso : null,
+      dayStart: windowStart,
+      dayEnd: windowEnd,
+      nowBucket: isRolling || isToday ? nowBucketIso : null,
       bucketCount: buckets.length,
       futureBlankFrom: null
     },
