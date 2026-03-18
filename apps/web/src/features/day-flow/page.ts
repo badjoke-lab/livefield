@@ -701,6 +701,9 @@ export function renderDayFlowPage(root: HTMLElement): void {
 
   let mounted: DayFlowMountController | null = null
   let previousGood: DayFlowPayload | null = readCachedPayload()
+  let activeMountAbort: (() => void) | null = null
+  let activeFetchController: AbortController | null = null
+  let requestSeq = 0
   const initial = parseFilters(form)
   const viewState: DayFlowViewState = {
     rangeMode: initial.day,
@@ -736,15 +739,35 @@ export function renderDayFlowPage(root: HTMLElement): void {
   const remount = async () => {
     syncControlsToViewState()
     syncDateInputState()
+    const requestId = ++requestSeq
+
     if (!mounted) {
+      if (activeMountAbort) {
+        activeMountAbort()
+        activeMountAbort = null
+      }
+
       const active = mountData(form, content, viewState, previousGood)
+      activeMountAbort = active.abort
       const next = await active.promise
+
+      if (requestId !== requestSeq) return
+      activeMountAbort = null
+
       if (next) {
         mounted = next
         previousGood = next.payload
       }
       return
     }
+
+    if (activeFetchController) {
+      activeFetchController.abort()
+      activeFetchController = null
+    }
+
+    const controller = new AbortController()
+    activeFetchController = controller
 
     mounted.showNotice("updating")
     try {
@@ -753,14 +776,23 @@ export function renderDayFlowPage(root: HTMLElement): void {
         date: viewState.selectedDate,
         top: viewState.topN,
         mode: viewState.valueMode,
-        bucket: viewState.bucketSize
+        bucket: viewState.bucketSize,
+        signal: controller.signal
       })
+
+      if (controller.signal.aborted || requestId !== requestSeq) return
+
       mounted.updatePayload(nextPayload)
       previousGood = nextPayload
       writeCachedPayload(nextPayload)
       mounted.showNotice(null)
-    } catch {
+    } catch (error) {
+      if (controller.signal.aborted || requestId !== requestSeq) return
       mounted.showNotice("error")
+    } finally {
+      if (activeFetchController === controller) {
+        activeFetchController = null
+      }
     }
   }
 
