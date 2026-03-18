@@ -302,13 +302,13 @@ function renderFrame(payload: DayFlowPayload): string {
     <section class="grid-2 page-section dayflow-layout">
       <section class="card dayflow-main-card">
         <div class="dayflow-main-head dayflow-meta-strip">
-          <h2>Live 24h Landscape</h2>
+          <h2 id="dayflow-title">${payload.rangeMode === "rolling24h" ? "Rolling 24h Landscape" : payload.rangeMode === "yesterday" ? "Yesterday Landscape" : payload.rangeMode === "date" ? "Selected Day Landscape" : "Today Landscape"}</h2>
           <div class="dayflow-meta-inline">
-            <span><strong>Range</strong> ${payload.isRolling ? `${payload.windowStart.slice(11, 16)} → ${payload.windowEnd.slice(11, 16)} UTC` : payload.selectedDate}</span>
-            <span><strong>Status</strong> ${payload.status}</span>
-            <span><strong>Coverage</strong> ${payload.coverageNote}</span>
-            <span><strong>Bucket</strong> ${payload.bucketSize}m</span>
-            <span><strong>Updated</strong> ${payload.lastUpdated.slice(11, 16)} UTC</span>
+            <span id="dayflow-range-chip"><strong>Range</strong> ${payload.isRolling ? `${payload.windowStart.slice(11, 16)} → ${payload.windowEnd.slice(11, 16)} UTC` : payload.selectedDate}</span>
+            <span id="dayflow-status-chip"><strong>Status</strong> ${payload.status}</span>
+            <span id="dayflow-coverage-chip"><strong>Coverage</strong> ${payload.coverageNote}</span>
+            <span id="dayflow-bucket-chip"><strong>Bucket</strong> ${payload.bucketSize}m</span>
+            <span id="dayflow-updated-chip"><strong>Updated</strong> ${payload.lastUpdated.slice(11, 16)} UTC</span>
           </div>
         </div>
         <div class="dayflow-canvas-wrap">
@@ -612,6 +612,22 @@ function mountData(
         viewState.selectedStreamerId = payload.detailPanelSource.defaultStreamerId
       }
 
+      content.querySelector<HTMLElement>("#dayflow-title")!.textContent =
+        payload.rangeMode === "rolling24h" ? "Rolling 24h Landscape"
+          : payload.rangeMode === "yesterday" ? "Yesterday Landscape"
+          : payload.rangeMode === "date" ? "Selected Day Landscape"
+          : "Today Landscape"
+      content.querySelector<HTMLElement>("#dayflow-range-chip")!.innerHTML =
+        `<strong>Range</strong> ${payload.isRolling ? `${payload.windowStart.slice(11, 16)} → ${payload.windowEnd.slice(11, 16)} UTC` : payload.selectedDate}`
+      content.querySelector<HTMLElement>("#dayflow-status-chip")!.innerHTML =
+        `<strong>Status</strong> ${payload.status}`
+      content.querySelector<HTMLElement>("#dayflow-coverage-chip")!.innerHTML =
+        `<strong>Coverage</strong> ${payload.coverageNote}`
+      content.querySelector<HTMLElement>("#dayflow-bucket-chip")!.innerHTML =
+        `<strong>Bucket</strong> ${payload.bucketSize}m`
+      content.querySelector<HTMLElement>("#dayflow-updated-chip")!.innerHTML =
+        `<strong>Updated</strong> ${payload.lastUpdated.slice(11, 16)} UTC`
+
       slider.max = String(Math.max(0, payload.buckets.length - 1))
       viewState.selectedBucketIndex = resolveInitialBucketIndex(payload, viewState.selectedBucketIndex)
       slider.value = String(viewState.selectedBucketIndex)
@@ -716,11 +732,6 @@ export function renderDayFlowPage(root: HTMLElement): void {
     dateInput.style.display = dateMode ? "inline-flex" : "none"
   }
   syncDateInputState()
-
-  form.querySelector<HTMLSelectElement>('select[name="day"]')?.addEventListener("change", () => {
-    syncControlsToViewState()
-    syncDateInputState()
-  })
 
   const remount = async () => {
     syncControlsToViewState()
