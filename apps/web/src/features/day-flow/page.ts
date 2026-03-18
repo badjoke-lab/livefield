@@ -528,7 +528,7 @@ function mountData(
     }
 
     const state = () => ({ selectedBucketIndex: viewState.selectedBucketIndex, selectedStreamerId: viewState.selectedStreamerId, mode: viewState.valueMode, isolate: viewState.isolate })
-    const renderer = drawChart(canvas, payload, state)
+    let renderer = drawChart(canvas, payload, state)
 
     const wireDetailActions = () => {
       const isolateButtons = content.querySelectorAll<HTMLButtonElement>("#dayflow-isolate")
@@ -611,10 +611,14 @@ function mountData(
       if (!payload.detailPanelSource.streamers.some((s) => s.streamerId === viewState.selectedStreamerId)) {
         viewState.selectedStreamerId = payload.detailPanelSource.defaultStreamerId
       }
-      const nextIndex = resolveInitialBucketIndex(payload, viewState.selectedBucketIndex)
-      viewState.selectedBucketIndex = nextIndex
+
       slider.max = String(Math.max(0, payload.buckets.length - 1))
-      slider.value = String(nextIndex)
+      viewState.selectedBucketIndex = resolveInitialBucketIndex(payload, viewState.selectedBucketIndex)
+      slider.value = String(viewState.selectedBucketIndex)
+
+      renderer.destroy()
+      renderer = drawChart(canvas, payload, state)
+
       syncViewState()
     }
 
