@@ -722,21 +722,13 @@ export function renderDayFlowPage(root: HTMLElement): void {
     syncControlsToViewState()
     syncDateInputState()
     if (!mounted) {
-      if (previousGood) {
-        const activeCached = mountData(form, content, viewState, previousGood, true)
-        const cached = await activeCached.promise
-        if (cached) mounted = cached
+      const active = mountData(form, content, viewState, previousGood)
+      const next = await active.promise
+      if (next) {
+        mounted = next
+        previousGood = next.payload
       }
-
-      if (!mounted) {
-        const active = mountData(form, content, viewState, previousGood)
-        const next = await active.promise
-        if (next) {
-          mounted = next
-          previousGood = next.payload
-        }
-        return
-      }
+      return
     }
 
     mounted.showNotice("updating")
@@ -765,25 +757,18 @@ export function renderDayFlowPage(root: HTMLElement): void {
   const attachControlListeners = (selector: string) => {
     form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(selector).forEach((field) => {
       field.addEventListener("change", () => {
-        void remount()
-      })
-    })
-  }
-  ;[
-    "select[name='day']",
-    "input[name='date']",
-    "select[name='top']",
-    "select[name='mode']",
-    "select[name='bucket']"
-  ].forEach((selector) => {
-    form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(selector).forEach((field) => {
-      field.addEventListener("change", () => {
         syncControlsToViewState()
         syncDateInputState()
         void remount()
       })
     })
-  })
+  }
+
+  attachControlListeners("select[name='day']")
+  attachControlListeners("input[name='date']")
+  attachControlListeners("select[name='top']")
+  attachControlListeners("select[name='mode']")
+  attachControlListeners("select[name='bucket']")
 
   let timer: number | null = window.setInterval(() => {
     if (viewState.autoUpdateEnabled && ["today", "rolling24h"].includes(parseFilters(form).day)) {
