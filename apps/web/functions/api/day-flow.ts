@@ -312,6 +312,46 @@ function buildFocusItems(bands: DayFlowBandSeries[], bucketIndex: number): DayFl
     .slice(0, 5)
 }
 
+const SNAPSHOT_CHUNK_MS = 6 * 60 * 60 * 1000
+
+async function fetchMinuteSnapshotsChunked(
+  db: NonNullable<Env["DB"]>,
+  startIso: string,
+  endIso: string
+): Promise<{ results: SnapshotRow[] }> {
+  const startMs = new Date(startIso).getTime()
+  const endMs = new Date(endIso).getTime()
+
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || startMs > endMs) {
+    return { results: [] }
+  }
+
+  const all: SnapshotRow[] = []
+
+  for (let chunkStartMs = startMs; chunkStartMs <= endMs; chunkStartMs += SNAPSHOT_CHUNK_MS) {
+    const chunkEndMs = Math.min(endMs, chunkStartMs + SNAPSHOT_CHUNK_MS - 60_000)
+    const chunkStartIso = toIsoMinute(new Date(chunkStartMs))
+    const chunkEndIso = toIsoMinute(new Date(chunkEndMs))
+
+    const chunkRows = await db
+      .prepare(
+        `SELECT bucket_minute, collected_at, has_more, payload_json, agitation_level
+         FROM minute_snapshots
+         WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute <= ?
+         ORDER BY bucket_minute ASC`
+      )
+      .bind(chunkStartIso, chunkEndIso)
+      .all()
+
+    if (Array.isArray(chunkRows.results) && chunkRows.results.length) {
+      all.push(...(chunkRows.results as SnapshotRow[]))
+    }
+  }
+
+  all.sort((a, b) => a.bucket_minute.localeCompare(b.bucket_minute))
+  return { results: all }
+}
+
 export const onRequest = async (context: { env: Env; request: Request }) => {
   const url = new URL(context.request.url)
   const parsed = parseDay(url.searchParams.get("date"), url.searchParams.get("day"), url.searchParams.get("rangeMode"))
@@ -370,15 +410,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
   let rows: { results: SnapshotRow[] }
   try {
-    rows = await db
-      .prepare(
-        `SELECT bucket_minute, collected_at, has_more, payload_json, agitation_level
-         FROM minute_snapshots
-         WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute <= ?
-         ORDER BY bucket_minute ASC`
-      )
-      .bind(queryStart, effectiveQueryEnd)
-      .all()
+    rows = await fetchMinuteSnapshotsChunked(db, queryStart, effectiveQueryEnd)
   } catch {
     return json({
       ...buildEmptyPayload({ dateScope: parsed.day, selectedDate, bucketSize, topN, mode, updatedAt: new Date().toISOString(), windowStart: rankingWindowStart, windowEnd: rankingWindowEnd, rankingWindowStart, rankingWindowEnd, isRolling }),
