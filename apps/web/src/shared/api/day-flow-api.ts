@@ -26,8 +26,12 @@ export async function getDayFlowPayload(filters: {
   top: 10 | 20 | 50
   mode: "volume" | "share"
   bucket: 5 | 10
+  signal?: AbortSignal
 }): Promise<DayFlowPayload> {
-  const response = await fetch(buildQuery(filters), { headers: { accept: "application/json" } })
+  const response = await fetch(buildQuery(filters), {
+    headers: { accept: "application/json" },
+    signal: filters.signal
+  })
   if (!response.ok) {
     throw new Error(`day-flow api returned ${response.status}`)
   }
