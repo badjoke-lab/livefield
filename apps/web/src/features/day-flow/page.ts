@@ -603,14 +603,6 @@ function mountData(
       }
     })
 
-    form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("select[name='mode']").forEach((field) => {
-      field.addEventListener("change", () => {
-        viewState.valueMode = parseFilters(form).mode
-        renderer.redraw()
-        syncViewState()
-      })
-    })
-
     slider.value = String(resolveInitialBucketIndex(payload, viewState.selectedBucketIndex))
     syncViewState()
 
