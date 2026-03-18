@@ -1818,3 +1818,16 @@
   margin-top: 10px;
 }
 
+
+
+/* dayflow-mobile-onecol-override */
+@media (max-width: 900px) {
+  .dayflow-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dayflow-main-card,
+  .dayflow-side {
+    min-width: 0;
+  }
+}
