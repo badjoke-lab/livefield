@@ -777,11 +777,21 @@ export function renderDayFlowPage(root: HTMLElement): void {
       })
     })
   }
-  attachControlListeners("select[name='day']")
-  attachControlListeners("input[name='date']")
-  attachControlListeners("select[name='top']")
-  attachControlListeners("select[name='mode']")
-  attachControlListeners("select[name='bucket']")
+  ;[
+    "select[name='day']",
+    "input[name='date']",
+    "select[name='top']",
+    "select[name='mode']",
+    "select[name='bucket']"
+  ].forEach((selector) => {
+    form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(selector).forEach((field) => {
+      field.addEventListener("change", () => {
+        syncControlsToViewState()
+        syncDateInputState()
+        void remount()
+      })
+    })
+  })
 
   let timer: number | null = window.setInterval(() => {
     if (viewState.autoUpdateEnabled && ["today", "rolling24h"].includes(parseFilters(form).day)) {
