@@ -323,7 +323,8 @@ const SNAPSHOT_CHUNK_MS = 6 * 60 * 60 * 1000
 async function fetchMinuteSnapshotsChunked(
   db: NonNullable<Env["DB"]>,
   startIso: string,
-  endIso: string
+  endIso: string,
+  bucketSize: 5 | 10
 ): Promise<{ results: SnapshotRow[] }> {
   const startMs = new Date(startIso).getTime()
   const endMs = new Date(endIso).getTime()
@@ -343,10 +344,12 @@ async function fetchMinuteSnapshotsChunked(
       .prepare(
         `SELECT bucket_minute, collected_at, has_more, payload_json, agitation_level
          FROM minute_snapshots
-         WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute <= ?
+         WHERE provider = 'twitch'
+           AND bucket_minute >= ? AND bucket_minute <= ?
+           AND (CAST(substr(bucket_minute, 15, 2) AS INTEGER) % ?) = 0
          ORDER BY bucket_minute ASC`
       )
-      .bind(chunkStartIso, chunkEndIso)
+      .bind(chunkStartIso, chunkEndIso, bucketSize)
       .all()
 
     if (Array.isArray(chunkRows.results) && chunkRows.results.length) {
@@ -416,7 +419,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
   let rows: { results: SnapshotRow[] }
   try {
-    rows = await fetchMinuteSnapshotsChunked(db, queryStart, effectiveQueryEnd)
+    rows = await fetchMinuteSnapshotsChunked(db, queryStart, effectiveQueryEnd, bucketSize)
   } catch {
     return json({
       ...buildEmptyPayload({ dateScope: parsed.day, selectedDate, bucketSize, topN, mode, updatedAt: new Date().toISOString(), windowStart: rankingWindowStart, windowEnd: rankingWindowEnd, rankingWindowStart, rankingWindowEnd, isRolling }),
