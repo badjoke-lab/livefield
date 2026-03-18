@@ -124,6 +124,12 @@ function floorToBucket(iso: string, minutes: 5 | 10): string {
   return toIsoMinute(d)
 }
 
+function isBucketAnchor(iso: string, minutes: 5 | 10): boolean {
+  const minuteIso = toIsoMinute(new Date(iso))
+  return floorToBucket(minuteIso, minutes) === minuteIso
+}
+
+
 function buildBuckets(day: Date, bucketMinutes: 5 | 10): string[] {
   const start = startOfUtcDay(day)
   const end = new Date(start.getTime() + DAY_MS)
@@ -447,7 +453,9 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
   const totalByBucket = new Array<number>(buckets.length).fill(0)
 
   for (const row of rows.results) {
-    const bucketIso = floorToBucket(row.bucket_minute, bucketSize)
+    if (!isBucketAnchor(row.bucket_minute, bucketSize)) continue
+
+    const bucketIso = toIsoMinute(new Date(row.bucket_minute))
     const bucketIndex = bucketIndexByIso.get(bucketIso)
     if (bucketIndex === undefined) continue
 
