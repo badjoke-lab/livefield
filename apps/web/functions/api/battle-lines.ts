@@ -1,4 +1,17 @@
-import { resolveApiState, type ApiState } from "./_shared/state"
+import { resolveApiState } from "./_shared/state"
+import type {
+  BattleCandidate,
+  BattleCandidateTag,
+  BattleGapTrend,
+  BattleLine,
+  BattleLinesEvent,
+  BattleLinesFilters,
+  BattleLinesMetricMode,
+  BattleLinesPayload,
+  BattleLinesRecommendation,
+  BattleLinesState,
+  BattleReversalStripItem
+} from "../../../../packages/shared/src/types/battle-lines"
 
 type Env = {
   DB?: {
@@ -26,80 +39,38 @@ type SnapshotPayload = {
   }>
 }
 
-type MetricMode = "viewers" | "indexed"
-type DayMode = "today" | "yesterday" | "date"
-type EventType = "peak" | "rise" | "reversal"
+type DraftLine = Omit<BattleLine, "reversalCount">
 
-type BattleLine = {
-  streamerId: string
-  name: string
-  color: string
-  points: number[]
-  viewerPoints: number[]
-  peakViewers: number
-  latestViewers: number
-  risePerMin: number
-  reversalCount: number
-}
-
-type BattleEvent = {
-  type: EventType
-  bucket: string
-  label: string
-  streamerId: string
-  rivalId?: string
-}
-
-type BattleLinesPayload = {
-  ok: true
-  tool: "battle-lines"
-  source: "api" | "demo"
-  state: ApiState
-  updatedAt: string
-  filters: {
-    day: DayMode
-    date: string
-    top: 3 | 5 | 10
-    metric: MetricMode
-    bucketMinutes: 1 | 5 | 10
-    focus: string
-  }
-  summary: {
-    leader: string
-    biggestRise: string
-    peakMoment: string
-    reversals: number
-  }
-  buckets: string[]
-  lines: BattleLine[]
-  focusStrip: Array<{ streamerId: string; name: string }>
-  focusDetail: {
-    streamerId: string
-    name: string
-    peakViewers: number
-    latestViewers: number
-    biggestRiseTime: string
-    reversalCount: number
-  }
-  events: BattleEvent[]
+type PairReversalRecord = {
+  key: string
+  leftId: string
+  rightId: string
+  leftName: string
+  rightName: string
+  timestamp: string
+  passerId: string
+  passerName: string
+  passedId: string
+  passedName: string
+  gapBefore: number
+  gapAfter: number
+  heatOverlap: boolean
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const COLORS = ["#7aa2ff", "#4cdfff", "#8cf3c5", "#bd9bff", "#ff9ac6", "#f5cb6b", "#9fb3d8", "#d99fff", "#7df2c8", "#ffc38f"]
 
+const numberFmt = new Intl.NumberFormat("en-US")
+
 function normalizeTop(raw: string | null): 3 | 5 | 10 {
-  if (raw === "3") return 3
-  if (raw === "10") return 10
-  return 5
+  return raw === "3" ? 3 : raw === "10" ? 10 : 5
 }
 
 function normalizeBucket(raw: string | null): 1 | 5 | 10 {
-  if (raw === "1") return 1
-  if (raw === "10") return 10
-  return 5
+  return raw === "1" ? 1 : raw === "10" ? 10 : 5
 }
 
-function normalizeMetric(raw: string | null): MetricMode {
+function normalizeMetric(raw: string | null): BattleLinesMetricMode {
   return raw === "indexed" ? "indexed" : "viewers"
 }
 
@@ -107,7 +78,7 @@ function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
 }
 
-function parseDay(rawDate: string | null, rawDay: string | null): { day: DayMode; date: Date } {
+function parseDay(rawDate: string | null, rawDay: string | null): { day: BattleLinesFilters["day"]; date: Date } {
   const now = new Date()
   if (rawDay === "yesterday") {
     return { day: "yesterday", date: new Date(startOfUtcDay(now).getTime() - DAY_MS) }
@@ -135,6 +106,16 @@ function isoMinuteLabel(iso: string): string {
   return iso.slice(11, 16)
 }
 
+function parseIsoMinute(iso: string | null | undefined): number {
+  if (!iso) return 0
+  const time = Date.parse(iso)
+  return Number.isNaN(time) ? 0 : time
+}
+
+function formatGap(value: number): string {
+  return `${numberFmt.format(Math.max(0, Math.round(value)))} gap`
+}
+
 function buildBuckets(day: Date, bucketMinutes: 1 | 5 | 10, now: Date): string[] {
   const start = startOfUtcDay(day)
   const end = new Date(start.getTime() + DAY_MS)
@@ -148,7 +129,279 @@ function buildBuckets(day: Date, bucketMinutes: 1 | 5 | 10, now: Date): string[]
   return buckets
 }
 
-function buildDemoPayload(filters: BattleLinesPayload["filters"]): BattleLinesPayload {
+function buildCandidateKey(leftId: string, rightId: string): string {
+  return `${leftId}|${rightId}`
+}
+
+function gapTrendFrom(previousGap: number, latestGap: number): BattleGapTrend {
+  if (latestGap < previousGap) return "closing"
+  if (latestGap > previousGap) return "widening"
+  return "flat"
+}
+
+function pickCandidateTag(args: {
+  latestGap: number
+  latestReversalAt: string | null
+  gapTrend: BattleGapTrend
+  combinedRise: number
+}): BattleCandidateTag {
+  if (args.latestReversalAt) return "recent-reversal"
+  if (args.latestGap <= 150 && args.combinedRise > 0) return "heated"
+  if (args.gapTrend === "closing") return "closing"
+  return "rising-challenger"
+}
+
+function buildPairReversalRecords(lines: DraftLine[], buckets: string[]): PairReversalRecord[] {
+  const records: PairReversalRecord[] = []
+
+  for (let left = 0; left < lines.length; left += 1) {
+    for (let right = left + 1; right < lines.length; right += 1) {
+      const a = lines[left]
+      const b = lines[right]
+      const key = buildCandidateKey(a.streamerId, b.streamerId)
+
+      for (let idx = 1; idx < buckets.length; idx += 1) {
+        const prevLeft = a.viewerPoints[idx - 1] ?? 0
+        const prevRight = b.viewerPoints[idx - 1] ?? 0
+        const nextLeft = a.viewerPoints[idx] ?? 0
+        const nextRight = b.viewerPoints[idx] ?? 0
+
+        const prevDelta = prevLeft - prevRight
+        const nextDelta = nextLeft - nextRight
+        if (prevDelta === 0 || nextDelta === 0) continue
+        if (!((prevDelta > 0 && nextDelta < 0) || (prevDelta < 0 && nextDelta > 0))) continue
+
+        const passerIsLeft = nextLeft > nextRight
+        records.push({
+          key,
+          leftId: a.streamerId,
+          rightId: b.streamerId,
+          leftName: a.name,
+          rightName: b.name,
+          timestamp: buckets[idx] ?? buckets[0] ?? new Date().toISOString(),
+          passerId: passerIsLeft ? a.streamerId : b.streamerId,
+          passerName: passerIsLeft ? a.name : b.name,
+          passedId: passerIsLeft ? b.streamerId : a.streamerId,
+          passedName: passerIsLeft ? b.name : a.name,
+          gapBefore: Math.abs(prevDelta),
+          gapAfter: Math.abs(nextDelta),
+          heatOverlap: false
+        })
+      }
+    }
+  }
+
+  return records.sort((a, b) => parseIsoMinute(b.timestamp) - parseIsoMinute(a.timestamp))
+}
+
+function enrichLinesAndBuildRecommendation(
+  draftLines: DraftLine[],
+  buckets: string[]
+): { lines: BattleLine[]; events: BattleLinesEvent[]; recommendation: BattleLinesRecommendation } {
+  const pairReversals = buildPairReversalRecords(draftLines, buckets)
+  const reversalCountById = new Map<string, number>()
+
+  for (const record of pairReversals) {
+    reversalCountById.set(record.passerId, (reversalCountById.get(record.passerId) ?? 0) + 1)
+    reversalCountById.set(record.passedId, (reversalCountById.get(record.passedId) ?? 0) + 1)
+  }
+
+  const lines: BattleLine[] = draftLines.map((line) => ({
+    ...line,
+    reversalCount: reversalCountById.get(line.streamerId) ?? 0
+  }))
+
+  const candidateByKey = new Map<string, BattleCandidate>()
+  const newestTimestamp = parseIsoMinute(buckets[buckets.length - 1] ?? null)
+
+  for (let left = 0; left < lines.length; left += 1) {
+    for (let right = left + 1; right < lines.length; right += 1) {
+      const a = lines[left]
+      const b = lines[right]
+      const key = buildCandidateKey(a.streamerId, b.streamerId)
+      const pairEvents = pairReversals.filter((event) => event.key === key)
+      const latestReversalAt = pairEvents[0]?.timestamp ?? null
+
+      const latestGap = Math.abs((a.latestViewers ?? 0) - (b.latestViewers ?? 0))
+      const prevA = a.viewerPoints.length >= 2 ? a.viewerPoints[a.viewerPoints.length - 2] ?? a.latestViewers : a.latestViewers
+      const prevB = b.viewerPoints.length >= 2 ? b.viewerPoints[b.viewerPoints.length - 2] ?? b.latestViewers : b.latestViewers
+      const previousGap = Math.abs(prevA - prevB)
+      const gapTrend = gapTrendFrom(previousGap, latestGap)
+      const combinedRise = Math.max(0, a.risePerMin) + Math.max(0, b.risePerMin)
+
+      const closenessScore = Math.max(0, 3000 - latestGap * 6)
+      const recencyMinutes = latestReversalAt ? Math.max(1, Math.floor((newestTimestamp - parseIsoMinute(latestReversalAt)) / 60000)) : 9999
+      const reversalRecencyScore = latestReversalAt ? Math.max(0, 1800 - recencyMinutes * 45) : 0
+      const momentumConflictScore = Math.max(0, combinedRise) * 6
+      const rankRelevanceScore = Math.max(0, 420 - left * 60 - right * 35)
+      const score = closenessScore + reversalRecencyScore + momentumConflictScore + rankRelevanceScore
+
+      candidateByKey.set(key, {
+        key,
+        leftId: a.streamerId,
+        rightId: b.streamerId,
+        leftName: a.name,
+        rightName: b.name,
+        score,
+        gap: latestGap,
+        gapTrend,
+        lastReversalAt: latestReversalAt,
+        tag: pickCandidateTag({
+          latestGap,
+          latestReversalAt,
+          gapTrend,
+          combinedRise
+        }),
+        currentGapLabel: formatGap(latestGap)
+      })
+    }
+  }
+
+  const rankedCandidates = [...candidateByKey.values()].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    if (a.gap !== b.gap) return a.gap - b.gap
+    return a.key.localeCompare(b.key)
+  })
+
+  const fastest = [...lines].sort((a, b) => b.risePerMin - a.risePerMin)[0]
+  const latestReversal = pairReversals[0]
+  const reversalStrip: BattleReversalStripItem[] = pairReversals.slice(0, 6).map((item) => ({
+    timestamp: item.timestamp,
+    label: `${item.passerName} passed ${item.passedName}`,
+    passer: item.passerName,
+    passed: item.passedName,
+    gapBefore: item.gapBefore,
+    gapAfter: item.gapAfter,
+    heatOverlap: item.heatOverlap
+  }))
+
+  const recommendation: BattleLinesRecommendation = {
+    primaryBattle: rankedCandidates[0] ?? null,
+    secondaryBattles: rankedCandidates.slice(1, 4),
+    latestReversal: latestReversal
+      ? `${latestReversal.passerName} passed ${latestReversal.passedName} @ ${isoMinuteLabel(latestReversal.timestamp)}`
+      : "No reversal yet",
+    fastestChallenger: fastest
+      ? `${fastest.name} (+${numberFmt.format(Math.round(fastest.risePerMin))}/min)`
+      : "N/A",
+    reversalStrip
+  }
+
+  const events: BattleLinesEvent[] = []
+
+  for (const line of lines) {
+    if (!line.viewerPoints.length) continue
+
+    const peakIdx = line.viewerPoints.reduce((best, value, idx, arr) => (value > arr[best] ? idx : best), 0)
+    events.push({
+      type: "peak",
+      bucket: buckets[peakIdx] ?? buckets[0] ?? new Date().toISOString(),
+      label: `${line.name} peak`,
+      streamerId: line.streamerId
+    })
+
+    let riseIdx = 1
+    let riseDelta = -Infinity
+    for (let idx = 1; idx < line.viewerPoints.length; idx += 1) {
+      const delta = (line.viewerPoints[idx] ?? 0) - (line.viewerPoints[idx - 1] ?? 0)
+      if (delta > riseDelta) {
+        riseDelta = delta
+        riseIdx = idx
+      }
+    }
+    events.push({
+      type: "rise",
+      bucket: buckets[riseIdx] ?? buckets[0] ?? new Date().toISOString(),
+      label: `${line.name} rise`,
+      streamerId: line.streamerId
+    })
+  }
+
+  for (const record of pairReversals) {
+    events.push({
+      type: "reversal",
+      bucket: record.timestamp,
+      label: `${record.passerName} passed ${record.passedName}`,
+      streamerId: record.passerId,
+      rivalId: record.passedId
+    })
+  }
+
+  events.sort((a, b) => parseIsoMinute(b.bucket) - parseIsoMinute(a.bucket))
+
+  return { lines, events, recommendation }
+}
+
+function createSummary(
+  lines: BattleLine[],
+  buckets: string[],
+  events: BattleLinesEvent[],
+  recommendation: BattleLinesRecommendation
+): BattleLinesPayload["summary"] {
+  const peakEvent = events.find((event) => event.type === "peak")
+  const biggestRise = [...lines].sort((a, b) => b.risePerMin - a.risePerMin)[0]
+  const primary = recommendation.primaryBattle
+  const heated = [...[primary, ...recommendation.secondaryBattles]]
+    .filter((item): item is BattleCandidate => item !== null)
+    .sort((a, b) => {
+      if ((a.tag === "heated") !== (b.tag === "heated")) return a.tag === "heated" ? -1 : 1
+      return a.gap - b.gap
+    })[0] ?? null
+
+  return {
+    leader: lines[0]?.name ?? "No live streams",
+    biggestRise: biggestRise?.name ?? "N/A",
+    peakMoment: peakEvent?.bucket ? isoMinuteLabel(peakEvent.bucket) : (buckets[0] ? isoMinuteLabel(buckets[0]) : "N/A"),
+    reversals: events.filter((event) => event.type === "reversal").length,
+    liveBattleNow: primary
+      ? `${primary.leftName} vs ${primary.rightName} · ${primary.currentGapLabel} · ${primary.gapTrend}`
+      : "No live battle now",
+    latestReversal: recommendation.latestReversal,
+    fastestChallenger: recommendation.fastestChallenger,
+    mostHeatedBattle: heated
+      ? `${heated.leftName} vs ${heated.rightName} · ${heated.tag}`
+      : "No heated battle"
+  }
+}
+
+function buildPayloadFromDraftLines(args: {
+  source: BattleLinesPayload["source"]
+  state: BattleLinesState
+  updatedAt: string
+  filters: BattleLinesFilters
+  buckets: string[]
+  draftLines: DraftLine[]
+}): BattleLinesPayload {
+  const { lines, events, recommendation } = enrichLinesAndBuildRecommendation(args.draftLines, args.buckets)
+  const focusId = lines.find((line) => line.streamerId === args.filters.focus)?.streamerId ?? lines[0]?.streamerId ?? ""
+  const focusLine = lines.find((line) => line.streamerId === focusId) ?? lines[0]
+  const focusRiseEvent = events.find((event) => event.type === "rise" && event.streamerId === (focusLine?.streamerId ?? ""))
+
+  return {
+    ok: true,
+    tool: "battle-lines",
+    source: args.source,
+    state: args.state,
+    updatedAt: args.updatedAt,
+    filters: { ...args.filters, focus: focusId },
+    summary: createSummary(lines, args.buckets, events, recommendation),
+    buckets: args.buckets,
+    lines,
+    focusStrip: lines.map((line) => ({ streamerId: line.streamerId, name: line.name })),
+    focusDetail: {
+      streamerId: focusLine?.streamerId ?? "",
+      name: focusLine?.name ?? "N/A",
+      peakViewers: focusLine?.peakViewers ?? 0,
+      latestViewers: focusLine?.latestViewers ?? 0,
+      biggestRiseTime: focusRiseEvent?.bucket ? isoMinuteLabel(focusRiseEvent.bucket) : "N/A",
+      reversalCount: focusLine?.reversalCount ?? 0
+    },
+    events,
+    recommendation
+  }
+}
+
+function buildDemoPayload(filters: BattleLinesFilters): BattleLinesPayload {
   const buckets = ["00:00", "06:00", "12:00", "18:00", "23:55"].map((hhmm) => `${filters.date}T${hhmm}:00.000Z`)
   const viewerSeries = [
     { streamerId: "demo-a", name: "Stream A", points: [1200, 1600, 3100, 4200, 3600] },
@@ -158,67 +411,41 @@ function buildDemoPayload(filters: BattleLinesPayload["filters"]): BattleLinesPa
     { streamerId: "demo-e", name: "Stream E", points: [600, 750, 880, 1200, 1050] }
   ].slice(0, filters.top)
 
-  const lines = viewerSeries.map((stream, i) => {
-    const peak = Math.max(...stream.points)
-    const indexed = stream.points.map((v) => (peak > 0 ? Math.round((v / peak) * 1000) / 10 : 0))
-    const diffs = stream.points.slice(1).map((point, idx) => point - (stream.points[idx] ?? 0))
-    const riseIdx = diffs.reduce((best, value, idx, arr) => (value > arr[best] ? idx : best), 0)
+  const draftLines: DraftLine[] = viewerSeries.map((stream, index) => {
+    const peakViewers = Math.max(...stream.points)
+    const points =
+      filters.metric === "indexed"
+        ? stream.points.map((value) => (peakViewers > 0 ? Math.round((value / peakViewers) * 1000) / 10 : 0))
+        : [...stream.points]
+
+    let risePerMin = 0
+    for (let idx = 1; idx < stream.points.length; idx += 1) {
+      risePerMin = Math.max(risePerMin, stream.points[idx] - stream.points[idx - 1])
+    }
+
     return {
       streamerId: stream.streamerId,
       name: stream.name,
-      color: COLORS[i % COLORS.length],
-      points: filters.metric === "indexed" ? indexed : stream.points,
-      viewerPoints: stream.points,
-      peakViewers: peak,
+      color: COLORS[index % COLORS.length],
+      points,
+      viewerPoints: [...stream.points],
+      peakViewers,
       latestViewers: stream.points[stream.points.length - 1] ?? 0,
-      risePerMin: diffs[riseIdx] ?? 0,
-      reversalCount: i === 0 ? 2 : 1
+      risePerMin
     }
   })
 
-  const focusId = lines.find((line) => line.streamerId === filters.focus)?.streamerId ?? lines[0]?.streamerId ?? ""
-  const focusLine = lines.find((line) => line.streamerId === focusId) ?? lines[0]
-
-  return {
-    ok: true,
-    tool: "battle-lines",
+  return buildPayloadFromDraftLines({
     source: "demo",
     state: "demo",
     updatedAt: new Date().toISOString(),
-    filters: { ...filters, focus: focusId },
-    summary: {
-      leader: lines[0]?.name ?? "No live streams",
-      biggestRise: lines.sort((a, b) => b.risePerMin - a.risePerMin)[0]?.name ?? "N/A",
-      peakMoment: isoMinuteLabel(buckets[3] ?? buckets[0] ?? new Date().toISOString()),
-      reversals: lines.reduce((sum, line) => sum + line.reversalCount, 0)
-    },
+    filters,
     buckets,
-    lines,
-    focusStrip: lines.map((line) => ({ streamerId: line.streamerId, name: line.name })),
-    focusDetail: {
-      streamerId: focusLine?.streamerId ?? "",
-      name: focusLine?.name ?? "N/A",
-      peakViewers: focusLine?.peakViewers ?? 0,
-      latestViewers: focusLine?.latestViewers ?? 0,
-      biggestRiseTime: isoMinuteLabel(buckets[3] ?? buckets[0] ?? new Date().toISOString()),
-      reversalCount: focusLine?.reversalCount ?? 0
-    },
-    events: [
-      { type: "peak", bucket: buckets[3] ?? buckets[0] ?? new Date().toISOString(), label: "Peak", streamerId: lines[0]?.streamerId ?? "" },
-      { type: "rise", bucket: buckets[2] ?? buckets[0] ?? new Date().toISOString(), label: "Rise", streamerId: lines[2]?.streamerId ?? lines[0]?.streamerId ?? "" },
-      {
-        type: "reversal",
-        bucket: buckets[4] ?? buckets[0] ?? new Date().toISOString(),
-        label: "Reversal",
-        streamerId: lines[0]?.streamerId ?? "",
-        rivalId: lines[1]?.streamerId
-      }
-    ]
-  }
+    draftLines
+  })
 }
 
-
-function buildEmptyPayload(filters: BattleLinesPayload["filters"], updatedAt: string): BattleLinesPayload {
+function buildEmptyPayload(filters: BattleLinesFilters, updatedAt: string): BattleLinesPayload {
   const now = new Date()
   const buckets = buildBuckets(new Date(`${filters.date}T00:00:00.000Z`), filters.bucketMinutes, now)
 
@@ -233,7 +460,11 @@ function buildEmptyPayload(filters: BattleLinesPayload["filters"], updatedAt: st
       leader: "No live streams",
       biggestRise: "N/A",
       peakMoment: buckets[0] ? isoMinuteLabel(buckets[0]) : "N/A",
-      reversals: 0
+      reversals: 0,
+      liveBattleNow: "No live battle now",
+      latestReversal: "No reversal yet",
+      fastestChallenger: "N/A",
+      mostHeatedBattle: "No heated battle"
     },
     buckets,
     lines: [],
@@ -246,7 +477,14 @@ function buildEmptyPayload(filters: BattleLinesPayload["filters"], updatedAt: st
       biggestRiseTime: "N/A",
       reversalCount: 0
     },
-    events: []
+    events: [],
+    recommendation: {
+      primaryBattle: null,
+      secondaryBattles: [],
+      latestReversal: "No reversal yet",
+      fastestChallenger: "N/A",
+      reversalStrip: []
+    }
   }
 }
 
@@ -259,7 +497,7 @@ function json(body: BattleLinesPayload): Response {
 export const onRequest = async (context: { env: Env; request: Request }) => {
   const url = new URL(context.request.url)
   const parsedDay = parseDay(url.searchParams.get("date"), url.searchParams.get("day"))
-  const filters: BattleLinesPayload["filters"] = {
+  const filters: BattleLinesFilters = {
     day: parsedDay.day,
     date: startOfUtcDay(parsedDay.date).toISOString().slice(0, 10),
     top: normalizeTop(url.searchParams.get("top")),
@@ -317,100 +555,40 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     const rankedIds = [...totalById.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id)
     const topIds = rankedIds.slice(0, filters.top)
 
-    const lines = topIds.map((streamerId, i) => {
+    const draftLines: DraftLine[] = topIds.map((streamerId, index) => {
       const viewerPoints = pointsById.get(streamerId) ?? new Array(buckets.length).fill(0)
       const peakViewers = viewerPoints.reduce((best, value) => Math.max(best, value), 0)
       const points =
         filters.metric === "indexed"
           ? viewerPoints.map((value) => (peakViewers > 0 ? Math.round((value / peakViewers) * 1000) / 10 : 0))
-          : viewerPoints
+          : [...viewerPoints]
 
       let risePerMin = 0
       for (let idx = 1; idx < viewerPoints.length; idx += 1) {
         risePerMin = Math.max(risePerMin, (viewerPoints[idx] - viewerPoints[idx - 1]) / filters.bucketMinutes)
       }
 
-      let reversalCount = 0
-      for (const rivalId of topIds) {
-        if (rivalId === streamerId) continue
-        const rivalPoints = pointsById.get(rivalId) ?? []
-        for (let idx = 1; idx < viewerPoints.length; idx += 1) {
-          const prevDelta = (viewerPoints[idx - 1] ?? 0) - (rivalPoints[idx - 1] ?? 0)
-          const nextDelta = (viewerPoints[idx] ?? 0) - (rivalPoints[idx] ?? 0)
-          if (prevDelta === 0 || nextDelta === 0) continue
-          if ((prevDelta > 0 && nextDelta < 0) || (prevDelta < 0 && nextDelta > 0)) reversalCount += 1
-        }
-      }
-
       return {
         streamerId,
         name: nameById.get(streamerId) ?? streamerId,
-        color: COLORS[i % COLORS.length],
+        color: COLORS[index % COLORS.length],
         points,
         viewerPoints,
         peakViewers,
         latestViewers: viewerPoints[viewerPoints.length - 1] ?? 0,
-        risePerMin,
-        reversalCount
+        risePerMin
       }
     })
 
-    if (!lines.length) {
+    if (!draftLines.length) {
       return json(buildEmptyPayload(filters, rows.results[rows.results.length - 1]?.collected_at ?? new Date().toISOString()))
     }
 
-    const focusId = lines.find((line) => line.streamerId === filters.focus)?.streamerId ?? lines[0]?.streamerId ?? ""
-    const focusLine = lines.find((line) => line.streamerId === focusId) ?? lines[0]
+    const minutesSinceLatest = Math.floor(
+      (Date.now() - new Date(rows.results[rows.results.length - 1]?.collected_at ?? Date.now()).getTime()) / 60_000
+    )
 
-    const events: BattleEvent[] = []
-    for (const line of lines) {
-      const peakIdx = line.viewerPoints.reduce((best, value, idx, arr) => (value > arr[best] ? idx : best), 0)
-      events.push({
-        type: "peak",
-        bucket: buckets[peakIdx] ?? buckets[0] ?? new Date().toISOString(),
-        label: `${line.name} peak`,
-        streamerId: line.streamerId
-      })
-
-      let riseIdx = 1
-      let riseDelta = -Infinity
-      for (let idx = 1; idx < line.viewerPoints.length; idx += 1) {
-        const delta = (line.viewerPoints[idx] ?? 0) - (line.viewerPoints[idx - 1] ?? 0)
-        if (delta > riseDelta) {
-          riseDelta = delta
-          riseIdx = idx
-        }
-      }
-      events.push({
-        type: "rise",
-        bucket: buckets[riseIdx] ?? buckets[0] ?? new Date().toISOString(),
-        label: `${line.name} rise`,
-        streamerId: line.streamerId
-      })
-    }
-
-    if (lines.length >= 2) {
-      const a = lines[0]
-      const b = lines[1]
-      for (let idx = 1; idx < buckets.length; idx += 1) {
-        const prev = (a.viewerPoints[idx - 1] ?? 0) - (b.viewerPoints[idx - 1] ?? 0)
-        const next = (a.viewerPoints[idx] ?? 0) - (b.viewerPoints[idx] ?? 0)
-        if ((prev > 0 && next < 0) || (prev < 0 && next > 0)) {
-          events.push({
-            type: "reversal",
-            bucket: buckets[idx] ?? buckets[0] ?? new Date().toISOString(),
-            label: `${a.name} ⇄ ${b.name}`,
-            streamerId: a.streamerId,
-            rivalId: b.streamerId
-          })
-        }
-      }
-    }
-
-    const peakEvent = events.find((event) => event.type === "peak")
-    const biggestRise = [...lines].sort((a, b) => b.risePerMin - a.risePerMin)[0]
-    const minutesSinceLatest = Math.floor((Date.now() - new Date(rows.results[rows.results.length - 1]?.collected_at ?? Date.now()).getTime()) / 60_000)
-    const state = resolveApiState({
+    const baseState = resolveApiState({
       source: "api",
       hasSnapshot: true,
       isFresh: filters.day === "today" ? minutesSinceLatest <= 2 : true,
@@ -418,38 +596,23 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       hasError: false
     })
 
-    return json({
-      ok: true,
-      tool: "battle-lines",
-      source: "api",
-      state,
-      updatedAt: rows.results[rows.results.length - 1]?.collected_at ?? new Date().toISOString(),
-      filters: { ...filters, focus: focusId },
-      summary: {
-        leader: lines[0]?.name ?? "No live streams",
-        biggestRise: biggestRise?.name ?? "N/A",
-        peakMoment: peakEvent?.bucket ? isoMinuteLabel(peakEvent.bucket) : "N/A",
-        reversals: events.filter((event) => event.type === "reversal").length
-      },
-      buckets,
-      lines,
-      focusStrip: lines.map((line) => ({ streamerId: line.streamerId, name: line.name })),
-      focusDetail: {
-        streamerId: focusLine?.streamerId ?? "",
-        name: focusLine?.name ?? "N/A",
-        peakViewers: focusLine?.peakViewers ?? 0,
-        latestViewers: focusLine?.latestViewers ?? 0,
-        biggestRiseTime:
-          events.find((event) => event.type === "rise" && event.streamerId === (focusLine?.streamerId ?? ""))?.bucket
-            ? isoMinuteLabel(
-                events.find((event) => event.type === "rise" && event.streamerId === (focusLine?.streamerId ?? ""))?.bucket ??
-                  ""
-              )
-            : "N/A",
-        reversalCount: focusLine?.reversalCount ?? 0
-      },
-      events
-    })
+    const state: BattleLinesState =
+      filters.day === "today"
+        ? baseState
+        : baseState === "live"
+          ? "complete"
+          : baseState
+
+    return json(
+      buildPayloadFromDraftLines({
+        source: "api",
+        state,
+        updatedAt: rows.results[rows.results.length - 1]?.collected_at ?? new Date().toISOString(),
+        filters,
+        buckets,
+        draftLines
+      })
+    )
   } catch {
     return json(buildDemoPayload(filters))
   }

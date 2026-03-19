@@ -2,67 +2,14 @@ import { renderHeader } from "../../shared/app-shell/header"
 import { renderFooter } from "../../shared/app-shell/footer"
 import { renderHero } from "../../shared/app-shell/hero"
 import { renderStatusNote } from "../../shared/app-shell/status-note"
-
-type BattleLinesResponse = {
-  source: "api" | "demo"
-  state: "live" | "partial" | "complete" | "empty" | "error" | "demo"
-  updatedAt: string
-  filters: {
-    day: "today" | "yesterday" | "date"
-    date: string
-    top: 3 | 5 | 10
-    metric: "viewers" | "indexed"
-    bucketMinutes: 1 | 5 | 10
-    focus: string
-  }
-  summary: {
-    leader: string
-    biggestRise: string
-    peakMoment: string
-    reversals: number
-  }
-  buckets: string[]
-  lines: Array<{
-    streamerId: string
-    name: string
-    color: string
-    points: number[]
-    peakViewers: number
-    latestViewers: number
-    risePerMin: number
-    reversalCount: number
-  }>
-  focusStrip: Array<{ streamerId: string; name: string }>
-  focusDetail: {
-    streamerId: string
-    name: string
-    peakViewers: number
-    latestViewers: number
-    biggestRiseTime: string
-    reversalCount: number
-  }
-  events: Array<{ type: "peak" | "rise" | "reversal"; bucket: string; label: string; streamerId: string; rivalId?: string }>
-}
+import { fetchBattleLinesPayloadFromForm } from "../../shared/api/battle-lines-api"
+import type {
+  BattleCandidate,
+  BattleLinesPayload,
+  BattleReversalStripItem
+} from "../../../../../packages/shared/src/types/battle-lines"
 
 type UiMode = "recommended" | "custom"
-
-type BattleCandidate = {
-  key: string
-  leftId: string
-  rightId: string
-  leftName: string
-  rightName: string
-  score: number
-  gap: number
-}
-
-type RivalryRecommendation = {
-  primary: BattleCandidate | null
-  secondary: BattleCandidate[]
-  latestReversal: string
-  fastestChallenger: string
-  reversalStrip: string[]
-}
 
 type UiState = {
   mode: UiMode
@@ -82,97 +29,18 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;")
 }
 
-function buildUrl(form: HTMLFormElement, focusOverride?: string): string {
-  const data = new FormData(form)
-  const day = String(data.get("day") ?? "today")
-  const date = String(data.get("date") ?? "")
-  const top = String(data.get("top") ?? "5")
-  const metric = String(data.get("metric") ?? "viewers")
-  const bucket = String(data.get("bucket") ?? "5")
-
-  const url = new URL("/api/battle-lines", window.location.origin)
-  url.searchParams.set("day", day)
-  if (day === "date" && date) url.searchParams.set("date", date)
-  url.searchParams.set("top", top)
-  url.searchParams.set("metric", metric)
-  url.searchParams.set("bucket", bucket)
-  if (focusOverride) url.searchParams.set("focus", focusOverride)
-  return url.toString()
+function formatGap(value: number): string {
+  return `${numberFmt.format(Math.max(0, Math.round(value)))} gap`
 }
 
-function parseIsoMinute(iso: string): number {
-  const time = Date.parse(iso)
-  return Number.isNaN(time) ? 0 : time
+function candidateTagLabel(tag: BattleCandidate["tag"]): string {
+  if (tag === "recent-reversal") return "Recent reversal"
+  if (tag === "rising-challenger") return "Rising challenger"
+  if (tag === "heated") return "Heated"
+  return "Closing"
 }
 
-function buildRivalryRecommendation(payload: BattleLinesResponse): RivalryRecommendation {
-  const candidates: BattleCandidate[] = []
-  for (let left = 0; left < payload.lines.length; left += 1) {
-    for (let right = left + 1; right < payload.lines.length; right += 1) {
-      const a = payload.lines[left]
-      const b = payload.lines[right]
-      const combined = a.latestViewers + b.latestViewers
-      const gap = Math.abs(a.latestViewers - b.latestViewers)
-      const reversalBonus = payload.events.filter(
-        (event) =>
-          event.type === "reversal" &&
-          ((event.streamerId === a.streamerId && event.rivalId === b.streamerId) ||
-            (event.streamerId === b.streamerId && event.rivalId === a.streamerId))
-      ).length
-      const score = combined - gap * 0.6 + reversalBonus * 300
-      candidates.push({
-        key: `${a.streamerId}|${b.streamerId}`,
-        leftId: a.streamerId,
-        rightId: b.streamerId,
-        leftName: a.name,
-        rightName: b.name,
-        score,
-        gap
-      })
-    }
-  }
-
-  const ranked = [...candidates].sort((a, b) => b.score - a.score)
-  const reversalEvents = payload.events
-    .filter((event) => event.type === "reversal")
-    .sort((a, b) => parseIsoMinute(b.bucket) - parseIsoMinute(a.bucket))
-
-  const fastest = [...payload.lines].sort((a, b) => b.risePerMin - a.risePerMin)[0]
-  const fastestChallenger = fastest ? `${fastest.name} (+${numberFmt.format(Math.round(fastest.risePerMin))}/min)` : "N/A"
-
-  return {
-    primary: ranked[0] ?? null,
-    secondary: ranked.slice(1, 4),
-    latestReversal:
-      reversalEvents[0] !== undefined
-        ? `${reversalEvents[0].label} @ ${reversalEvents[0].bucket.slice(11, 16)}`
-        : "No reversal yet",
-    fastestChallenger,
-    reversalStrip: reversalEvents.slice(0, 6).map((event) => `${event.label} @ ${event.bucket.slice(11, 16)}`)
-  }
-}
-
-function normalizeUiState(payload: BattleLinesResponse, uiState: UiState): UiState {
-  const recommendation = buildRivalryRecommendation(payload)
-  const availableIds = new Set(payload.lines.map((line) => line.streamerId))
-  const resolvedFocus = availableIds.has(uiState.focusId) ? uiState.focusId : payload.filters.focus
-  const fallbackPrimary = recommendation.primary?.key ?? null
-  const primaryKey =
-    uiState.primaryKey &&
-    recommendation.primary !== null &&
-    (uiState.primaryKey === recommendation.primary.key || recommendation.secondary.some((item) => item.key === uiState.primaryKey))
-      ? uiState.primaryKey
-      : fallbackPrimary
-
-  return {
-    mode: uiState.mode,
-    focusId: resolvedFocus,
-    primaryKey,
-    customRivals: uiState.customRivals.filter((id) => availableIds.has(id) && id !== resolvedFocus).slice(0, 2)
-  }
-}
-
-function toPath(points: number[], index: number, allLines: number[][]): string {
+function toPath(points: number[], allLines: number[][]): string {
   if (!points.length) return ""
 
   const width = 1000
@@ -191,23 +59,124 @@ function toPath(points: number[], index: number, allLines: number[][]): string {
       const x = paddingX + ((width - paddingX * 2) * pointIdx) / Math.max(points.length - 1, 1)
       const normalized = (value - min) / range
       const y = paddingTop + (height - paddingTop - paddingBottom) * (1 - normalized)
-      return `${pointIdx === 0 && index >= 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`
+      return `${pointIdx === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`
     })
     .join(" ")
 }
 
-function renderChart(payload: BattleLinesResponse): string {
+function normalizeUiState(payload: BattleLinesPayload, uiState: UiState): UiState {
+  const availableIds = new Set(payload.lines.map((line) => line.streamerId))
+  const availablePrimaryKeys = new Set(
+    [payload.recommendation.primaryBattle, ...payload.recommendation.secondaryBattles]
+      .filter((item): item is BattleCandidate => item !== null)
+      .map((item) => item.key)
+  )
+
+  const resolvedFocus =
+    availableIds.has(uiState.focusId) ? uiState.focusId : (payload.filters.focus || payload.lines[0]?.streamerId || "")
+  const fallbackPrimary = payload.recommendation.primaryBattle?.key ?? null
+  const primaryKey =
+    uiState.primaryKey && availablePrimaryKeys.has(uiState.primaryKey)
+      ? uiState.primaryKey
+      : fallbackPrimary
+
+  return {
+    mode: uiState.mode,
+    focusId: resolvedFocus,
+    primaryKey,
+    customRivals: uiState.customRivals.filter((id) => availableIds.has(id) && id !== resolvedFocus).slice(0, 2)
+  }
+}
+
+function resolveActivePrimary(payload: BattleLinesPayload, uiState: UiState): BattleCandidate | null {
+  return (
+    [payload.recommendation.primaryBattle, ...payload.recommendation.secondaryBattles]
+      .filter((item): item is BattleCandidate => item !== null)
+      .find((item) => item.key === uiState.primaryKey) ??
+    payload.recommendation.primaryBattle ??
+    null
+  )
+}
+
+function buildHighlightedIds(payload: BattleLinesPayload, uiState: UiState, activePrimary: BattleCandidate | null): Set<string> {
+  const ids = new Set<string>()
+
+  if (uiState.mode === "custom") {
+    if (uiState.focusId) ids.add(uiState.focusId)
+    for (const rivalId of uiState.customRivals) ids.add(rivalId)
+    if (!ids.size && activePrimary) {
+      ids.add(activePrimary.leftId)
+      ids.add(activePrimary.rightId)
+    }
+    if (!ids.size && payload.lines[0]) ids.add(payload.lines[0].streamerId)
+    return ids
+  }
+
+  if (activePrimary) {
+    ids.add(activePrimary.leftId)
+    ids.add(activePrimary.rightId)
+  }
+
+  return ids
+}
+
+function buildBattleFeed(payload: BattleLinesPayload, activePrimary: BattleCandidate | null): string[] {
+  const lines: string[] = []
+
+  if (activePrimary) {
+    lines.push(
+      `${activePrimary.leftName} vs ${activePrimary.rightName} is ${activePrimary.gapTrend} (${formatGap(activePrimary.gap)})`
+    )
+  }
+
+  if (payload.summary.latestReversal !== "No reversal yet") lines.push(payload.summary.latestReversal)
+  if (payload.summary.fastestChallenger !== "N/A") lines.push(payload.summary.fastestChallenger)
+  if (payload.summary.mostHeatedBattle !== "No heated battle") lines.push(payload.summary.mostHeatedBattle)
+
+  for (const item of payload.recommendation.reversalStrip.slice(0, 2)) {
+    lines.push(`${item.label} @ ${item.timestamp.slice(11, 16)}`)
+  }
+
+  return [...new Set(lines)].slice(0, 5)
+}
+
+function renderReversalStrip(items: BattleReversalStripItem[]): string {
+  if (!items.length) return "<span>No reversals yet</span>"
+
+  return items
+    .map(
+      (item) =>
+        `<span title="${escapeHtml(`${item.passer} passed ${item.passed} · ${formatGap(item.gapBefore)} → ${formatGap(item.gapAfter)}`)}">${escapeHtml(item.label)} · ${escapeHtml(item.timestamp.slice(11, 16))}</span>`
+    )
+    .join("")
+}
+
+function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimary: BattleCandidate | null): string {
+  if (!payload.lines.length) {
+    return `
+      <section class="battle-mock-card">
+        <div class="battle-mock-card__head">
+          <div>
+            <strong>Battle lines</strong>
+            <p>No lines available for the selected day yet.</p>
+          </div>
+        </div>
+      </section>
+    `
+  }
+
   const allPoints = payload.lines.map((line) => line.points)
   const nowBucketIndex = Math.max(0, payload.buckets.length - 1)
   const nowRatio = payload.buckets.length > 1 ? nowBucketIndex / (payload.buckets.length - 1) : 0
   const nowLeft = 4 + nowRatio * 92
+  const highlightedIds = buildHighlightedIds(payload, uiState, activePrimary)
 
   return `
     <section class="battle-mock-card">
       <div class="battle-mock-card__head">
         <div>
           <strong>Battle lines</strong>
-          <p>Real Twitch-backed comparison when available with demo fallback.</p>
+          <p>Recommended battle is strongest by default. Custom selection keeps control on your pair.</p>
         </div>
         <div class="battle-mock-modes">
           <span class="pill">${payload.filters.metric === "indexed" ? "Indexed" : "Viewers"}</span>
@@ -228,10 +197,16 @@ function renderChart(payload: BattleLinesResponse): string {
 
         <svg class="battle-lines-svg" viewBox="0 0 1000 520" preserveAspectRatio="none" aria-hidden="true">
           ${payload.lines
-            .map(
-              (line, index) =>
-                `<path class="battle-line" style="stroke:${line.color};stroke-width:${Math.max(2.5, 5 - index * 0.25)}" d="${toPath(line.points, index, allPoints)}" />`
-            )
+            .map((line, index) => {
+              const isHighlighted = highlightedIds.has(line.streamerId)
+              const isPrimary =
+                activePrimary !== null && (line.streamerId === activePrimary.leftId || line.streamerId === activePrimary.rightId)
+
+              const strokeWidth = isPrimary ? 5.2 : isHighlighted ? 4.2 : Math.max(2.2, 4.2 - index * 0.2)
+              const strokeOpacity = isPrimary ? 1 : isHighlighted ? 0.92 : 0.28
+
+              return `<path class="battle-line" style="stroke:${line.color};stroke-width:${strokeWidth};stroke-opacity:${strokeOpacity}" d="${toPath(line.points, allPoints)}" />`
+            })
             .join("")}
           <line class="battle-now-line" x1="${(nowLeft / 100) * 1000}" y1="26" x2="${(nowLeft / 100) * 1000}" y2="468" />
         </svg>
@@ -240,7 +215,8 @@ function renderChart(payload: BattleLinesResponse): string {
           .slice(0, 5)
           .map((line, index) => {
             const y = 24 + index * 12
-            return `<div class="battle-line-label" style="left:86%; top:${y}%; color:${line.color}">${escapeHtml(line.name)}</div>`
+            const isHighlighted = highlightedIds.has(line.streamerId)
+            return `<div class="battle-line-label" style="left:86%; top:${y}%; color:${line.color}; opacity:${isHighlighted ? 1 : 0.42}">${escapeHtml(line.name)}</div>`
           })
           .join("")}
 
@@ -257,35 +233,31 @@ function renderChart(payload: BattleLinesResponse): string {
 
       <div class="battle-legend-row">
         <span><i class="legend-dot legend-dot--size"></i> Line height = ${payload.filters.metric}</span>
-        <span><i class="legend-dot legend-dot--glow"></i> Events = peak / rise / reversal</span>
+        <span><i class="legend-dot legend-dot--glow"></i> Primary battle = strongest emphasis</span>
         <span><i class="legend-dot legend-dot--shake"></i> Vertical line = current bucket</span>
       </div>
     </section>
   `
 }
 
-function renderContent(payload: BattleLinesResponse): string {
-  return renderContentWithMode(payload, {
-    mode: "recommended",
-    focusId: payload.filters.focus,
-    primaryKey: null,
-    customRivals: []
-  })
-}
-
-function renderContentWithMode(payload: BattleLinesResponse, uiState: UiState): string {
-  const recommendation = buildRivalryRecommendation(payload)
-  const activePrimary = [recommendation.primary, ...recommendation.secondary].find((item) => item?.key === uiState.primaryKey) ?? recommendation.primary
-
+function renderContentWithMode(payload: BattleLinesPayload, uiState: UiState): string {
+  const activePrimary = resolveActivePrimary(payload, uiState)
+  const battleFeed = buildBattleFeed(payload, activePrimary)
+  const focusLine = payload.lines.find((line) => line.streamerId === uiState.focusId) ?? payload.lines[0] ?? null
+  const currentRivalId =
+    uiState.customRivals[0]
+    ?? (activePrimary
+      ? (activePrimary.leftId === uiState.focusId ? activePrimary.rightId : activePrimary.leftId)
+      : "")
+  const rivalLine = payload.lines.find((line) => line.streamerId === currentRivalId) ?? null
   const modeBadge = uiState.mode === "recommended" ? "Recommended state" : "Custom state"
-  const battleFeed = payload.events.slice(0, 10)
 
   return `
     <section class="card page-section rivalry-radar">
       <div class="rivalry-radar__head">
         <div>
           <h2>Rivalry Radar</h2>
-          <p>Start with a recommended battle, then switch to custom control without losing focus.</p>
+          <p>Start with the current recommended battle, then keep custom control on your own pair.</p>
         </div>
         <div class="battle-mock-modes">
           <span class="pill">${modeBadge}</span>
@@ -296,25 +268,26 @@ function renderContentWithMode(payload: BattleLinesResponse, uiState: UiState): 
       <div class="rivalry-primary">
         <strong>Primary battle</strong>
         <h3>${activePrimary ? `${escapeHtml(activePrimary.leftName)} vs ${escapeHtml(activePrimary.rightName)}` : "No battle candidates"}</h3>
-        <p>Latest reversal: ${escapeHtml(recommendation.latestReversal)}</p>
-        <p>Fastest challenger: ${escapeHtml(recommendation.fastestChallenger)}</p>
+        <p>${activePrimary ? `${escapeHtml(candidateTagLabel(activePrimary.tag))} · ${escapeHtml(activePrimary.currentGapLabel)} · ${escapeHtml(activePrimary.gapTrend)}` : "No live battle now"}</p>
+        <p>Latest reversal: ${escapeHtml(payload.recommendation.latestReversal)}</p>
+        <p>Fastest challenger: ${escapeHtml(payload.recommendation.fastestChallenger)}</p>
       </div>
 
       <div class="rivalry-secondary">
         <strong>Secondary battles</strong>
         <div class="focus-chip-row">
-          ${recommendation.secondary
+          ${payload.recommendation.secondaryBattles
             .map(
               (item) =>
-                `<button type="button" class="focus-chip ${uiState.primaryKey === item.key ? "focus-chip--active" : ""}" data-primary-battle="${escapeHtml(item.key)}">${escapeHtml(item.leftName)} vs ${escapeHtml(item.rightName)}</button>`
+                `<button type="button" class="focus-chip ${uiState.primaryKey === item.key ? "focus-chip--active" : ""}" data-primary-battle="${escapeHtml(item.key)}" data-primary-focus="${escapeHtml(item.leftId)}">${escapeHtml(item.leftName)} vs ${escapeHtml(item.rightName)} · ${escapeHtml(candidateTagLabel(item.tag))}</button>`
             )
-            .join("")}
+            .join("") || `<span class="muted">No secondary battles right now.</span>`}
         </div>
       </div>
 
       <div class="rivalry-secondary rivalry-secondary--strip">
         <strong>Reversal strip</strong>
-        <div class="reversal-strip">${recommendation.reversalStrip.map((line) => `<span>${escapeHtml(line)}</span>`).join("") || "<span>No reversals yet</span>"}</div>
+        <div class="reversal-strip">${renderReversalStrip(payload.recommendation.reversalStrip)}</div>
       </div>
 
       <div class="rivalry-secondary">
@@ -333,21 +306,21 @@ function renderContentWithMode(payload: BattleLinesResponse, uiState: UiState): 
     </section>
 
     <section class="summary-strip page-section">
-      <div class="summary-item"><strong>Leader</strong><span>${escapeHtml(payload.summary.leader)}</span></div>
-      <div class="summary-item"><strong>Biggest rise</strong><span>${escapeHtml(payload.summary.biggestRise)}</span></div>
-      <div class="summary-item"><strong>Peak moment</strong><span>${escapeHtml(payload.summary.peakMoment)}</span></div>
-      <div class="summary-item"><strong>Reversals</strong><span>${numberFmt.format(payload.summary.reversals)}</span></div>
+      <div class="summary-item"><strong>Live battle now</strong><span>${escapeHtml(payload.summary.liveBattleNow)}</span></div>
+      <div class="summary-item"><strong>Latest reversal</strong><span>${escapeHtml(payload.summary.latestReversal)}</span></div>
+      <div class="summary-item"><strong>Fastest challenger</strong><span>${escapeHtml(payload.summary.fastestChallenger)}</span></div>
+      <div class="summary-item"><strong>Most heated battle</strong><span>${escapeHtml(payload.summary.mostHeatedBattle)}</span></div>
     </section>
 
     <section class="grid-2 page-section">
-      ${renderChart(payload)}
+      ${renderChart(payload, uiState, activePrimary)}
       <section class="battle-side">
         <section class="card">
           <h2>Focus strip</h2>
           <div class="focus-chip-row">
             ${payload.focusStrip
               .map((item) => {
-                const active = item.streamerId === payload.filters.focus
+                const active = item.streamerId === uiState.focusId
                 return `<button type="button" class="focus-chip ${active ? "focus-chip--active" : ""}" data-focus="${escapeHtml(item.streamerId)}">${escapeHtml(item.name)}</button>`
               })
               .join("")}
@@ -357,20 +330,29 @@ function renderContentWithMode(payload: BattleLinesResponse, uiState: UiState): 
         <section class="card">
           <h2>Selected details</h2>
           <div class="kv">
-            <div class="kv-row"><span>Streamer</span><strong>${escapeHtml(payload.focusDetail.name)}</strong></div>
-            <div class="kv-row"><span>Peak viewers</span><strong>${numberFmt.format(payload.focusDetail.peakViewers)}</strong></div>
-            <div class="kv-row"><span>Latest viewers</span><strong>${numberFmt.format(payload.focusDetail.latestViewers)}</strong></div>
+            <div class="kv-row"><span>Streamer</span><strong>${escapeHtml(focusLine?.name ?? payload.focusDetail.name)}</strong></div>
+            <div class="kv-row"><span>Peak viewers</span><strong>${numberFmt.format(focusLine?.peakViewers ?? payload.focusDetail.peakViewers)}</strong></div>
+            <div class="kv-row"><span>Latest viewers</span><strong>${numberFmt.format(focusLine?.latestViewers ?? payload.focusDetail.latestViewers)}</strong></div>
             <div class="kv-row"><span>Biggest rise</span><strong>${escapeHtml(payload.focusDetail.biggestRiseTime)}</strong></div>
-            <div class="kv-row"><span>Reversal count</span><strong>${numberFmt.format(payload.focusDetail.reversalCount)}</strong></div>
+            <div class="kv-row"><span>Reversal count</span><strong>${numberFmt.format(focusLine?.reversalCount ?? payload.focusDetail.reversalCount)}</strong></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Current battle</h2>
+          <div class="kv">
+            <div class="kv-row"><span>Pair</span><strong>${activePrimary ? `${escapeHtml(activePrimary.leftName)} vs ${escapeHtml(activePrimary.rightName)}` : "N/A"}</strong></div>
+            <div class="kv-row"><span>Current gap</span><strong>${activePrimary ? escapeHtml(activePrimary.currentGapLabel) : "N/A"}</strong></div>
+            <div class="kv-row"><span>Gap trend</span><strong>${activePrimary ? escapeHtml(activePrimary.gapTrend) : "N/A"}</strong></div>
+            <div class="kv-row"><span>Tag</span><strong>${activePrimary ? escapeHtml(candidateTagLabel(activePrimary.tag)) : "N/A"}</strong></div>
+            <div class="kv-row"><span>Rival</span><strong>${escapeHtml(rivalLine?.name ?? "N/A")}</strong></div>
           </div>
         </section>
 
         <section class="card">
           <h2>Battle feed</h2>
           <div class="kv">
-            ${battleFeed
-              .map((event) => `<div class="kv-row"><span>${event.type.toUpperCase()}</span><strong>${escapeHtml(event.label)} @ ${escapeHtml(event.bucket.slice(11, 16))}</strong></div>`)
-              .join("")}
+            ${battleFeed.map((line) => `<div class="kv-row"><span>FEED</span><strong>${escapeHtml(line)}</strong></div>`).join("")}
           </div>
         </section>
 
@@ -392,10 +374,10 @@ async function loadPayload(form: HTMLFormElement, target: HTMLElement, uiState: 
   target.innerHTML = `<section class="card"><h2>Loading Battle Lines…</h2></section>`
 
   try {
-    const response = await fetch(buildUrl(form, uiState.focusId))
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const payload = await fetchBattleLinesPayloadFromForm(form, {
+      focusOverride: uiState.focusId || undefined
+    })
 
-    const payload = (await response.json()) as BattleLinesResponse
     const nextState = normalizeUiState(payload, uiState)
     target.innerHTML = renderContentWithMode(payload, nextState)
 
@@ -414,11 +396,14 @@ async function loadPayload(form: HTMLFormElement, target: HTMLElement, uiState: 
     target.querySelectorAll<HTMLButtonElement>("[data-primary-battle]").forEach((button) => {
       button.addEventListener("click", () => {
         const primaryKey = button.dataset.primaryBattle
+        const focusId = button.dataset.primaryFocus
         if (!primaryKey) return
+
         void loadPayload(form, target, {
           ...nextState,
-          mode: "recommended",
-          primaryKey
+          mode: "custom",
+          primaryKey,
+          focusId: focusId || nextState.focusId
         })
       })
     })
@@ -431,6 +416,7 @@ async function loadPayload(form: HTMLFormElement, target: HTMLElement, uiState: 
         const customRivals = nextState.customRivals.includes(rivalId)
           ? nextState.customRivals.filter((id) => id !== rivalId)
           : [...nextState.customRivals, rivalId].slice(0, 2)
+
         void loadPayload(form, target, {
           ...nextState,
           mode: "custom",
@@ -444,6 +430,7 @@ async function loadPayload(form: HTMLFormElement, target: HTMLElement, uiState: 
         void loadPayload(form, target, {
           ...nextState,
           mode: "recommended",
+          primaryKey: payload.recommendation.primaryBattle?.key ?? null,
           customRivals: []
         })
       })
@@ -457,14 +444,14 @@ async function loadPayload(form: HTMLFormElement, target: HTMLElement, uiState: 
 }
 
 export function renderBattleLinesPage(root: HTMLElement): void {
-  root.className = "site-shell"
+  root.className = "site-shell battle-lines-page"
   root.innerHTML = `
     ${renderHeader("battle-lines")}
     ${renderHero({
       eyebrow: "RIVALRIES",
       title: "Rivalry Radar",
-      subtitle: "Compare Twitch audience lines with a stable base battle layer.",
-      note: "Today/Yesterday/Date, Top 3/5/10, Viewers/Indexed, 1m/5m/10m, Focus strip, and event layer.",
+      subtitle: "See who is fighting for attention right now.",
+      note: "Today/Yesterday/Date, Top 3/5/10, Viewers/Indexed, 1m/5m/10m, recommended battle, custom focus, and reversal strip.",
       actions: [
         { href: "/day-flow/", label: "Open Day Flow" },
         { href: "/method/", label: "Open Method" }
@@ -497,7 +484,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
 
     <div id="battle-lines-content"></div>
 
-    ${renderStatusNote("Rivalry Radar recommendation layer is live with recommended and custom battle control.")}
+    ${renderStatusNote("Rivalry Radar uses API-provided primary and secondary battles, with custom state layered on top.")}
     ${renderFooter()}
   `
 
