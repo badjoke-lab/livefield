@@ -7,7 +7,7 @@ import type {
   BattleCandidate,
   BattleLinesPayload,
   BattleReversalStripItem
-} from "../../../../packages/shared/src/types/battle-lines"
+} from "../../../../../packages/shared/src/types/battle-lines"
 
 type UiMode = "recommended" | "custom"
 

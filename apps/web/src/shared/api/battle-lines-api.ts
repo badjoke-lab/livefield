@@ -1,10 +1,10 @@
-import { assertBattleLinesPayload } from "../../../../packages/shared/src/schemas/battle-lines"
+import { assertBattleLinesPayload } from "../../../../../packages/shared/src/schemas/battle-lines"
 import type {
   BattleLinesDayMode,
   BattleLinesFilters,
   BattleLinesMetricMode,
   BattleLinesPayload
-} from "../../../../packages/shared/src/types/battle-lines"
+} from "../../../../../packages/shared/src/types/battle-lines"
 
 export type BattleLinesRequestParams = {
   day: BattleLinesDayMode
