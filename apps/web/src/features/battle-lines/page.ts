@@ -5,18 +5,22 @@ import { renderStatusNote } from "../../shared/app-shell/status-note"
 import { fetchBattleLinesPayloadFromForm } from "../../shared/api/battle-lines-api"
 import type {
   BattleCandidate,
-  BattleLinesPayload,
-  BattleReversalStripItem
+  BattleLinesPayload
 } from "../../../../../packages/shared/src/types/battle-lines"
-
-type UiMode = "recommended" | "custom"
-
-type UiState = {
-  mode: UiMode
-  focusId: string
-  primaryKey: string | null
-  customRivals: string[]
-}
+import { BATTLE_LINES_CONTROLS_ID, renderBattleLinesControls } from "./controls"
+import { renderBattleDetailSections } from "./detail-panel"
+import { renderFocusStripSection } from "./focus-strip"
+import {
+  buildBattleFeed,
+  buildHighlightedIds,
+  normalizeUiState,
+  resolveActivePrimary,
+  type UiState
+} from "./state"
+import {
+  renderBattleSummaryStrip,
+  renderRivalryRadarSection
+} from "./summary"
 
 const numberFmt = new Intl.NumberFormat("en-US")
 
@@ -62,93 +66,6 @@ function toPath(points: number[], allLines: number[][]): string {
       return `${pointIdx === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`
     })
     .join(" ")
-}
-
-function normalizeUiState(payload: BattleLinesPayload, uiState: UiState): UiState {
-  const availableIds = new Set(payload.lines.map((line) => line.streamerId))
-  const availablePrimaryKeys = new Set(
-    [payload.recommendation.primaryBattle, ...payload.recommendation.secondaryBattles]
-      .filter((item): item is BattleCandidate => item !== null)
-      .map((item) => item.key)
-  )
-
-  const resolvedFocus =
-    availableIds.has(uiState.focusId) ? uiState.focusId : (payload.filters.focus || payload.lines[0]?.streamerId || "")
-  const fallbackPrimary = payload.recommendation.primaryBattle?.key ?? null
-  const primaryKey =
-    uiState.primaryKey && availablePrimaryKeys.has(uiState.primaryKey)
-      ? uiState.primaryKey
-      : fallbackPrimary
-
-  return {
-    mode: uiState.mode,
-    focusId: resolvedFocus,
-    primaryKey,
-    customRivals: uiState.customRivals.filter((id) => availableIds.has(id) && id !== resolvedFocus).slice(0, 2)
-  }
-}
-
-function resolveActivePrimary(payload: BattleLinesPayload, uiState: UiState): BattleCandidate | null {
-  return (
-    [payload.recommendation.primaryBattle, ...payload.recommendation.secondaryBattles]
-      .filter((item): item is BattleCandidate => item !== null)
-      .find((item) => item.key === uiState.primaryKey) ??
-    payload.recommendation.primaryBattle ??
-    null
-  )
-}
-
-function buildHighlightedIds(payload: BattleLinesPayload, uiState: UiState, activePrimary: BattleCandidate | null): Set<string> {
-  const ids = new Set<string>()
-
-  if (uiState.mode === "custom") {
-    if (uiState.focusId) ids.add(uiState.focusId)
-    for (const rivalId of uiState.customRivals) ids.add(rivalId)
-    if (!ids.size && activePrimary) {
-      ids.add(activePrimary.leftId)
-      ids.add(activePrimary.rightId)
-    }
-    if (!ids.size && payload.lines[0]) ids.add(payload.lines[0].streamerId)
-    return ids
-  }
-
-  if (activePrimary) {
-    ids.add(activePrimary.leftId)
-    ids.add(activePrimary.rightId)
-  }
-
-  return ids
-}
-
-function buildBattleFeed(payload: BattleLinesPayload, activePrimary: BattleCandidate | null): string[] {
-  const lines: string[] = []
-
-  if (activePrimary) {
-    lines.push(
-      `${activePrimary.leftName} vs ${activePrimary.rightName} is ${activePrimary.gapTrend} (${formatGap(activePrimary.gap)})`
-    )
-  }
-
-  if (payload.summary.latestReversal !== "No reversal yet") lines.push(payload.summary.latestReversal)
-  if (payload.summary.fastestChallenger !== "N/A") lines.push(payload.summary.fastestChallenger)
-  if (payload.summary.mostHeatedBattle !== "No heated battle") lines.push(payload.summary.mostHeatedBattle)
-
-  for (const item of payload.recommendation.reversalStrip.slice(0, 2)) {
-    lines.push(`${item.label} @ ${item.timestamp.slice(11, 16)}`)
-  }
-
-  return [...new Set(lines)].slice(0, 5)
-}
-
-function renderReversalStrip(items: BattleReversalStripItem[]): string {
-  if (!items.length) return "<span>No reversals yet</span>"
-
-  return items
-    .map(
-      (item) =>
-        `<span title="${escapeHtml(`${item.passer} passed ${item.passed} · ${formatGap(item.gapBefore)} → ${formatGap(item.gapAfter)}`)}">${escapeHtml(item.label)} · ${escapeHtml(item.timestamp.slice(11, 16))}</span>`
-    )
-    .join("")
 }
 
 function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimary: BattleCandidate | null): string {
@@ -243,128 +160,24 @@ function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimar
 function renderContentWithMode(payload: BattleLinesPayload, uiState: UiState): string {
   const activePrimary = resolveActivePrimary(payload, uiState)
   const battleFeed = buildBattleFeed(payload, activePrimary)
-  const focusLine = payload.lines.find((line) => line.streamerId === uiState.focusId) ?? payload.lines[0] ?? null
-  const currentRivalId =
-    uiState.customRivals[0]
-    ?? (activePrimary
-      ? (activePrimary.leftId === uiState.focusId ? activePrimary.rightId : activePrimary.leftId)
-      : "")
-  const rivalLine = payload.lines.find((line) => line.streamerId === currentRivalId) ?? null
-  const modeBadge = uiState.mode === "recommended" ? "Recommended state" : "Custom state"
 
   return `
-    <section class="card page-section rivalry-radar">
-      <div class="rivalry-radar__head">
-        <div>
-          <h2>Rivalry Radar</h2>
-          <p>Start with the current recommended battle, then keep custom control on your own pair.</p>
-        </div>
-        <div class="battle-mock-modes">
-          <span class="pill">${modeBadge}</span>
-          <button type="button" class="focus-chip" data-switch-mode="recommended">Back to recommended</button>
-        </div>
-      </div>
+    ${renderRivalryRadarSection(payload, uiState, activePrimary, {
+      escapeHtml,
+      formatGap,
+      candidateTagLabel
+    })}
 
-      <div class="rivalry-primary">
-        <strong>Primary battle</strong>
-        <h3>${activePrimary ? `${escapeHtml(activePrimary.leftName)} vs ${escapeHtml(activePrimary.rightName)}` : "No battle candidates"}</h3>
-        <p>${activePrimary ? `${escapeHtml(candidateTagLabel(activePrimary.tag))} · ${escapeHtml(activePrimary.currentGapLabel)} · ${escapeHtml(activePrimary.gapTrend)}` : "No live battle now"}</p>
-        <p>Latest reversal: ${escapeHtml(payload.recommendation.latestReversal)}</p>
-        <p>Fastest challenger: ${escapeHtml(payload.recommendation.fastestChallenger)}</p>
-      </div>
-
-      <div class="rivalry-secondary">
-        <strong>Secondary battles</strong>
-        <div class="focus-chip-row">
-          ${payload.recommendation.secondaryBattles
-            .map(
-              (item) =>
-                `<button type="button" class="focus-chip ${uiState.primaryKey === item.key ? "focus-chip--active" : ""}" data-primary-battle="${escapeHtml(item.key)}" data-primary-focus="${escapeHtml(item.leftId)}">${escapeHtml(item.leftName)} vs ${escapeHtml(item.rightName)} · ${escapeHtml(candidateTagLabel(item.tag))}</button>`
-            )
-            .join("") || `<span class="muted">No secondary battles right now.</span>`}
-        </div>
-      </div>
-
-      <div class="rivalry-secondary rivalry-secondary--strip">
-        <strong>Reversal strip</strong>
-        <div class="reversal-strip">${renderReversalStrip(payload.recommendation.reversalStrip)}</div>
-      </div>
-
-      <div class="rivalry-secondary">
-        <strong>Add rival</strong>
-        <div class="focus-chip-row">
-          ${payload.lines
-            .filter((line) => line.streamerId !== uiState.focusId)
-            .slice(0, 6)
-            .map((line) => {
-              const selected = uiState.customRivals.includes(line.streamerId)
-              return `<button type="button" class="focus-chip ${selected ? "focus-chip--active" : ""}" data-rival-id="${escapeHtml(line.streamerId)}">${selected ? "Added" : "Add"} ${escapeHtml(line.name)}</button>`
-            })
-            .join("")}
-        </div>
-      </div>
-    </section>
-
-    <section class="summary-strip page-section">
-      <div class="summary-item"><strong>Live battle now</strong><span>${escapeHtml(payload.summary.liveBattleNow)}</span></div>
-      <div class="summary-item"><strong>Latest reversal</strong><span>${escapeHtml(payload.summary.latestReversal)}</span></div>
-      <div class="summary-item"><strong>Fastest challenger</strong><span>${escapeHtml(payload.summary.fastestChallenger)}</span></div>
-      <div class="summary-item"><strong>Most heated battle</strong><span>${escapeHtml(payload.summary.mostHeatedBattle)}</span></div>
-    </section>
+    ${renderBattleSummaryStrip(payload, escapeHtml)}
 
     <section class="grid-2 page-section">
       ${renderChart(payload, uiState, activePrimary)}
       <section class="battle-side">
-        <section class="card">
-          <h2>Focus strip</h2>
-          <div class="focus-chip-row">
-            ${payload.focusStrip
-              .map((item) => {
-                const active = item.streamerId === uiState.focusId
-                return `<button type="button" class="focus-chip ${active ? "focus-chip--active" : ""}" data-focus="${escapeHtml(item.streamerId)}">${escapeHtml(item.name)}</button>`
-              })
-              .join("")}
-          </div>
-        </section>
-
-        <section class="card">
-          <h2>Selected details</h2>
-          <div class="kv">
-            <div class="kv-row"><span>Streamer</span><strong>${escapeHtml(focusLine?.name ?? payload.focusDetail.name)}</strong></div>
-            <div class="kv-row"><span>Peak viewers</span><strong>${numberFmt.format(focusLine?.peakViewers ?? payload.focusDetail.peakViewers)}</strong></div>
-            <div class="kv-row"><span>Latest viewers</span><strong>${numberFmt.format(focusLine?.latestViewers ?? payload.focusDetail.latestViewers)}</strong></div>
-            <div class="kv-row"><span>Biggest rise</span><strong>${escapeHtml(payload.focusDetail.biggestRiseTime)}</strong></div>
-            <div class="kv-row"><span>Reversal count</span><strong>${numberFmt.format(focusLine?.reversalCount ?? payload.focusDetail.reversalCount)}</strong></div>
-          </div>
-        </section>
-
-        <section class="card">
-          <h2>Current battle</h2>
-          <div class="kv">
-            <div class="kv-row"><span>Pair</span><strong>${activePrimary ? `${escapeHtml(activePrimary.leftName)} vs ${escapeHtml(activePrimary.rightName)}` : "N/A"}</strong></div>
-            <div class="kv-row"><span>Current gap</span><strong>${activePrimary ? escapeHtml(activePrimary.currentGapLabel) : "N/A"}</strong></div>
-            <div class="kv-row"><span>Gap trend</span><strong>${activePrimary ? escapeHtml(activePrimary.gapTrend) : "N/A"}</strong></div>
-            <div class="kv-row"><span>Tag</span><strong>${activePrimary ? escapeHtml(candidateTagLabel(activePrimary.tag)) : "N/A"}</strong></div>
-            <div class="kv-row"><span>Rival</span><strong>${escapeHtml(rivalLine?.name ?? "N/A")}</strong></div>
-          </div>
-        </section>
-
-        <section class="card">
-          <h2>Battle feed</h2>
-          <div class="kv">
-            ${battleFeed.map((line) => `<div class="kv-row"><span>FEED</span><strong>${escapeHtml(line)}</strong></div>`).join("")}
-          </div>
-        </section>
-
-        <section class="card">
-          <h2>Data State</h2>
-          <div class="kv">
-            <div class="kv-row"><span>Source</span><strong>${payload.source}</strong></div>
-            <div class="kv-row"><span>Status</span><strong>${payload.state}</strong></div>
-            <div class="kv-row"><span>Top</span><strong>${payload.filters.top}</strong></div>
-            <div class="kv-row"><span>Updated</span><strong>${escapeHtml(payload.updatedAt.slice(11, 19))} UTC</strong></div>
-          </div>
-        </section>
+        ${renderFocusStripSection(payload, uiState, escapeHtml)}
+        ${renderBattleDetailSections(payload, uiState, activePrimary, battleFeed, {
+          escapeHtml,
+          candidateTagLabel
+        })}
       </section>
     </section>
   `
@@ -458,29 +271,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
       ]
     })}
 
-    <form class="controls" id="battle-lines-controls">
-      <select name="day" aria-label="Day">
-        <option value="today">Today</option>
-        <option value="yesterday">Yesterday</option>
-        <option value="date">Date</option>
-      </select>
-      <input type="date" name="date" aria-label="Date picker" />
-      <select name="top" aria-label="Top N">
-        <option value="3">Top 3</option>
-        <option value="5" selected>Top 5</option>
-        <option value="10">Top 10</option>
-      </select>
-      <select name="metric" aria-label="Metric">
-        <option value="viewers" selected>Viewers</option>
-        <option value="indexed">Indexed</option>
-      </select>
-      <select name="bucket" aria-label="Bucket size">
-        <option value="1">1m</option>
-        <option value="5" selected>5m</option>
-        <option value="10">10m</option>
-      </select>
-      <button type="submit">Refresh</button>
-    </form>
+    ${renderBattleLinesControls()}
 
     <div id="battle-lines-content"></div>
 
@@ -488,7 +279,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
     ${renderFooter()}
   `
 
-  const form = root.querySelector<HTMLFormElement>("#battle-lines-controls")
+  const form = root.querySelector<HTMLFormElement>(`#${BATTLE_LINES_CONTROLS_ID}`)
   const content = root.querySelector<HTMLElement>("#battle-lines-content")
   if (!form || !content) return
 
