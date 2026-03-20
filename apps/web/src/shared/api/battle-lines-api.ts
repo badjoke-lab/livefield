@@ -96,3 +96,9 @@ export function payloadFiltersToRequestParams(filters: BattleLinesFilters): Batt
     focus: filters.focus || undefined
   }
 }
+
+export function isBattleLinesAbortError(error: unknown): boolean {
+  if (error instanceof DOMException) return error.name === "AbortError"
+  if (error instanceof Error) return error.name === "AbortError"
+  return false
+}

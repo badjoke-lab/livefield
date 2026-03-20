@@ -1,5 +1,6 @@
 import type {
   BattleCandidate,
+  BattleLinesFilters,
   BattleLinesPayload
 } from "../../../../../packages/shared/src/types/battle-lines"
 
@@ -12,10 +13,16 @@ export type UiState = {
   customRivals: string[]
 }
 
+export const BATTLE_LINES_AUTO_REFRESH_MS = 45_000
+
 const numberFmt = new Intl.NumberFormat("en-US")
 
 function formatGap(value: number): string {
   return `${numberFmt.format(Math.max(0, Math.round(value)))} gap`
+}
+
+export function shouldAutoRefreshBattleLines(filters: Pick<BattleLinesFilters, "day">): boolean {
+  return filters.day === "today"
 }
 
 export function normalizeUiState(payload: BattleLinesPayload, uiState: UiState): UiState {

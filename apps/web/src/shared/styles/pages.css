@@ -2030,3 +2030,45 @@
     gap: 12px;
   }
 }
+
+/* battle-lines live polish */
+.battle-lines-content {
+  min-width: 0;
+}
+
+.battle-lines-content--updating .battle-lines-canvas {
+  filter: saturate(0.98) brightness(0.995);
+}
+
+.battle-live-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.battle-live-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(203, 215, 233, 0.78);
+}
+
+.pill--quiet[data-updating="true"] {
+  background: rgba(131, 240, 183, 0.12);
+  border-color: rgba(131, 240, 183, 0.26);
+}
+
+.battle-live-note[data-updating="true"] {
+  color: rgba(223, 232, 245, 0.92);
+}
+
+@media (max-width: 560px) {
+  .battle-live-row {
+    align-items: flex-start;
+  }
+
+  .battle-live-note {
+    width: 100%;
+  }
+}
