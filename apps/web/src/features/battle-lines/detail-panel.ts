@@ -39,6 +39,9 @@ export function renderBattleDetailSections(
         <div class="kv-row"><span>Latest viewers</span><strong>${numberFmt.format(focusLine?.latestViewers ?? payload.focusDetail.latestViewers)}</strong></div>
         <div class="kv-row"><span>Biggest rise</span><strong>${escapeHtml(payload.focusDetail.biggestRiseTime)}</strong></div>
         <div class="kv-row"><span>Reversal count</span><strong>${numberFmt.format(focusLine?.reversalCount ?? payload.focusDetail.reversalCount)}</strong></div>
+        <div class="kv-row"><span>Hover preview</span><strong data-battle-hover-name>None</strong></div>
+        <div class="kv-row"><span>Hover latest viewers</span><strong data-battle-hover-latest>Move over end markers</strong></div>
+        <div class="kv-row kv-row--feature"><span>Interaction</span><small data-battle-hover-hint>Hover end markers to preview. Click one to focus.</small></div>
       </div>
     </section>
 

@@ -6,6 +6,7 @@ import {
   getBattleChartInnerHeight,
   type BattleChartScaleState
 } from "./scales"
+import type { BattleLinesInteractionTarget } from "./interaction"
 
 export function drawBattleNowLine(
   ctx: CanvasRenderingContext2D,
@@ -35,26 +36,64 @@ export function drawBattleEndMarkers(
   scale: BattleChartScaleState,
   lines: BattleLine[],
   highlightedIds: Set<string>,
-  primaryIds: Set<string>
-): void {
+  primaryIds: Set<string>,
+  selectedStreamerId: string | null,
+  hoveredStreamerId: string | null
+): BattleLinesInteractionTarget[] {
+  const targets: BattleLinesInteractionTarget[] = []
+
   lines.slice(0, 5).forEach((line) => {
     if (!line.points.length) return
 
     const pointIndex = line.points.length - 1
     const x = getBattleChartX(scale, pointIndex, line.points.length)
     const y = getBattleChartY(scale, line.points[pointIndex] ?? 0)
+
     const isHighlighted = highlightedIds.has(line.streamerId)
     const isPrimary = primaryIds.has(line.streamerId)
-    const radius = isPrimary ? 4.5 : isHighlighted ? 3.5 : 2.75
+    const isSelected = selectedStreamerId === line.streamerId
+    const isHovered = hoveredStreamerId === line.streamerId
+
+    const radius = isHovered ? 6.2 : isSelected ? 5.2 : isPrimary ? 4.5 : isHighlighted ? 3.5 : 2.75
+    const alpha = isHovered ? 1 : isSelected ? 1 : isPrimary ? 1 : isHighlighted ? 0.92 : 0.45
 
     ctx.save()
     ctx.beginPath()
+    ctx.arc(x, y, radius + (isHovered ? 5 : isSelected ? 4 : 0), 0, Math.PI * 2)
+    ctx.fillStyle = isHovered
+      ? "rgba(255, 255, 255, 0.16)"
+      : isSelected
+        ? "rgba(255, 255, 255, 0.12)"
+        : "rgba(255, 255, 255, 0.0)"
+    ctx.fill()
+
+    ctx.beginPath()
     ctx.arc(x, y, radius, 0, Math.PI * 2)
     ctx.fillStyle = line.color
-    ctx.globalAlpha = isPrimary ? 1 : isHighlighted ? 0.92 : 0.45
+    ctx.globalAlpha = alpha
     ctx.shadowColor = line.color
-    ctx.shadowBlur = isPrimary ? 12 : isHighlighted ? 8 : 0
+    ctx.shadowBlur = isHovered ? 18 : isSelected ? 14 : isPrimary ? 12 : isHighlighted ? 8 : 0
     ctx.fill()
+
+    if (isHovered || isSelected) {
+      ctx.beginPath()
+      ctx.arc(x, y, radius + 2.5, 0, Math.PI * 2)
+      ctx.strokeStyle = "rgba(255,255,255,0.66)"
+      ctx.lineWidth = 1.5
+      ctx.globalAlpha = 0.95
+      ctx.shadowBlur = 0
+      ctx.stroke()
+    }
+
     ctx.restore()
+
+    targets.push({
+      streamerId: line.streamerId,
+      x,
+      y,
+      radius: Math.max(radius + 4, 10)
+    })
   })
+
+  return targets
 }
