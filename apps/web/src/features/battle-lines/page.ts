@@ -48,7 +48,7 @@ function candidateTagLabel(tag: BattleCandidate["tag"]): string {
 function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimary: BattleCandidate | null): string {
   if (!payload.lines.length) {
     return `
-      <section class="battle-mock-card">
+      <section class="battle-mock-card battle-mock-card--battle-lines">
         <div class="battle-mock-card__head">
           <div>
             <strong>Battle lines</strong>
@@ -65,7 +65,7 @@ function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimar
   const highlightedIds = buildHighlightedIds(payload, uiState, activePrimary)
 
   return `
-    <section class="battle-mock-card">
+    <section class="battle-mock-card battle-mock-card--battle-lines">
       <div class="battle-mock-card__head">
         <div>
           <strong>Battle lines</strong>
@@ -78,7 +78,7 @@ function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimar
         </div>
       </div>
 
-      <div class="battle-mock-stage" data-battle-lines-stage data-hover-active="false">
+      <div class="battle-mock-stage battle-mock-stage--battle-lines" data-battle-lines-stage data-hover-active="false">
         <canvas
           class="battle-lines-canvas"
           data-battle-lines-canvas
@@ -134,7 +134,7 @@ function renderContentWithMode(payload: BattleLinesPayload, uiState: UiState): s
 
     ${renderBattleSummaryStrip(payload, escapeHtml)}
 
-    <section class="grid-2 page-section">
+    <section class="grid-2 page-section battle-lines-layout">
       ${renderChart(payload, uiState, activePrimary)}
       <section class="battle-side">
         ${renderFocusStripSection(payload, uiState, escapeHtml)}

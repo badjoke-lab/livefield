@@ -1834,3 +1834,199 @@
     min-width: 0;
   }
 }
+
+/* battle-lines mobile polish */
+.controls--battle-lines {
+  display: grid;
+  gap: 12px;
+  align-items: end;
+}
+
+.controls--battle-lines .controls-group {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.controls--battle-lines .controls-group--primary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.controls--battle-lines .controls-group--secondary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.controls--battle-lines select,
+.controls--battle-lines input[type="date"],
+.controls--battle-lines button {
+  width: 100%;
+  min-width: 0;
+}
+
+.battle-lines-layout {
+  align-items: start;
+}
+
+.battle-mock-card--battle-lines .battle-mock-card__head,
+.rivalry-radar__head {
+  gap: 12px;
+}
+
+.battle-mock-card--battle-lines .battle-mock-modes,
+.rivalry-radar__head .battle-mock-modes {
+  flex-wrap: wrap;
+}
+
+.battle-mock-stage--battle-lines {
+  min-height: 440px;
+}
+
+.battle-line-label {
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.battle-xlabels span {
+  min-width: 0;
+}
+
+.battle-side {
+  min-width: 0;
+  gap: 16px;
+}
+
+.battle-side .card,
+.battle-detail-sections,
+.battle-feed-list,
+.battle-side .kv {
+  min-width: 0;
+}
+
+.battle-side .kv-row {
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.battle-side .kv-row span {
+  flex: 0 0 7.5rem;
+}
+
+.battle-side .kv-row strong,
+.battle-side .kv-row small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: right;
+}
+
+.reversal-strip {
+  flex-wrap: wrap;
+}
+
+.reversal-strip span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .controls--battle-lines .controls-group--primary,
+  .controls--battle-lines .controls-group--secondary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .battle-lines-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .battle-mock-stage--battle-lines {
+    min-height: 400px;
+  }
+
+  .battle-line-label {
+    left: 78% !important;
+    max-width: 10ch;
+    font-size: 0.72rem;
+  }
+
+  .summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .controls--battle-lines .controls-group--primary,
+  .controls--battle-lines .controls-group--secondary {
+    grid-template-columns: 1fr;
+  }
+
+  .battle-mock-card--battle-lines .battle-mock-card__head,
+  .rivalry-radar__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .battle-mock-stage--battle-lines {
+    min-height: 360px;
+  }
+
+  .battle-xlabels span:nth-child(2),
+  .battle-xlabels span:nth-child(4) {
+    display: none;
+  }
+
+  .battle-xlabels {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .battle-line-label:nth-of-type(n+4) {
+    display: none;
+  }
+
+  .battle-side .kv-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .battle-side .kv-row span {
+    flex: 0 0 auto;
+  }
+
+  .battle-side .kv-row strong,
+  .battle-side .kv-row small {
+    text-align: left;
+  }
+
+  .summary-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-chip-row {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 420px) {
+  .battle-mock-stage--battle-lines {
+    min-height: 320px;
+  }
+
+  .battle-now-badge {
+    top: 10px;
+  }
+
+  .battle-ylabels {
+    left: 8px;
+    font-size: 0.68rem;
+  }
+
+  .battle-line-label {
+    left: 72% !important;
+    max-width: 8ch;
+  }
+
+  .battle-side {
+    gap: 12px;
+  }
+}
