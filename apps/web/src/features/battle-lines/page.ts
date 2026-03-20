@@ -2,7 +2,10 @@ import { renderHeader } from "../../shared/app-shell/header"
 import { renderFooter } from "../../shared/app-shell/footer"
 import { renderHero } from "../../shared/app-shell/hero"
 import { renderStatusNote } from "../../shared/app-shell/status-note"
-import { fetchBattleLinesPayloadFromForm } from "../../shared/api/battle-lines-api"
+import {
+  fetchBattleLinesPayloadFromForm,
+  isBattleLinesAbortError
+} from "../../shared/api/battle-lines-api"
 import type {
   BattleCandidate,
   BattleLinesPayload
@@ -11,10 +14,12 @@ import { BATTLE_LINES_CONTROLS_ID, renderBattleLinesControls } from "./controls"
 import { renderBattleDetailSections } from "./detail-panel"
 import { renderFocusStripSection } from "./focus-strip"
 import {
+  BATTLE_LINES_AUTO_REFRESH_MS,
   buildBattleFeed,
   buildHighlightedIds,
   normalizeUiState,
   resolveActivePrimary,
+  shouldAutoRefreshBattleLines,
   type UiState
 } from "./state"
 import {
@@ -22,6 +27,10 @@ import {
   renderRivalryRadarSection
 } from "./summary"
 import { mountBattleLinesRenderer } from "./renderer"
+
+type RootWithCleanup = HTMLElement & {
+  __battleLinesDispose?: () => void
+}
 
 const numberFmt = new Intl.NumberFormat("en-US")
 
@@ -43,6 +52,14 @@ function candidateTagLabel(tag: BattleCandidate["tag"]): string {
   if (tag === "rising-challenger") return "Rising challenger"
   if (tag === "heated") return "Heated"
   return "Closing"
+}
+
+function getRefreshNoteText(payload: BattleLinesPayload | null): string {
+  if (!payload) return "Loading live battle state…"
+  if (shouldAutoRefreshBattleLines(payload.filters)) {
+    return `Today auto refresh every ${Math.round(BATTLE_LINES_AUTO_REFRESH_MS / 1000)}s.`
+  }
+  return "Auto refresh runs only on Today."
 }
 
 function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimary: BattleCandidate | null): string {
@@ -70,6 +87,10 @@ function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimar
         <div>
           <strong>Battle lines</strong>
           <p>Recommended battle is strongest by default. Custom selection keeps control on your pair.</p>
+          <div class="battle-live-row">
+            <span class="pill pill--quiet" data-battle-refresh-state>${shouldAutoRefreshBattleLines(payload.filters) ? "Live auto refresh on" : "Auto refresh off"}</span>
+            <span class="battle-live-note" data-battle-refresh-note>${escapeHtml(getRefreshNoteText(payload))}</span>
+          </div>
         </div>
         <div class="battle-mock-modes">
           <span class="pill">${payload.filters.metric === "indexed" ? "Indexed" : "Viewers"}</span>
@@ -168,98 +189,36 @@ function updateHoverPreview(target: HTMLElement, payload: BattleLinesPayload, ho
   hintEl.textContent = "Click this marker to focus the detail panel."
 }
 
-async function loadPayload(form: HTMLFormElement, target: HTMLElement, uiState: UiState): Promise<UiState> {
-  target.innerHTML = `<section class="card"><h2>Loading Battle Lines…</h2></section>`
+function applyRefreshUi(
+  target: HTMLElement,
+  payload: BattleLinesPayload | null,
+  updating: boolean,
+  overrideMessage?: string
+): void {
+  target.classList.toggle("battle-lines-content--updating", updating)
 
-  try {
-    const payload = await fetchBattleLinesPayloadFromForm(form, {
-      focusOverride: uiState.focusId || undefined
-    })
+  const stateEl = target.querySelector<HTMLElement>("[data-battle-refresh-state]")
+  const noteEl = target.querySelector<HTMLElement>("[data-battle-refresh-note]")
 
-    const nextState = normalizeUiState(payload, uiState)
-    target.innerHTML = renderContentWithMode(payload, nextState)
-    updateHoverPreview(target, payload, null)
+  if (stateEl) {
+    stateEl.textContent = updating
+      ? "Updating…"
+      : payload && shouldAutoRefreshBattleLines(payload.filters)
+        ? "Live auto refresh on"
+        : "Auto refresh off"
+    stateEl.dataset.updating = updating ? "true" : "false"
+  }
 
-    const activePrimary = resolveActivePrimary(payload, nextState)
-    const stage = target.querySelector<HTMLElement>("[data-battle-lines-stage]")
-    if (stage) {
-      mountBattleLinesRenderer(stage, payload, nextState, activePrimary, {
-        onHoverChange: (streamerId) => {
-          updateHoverPreview(target, payload, streamerId)
-        },
-        onSelect: (streamerId) => {
-          void loadPayload(form, target, {
-            ...nextState,
-            mode: "custom",
-            focusId: streamerId
-          })
-        }
-      })
-    }
-
-    target.querySelectorAll<HTMLButtonElement>("[data-focus]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const focus = button.dataset.focus
-        if (!focus) return
-        void loadPayload(form, target, {
-          ...nextState,
-          mode: "custom",
-          focusId: focus
-        })
-      })
-    })
-
-    target.querySelectorAll<HTMLButtonElement>("[data-primary-battle]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const primaryKey = button.dataset.primaryBattle
-        const focusId = button.dataset.primaryFocus
-        if (!primaryKey) return
-
-        void loadPayload(form, target, {
-          ...nextState,
-          mode: "custom",
-          primaryKey,
-          focusId: focusId || nextState.focusId
-        })
-      })
-    })
-
-    target.querySelectorAll<HTMLButtonElement>("[data-rival-id]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const rivalId = button.dataset.rivalId
-        if (!rivalId) return
-
-        const customRivals = nextState.customRivals.includes(rivalId)
-          ? nextState.customRivals.filter((id) => id !== rivalId)
-          : [...nextState.customRivals, rivalId].slice(0, 2)
-
-        void loadPayload(form, target, {
-          ...nextState,
-          mode: "custom",
-          customRivals
-        })
-      })
-    })
-
-    target.querySelectorAll<HTMLButtonElement>("[data-switch-mode='recommended']").forEach((button) => {
-      button.addEventListener("click", () => {
-        void loadPayload(form, target, {
-          ...nextState,
-          mode: "recommended",
-          primaryKey: payload.recommendation.primaryBattle?.key ?? null,
-          customRivals: []
-        })
-      })
-    })
-
-    return nextState
-  } catch {
-    target.innerHTML = `<section class="card"><h2>Battle Lines error</h2><p>Could not load /api/battle-lines. Try again shortly.</p></section>`
-    return uiState
+  if (noteEl) {
+    noteEl.textContent = overrideMessage ?? getRefreshNoteText(payload)
+    noteEl.dataset.updating = updating ? "true" : "false"
   }
 }
 
 export function renderBattleLinesPage(root: HTMLElement): void {
+  const rootEl = root as RootWithCleanup
+  rootEl.__battleLinesDispose?.()
+
   root.className = "site-shell battle-lines-page"
   root.innerHTML = `
     ${renderHeader("battle-lines")}
@@ -276,7 +235,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
 
     ${renderBattleLinesControls()}
 
-    <div id="battle-lines-content"></div>
+    <div id="battle-lines-content" class="battle-lines-content"></div>
 
     ${renderStatusNote("Rivalry Radar uses API-provided primary and secondary battles, with custom state layered on top.")}
     ${renderFooter()}
@@ -293,14 +252,177 @@ export function renderBattleLinesPage(root: HTMLElement): void {
     customRivals: []
   }
 
+  let disposed = false
+  let refreshTimer: number | null = null
+  let currentController: AbortController | null = null
+  let requestVersion = 0
+  let lastPayload: BattleLinesPayload | null = null
+
+  function clearRefreshTimer(): void {
+    if (refreshTimer !== null) {
+      window.clearTimeout(refreshTimer)
+      refreshTimer = null
+    }
+  }
+
+  function abortInFlight(): void {
+    currentController?.abort()
+    currentController = null
+  }
+
+  function scheduleAutoRefresh(payload: BattleLinesPayload): void {
+    clearRefreshTimer()
+    if (disposed) return
+    if (!shouldAutoRefreshBattleLines(payload.filters)) return
+
+    refreshTimer = window.setTimeout(() => {
+      void runLoad({ silent: true, reason: "auto" })
+    }, BATTLE_LINES_AUTO_REFRESH_MS)
+  }
+
+  async function runLoad(options: { silent?: boolean; reason?: "manual" | "auto" | "interaction" } = {}): Promise<UiState> {
+    clearRefreshTimer()
+    abortInFlight()
+
+    const controller = new AbortController()
+    currentController = controller
+    const requestId = ++requestVersion
+    const silent = options.silent ?? false
+
+    if (!silent) {
+      content.innerHTML = `<section class="card"><h2>Loading Battle Lines…</h2></section>`
+    } else {
+      applyRefreshUi(content, lastPayload, true, options.reason === "auto" ? "Refreshing Today live state…" : "Updating selection…")
+    }
+
+    try {
+      const payload = await fetchBattleLinesPayloadFromForm(form, {
+        focusOverride: uiState.focusId || undefined,
+        signal: controller.signal
+      })
+
+      if (disposed || controller.signal.aborted || requestId !== requestVersion) {
+        return uiState
+      }
+
+      const nextState = normalizeUiState(payload, uiState)
+      uiState = nextState
+      lastPayload = payload
+
+      content.innerHTML = renderContentWithMode(payload, nextState)
+      applyRefreshUi(content, payload, false)
+      updateHoverPreview(content, payload, null)
+
+      const activePrimary = resolveActivePrimary(payload, nextState)
+      const stage = content.querySelector<HTMLElement>("[data-battle-lines-stage]")
+      if (stage) {
+        mountBattleLinesRenderer(stage, payload, nextState, activePrimary, {
+          onHoverChange: (streamerId) => {
+            updateHoverPreview(content, payload, streamerId)
+          },
+          onSelect: (streamerId) => {
+            uiState = {
+              ...uiState,
+              mode: "custom",
+              focusId: streamerId
+            }
+            void runLoad({ silent: true, reason: "interaction" })
+          }
+        })
+      }
+
+      content.querySelectorAll<HTMLButtonElement>("[data-focus]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const focus = button.dataset.focus
+          if (!focus) return
+          uiState = {
+            ...uiState,
+            mode: "custom",
+            focusId: focus
+          }
+          void runLoad({ silent: true, reason: "interaction" })
+        })
+      })
+
+      content.querySelectorAll<HTMLButtonElement>("[data-primary-battle]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const primaryKey = button.dataset.primaryBattle
+          const focusId = button.dataset.primaryFocus
+          if (!primaryKey) return
+
+          uiState = {
+            ...uiState,
+            mode: "custom",
+            primaryKey,
+            focusId: focusId || uiState.focusId
+          }
+          void runLoad({ silent: true, reason: "interaction" })
+        })
+      })
+
+      content.querySelectorAll<HTMLButtonElement>("[data-rival-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const rivalId = button.dataset.rivalId
+          if (!rivalId) return
+
+          const customRivals = uiState.customRivals.includes(rivalId)
+            ? uiState.customRivals.filter((id) => id !== rivalId)
+            : [...uiState.customRivals, rivalId].slice(0, 2)
+
+          uiState = {
+            ...uiState,
+            mode: "custom",
+            customRivals
+          }
+          void runLoad({ silent: true, reason: "interaction" })
+        })
+      })
+
+      content.querySelectorAll<HTMLButtonElement>("[data-switch-mode='recommended']").forEach((button) => {
+        button.addEventListener("click", () => {
+          uiState = {
+            ...uiState,
+            mode: "recommended",
+            primaryKey: payload.recommendation.primaryBattle?.key ?? null,
+            customRivals: []
+          }
+          void runLoad({ silent: true, reason: "interaction" })
+        })
+      })
+
+      scheduleAutoRefresh(payload)
+      return nextState
+    } catch (error) {
+      if (isBattleLinesAbortError(error)) {
+        return uiState
+      }
+
+      if (!silent) {
+        content.innerHTML = `<section class="card"><h2>Battle Lines error</h2><p>Could not load /api/battle-lines. Try again shortly.</p></section>`
+      } else {
+        applyRefreshUi(content, lastPayload, false, "Refresh failed. Keeping previous live view.")
+      }
+
+      return uiState
+    } finally {
+      if (requestId === requestVersion) {
+        currentController = null
+      }
+    }
+  }
+
   form.addEventListener("submit", (event) => {
     event.preventDefault()
-    void loadPayload(form, content, uiState).then((nextState) => {
-      uiState = nextState
-    })
+    void runLoad({ silent: false, reason: "manual" })
   })
 
-  void loadPayload(form, content, uiState).then((nextState) => {
-    uiState = nextState
-  })
+  rootEl.__battleLinesDispose = () => {
+    disposed = true
+    clearRefreshTimer()
+    abortInFlight()
+    const stage = root.querySelector<HTMLElement>("[data-battle-lines-stage]") as HTMLElement & { __battleLinesCleanup?: () => void } | null
+    stage?.__battleLinesCleanup?.()
+  }
+
+  void runLoad({ silent: false, reason: "manual" })
 }
