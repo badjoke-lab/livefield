@@ -7,11 +7,19 @@ import { buildHighlightedIds } from "../state"
 import { drawBattleAxis } from "./draw-axis"
 import { drawBattleLines } from "./draw-lines"
 import { drawBattleEndMarkers, drawBattleNowLine } from "./draw-markers"
-import { attachBattleLinesInteraction } from "./interaction"
+import {
+  attachBattleLinesInteraction,
+  type BattleLinesInteractionTarget
+} from "./interaction"
 import { createBattleChartScaleState } from "./scales"
 
 type StageWithCleanup = HTMLElement & {
   __battleLinesCleanup?: () => void
+}
+
+type MountBattleLinesRendererOptions = {
+  onHoverChange?: (streamerId: string | null) => void
+  onSelect?: (streamerId: string) => void
 }
 
 function getPrimaryIds(activePrimary: BattleCandidate | null): Set<string> {
@@ -49,10 +57,11 @@ function drawBattleLinesCanvas(
   stage: HTMLElement,
   payload: BattleLinesPayload,
   uiState: UiState,
-  activePrimary: BattleCandidate | null
-): void {
+  activePrimary: BattleCandidate | null,
+  hoveredStreamerId: string | null
+): BattleLinesInteractionTarget[] {
   const sized = ensureCanvasSize(canvas, stage)
-  if (!sized) return
+  if (!sized) return []
 
   const { ctx, width, height } = sized
   ctx.clearRect(0, 0, width, height)
@@ -71,14 +80,23 @@ function drawBattleLinesCanvas(
   drawBattleAxis(ctx, scale)
   drawBattleLines(ctx, scale, payload.lines, highlightedIds, primaryIds)
   drawBattleNowLine(ctx, scale)
-  drawBattleEndMarkers(ctx, scale, payload.lines, highlightedIds, primaryIds)
+  return drawBattleEndMarkers(
+    ctx,
+    scale,
+    payload.lines,
+    highlightedIds,
+    primaryIds,
+    uiState.focusId || null,
+    hoveredStreamerId
+  )
 }
 
 export function mountBattleLinesRenderer(
   stage: HTMLElement,
   payload: BattleLinesPayload,
   uiState: UiState,
-  activePrimary: BattleCandidate | null
+  activePrimary: BattleCandidate | null,
+  options: MountBattleLinesRendererOptions = {}
 ): void {
   const stageEl = stage as StageWithCleanup
   stageEl.__battleLinesCleanup?.()
@@ -86,11 +104,27 @@ export function mountBattleLinesRenderer(
   const canvas = stage.querySelector<HTMLCanvasElement>("[data-battle-lines-canvas]")
   if (!canvas) return
 
+  let hoveredStreamerId: string | null = null
+  let interactionTargets: BattleLinesInteractionTarget[] = []
+
   const render = () => {
-    drawBattleLinesCanvas(canvas, stage, payload, uiState, activePrimary)
+    interactionTargets = drawBattleLinesCanvas(canvas, stage, payload, uiState, activePrimary, hoveredStreamerId)
+    stage.dataset.hoverActive = hoveredStreamerId ? "true" : "false"
+    canvas.style.cursor = hoveredStreamerId ? "pointer" : "crosshair"
   }
 
-  const interaction = attachBattleLinesInteraction(canvas)
+  const interaction = attachBattleLinesInteraction(canvas, {
+    getTargets: () => interactionTargets,
+    onHoverChange: (streamerId) => {
+      if (hoveredStreamerId === streamerId) return
+      hoveredStreamerId = streamerId
+      options.onHoverChange?.(streamerId)
+      render()
+    },
+    onSelect: (streamerId) => {
+      options.onSelect?.(streamerId)
+    }
+  })
 
   if ("ResizeObserver" in window) {
     const observer = new ResizeObserver(() => render())
@@ -99,6 +133,7 @@ export function mountBattleLinesRenderer(
     stageEl.__battleLinesCleanup = () => {
       observer.disconnect()
       interaction.destroy()
+      options.onHoverChange?.(null)
     }
   } else {
     const onResize = () => render()
@@ -107,6 +142,7 @@ export function mountBattleLinesRenderer(
     stageEl.__battleLinesCleanup = () => {
       window.removeEventListener("resize", onResize)
       interaction.destroy()
+      options.onHoverChange?.(null)
     }
   }
 

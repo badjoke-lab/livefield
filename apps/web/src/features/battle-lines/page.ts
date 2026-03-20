@@ -78,7 +78,7 @@ function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimar
         </div>
       </div>
 
-      <div class="battle-mock-stage" data-battle-lines-stage>
+      <div class="battle-mock-stage" data-battle-lines-stage data-hover-active="false">
         <canvas
           class="battle-lines-canvas"
           data-battle-lines-canvas
@@ -147,6 +147,27 @@ function renderContentWithMode(payload: BattleLinesPayload, uiState: UiState): s
   `
 }
 
+function updateHoverPreview(target: HTMLElement, payload: BattleLinesPayload, hoveredStreamerId: string | null): void {
+  const nameEl = target.querySelector<HTMLElement>("[data-battle-hover-name]")
+  const latestEl = target.querySelector<HTMLElement>("[data-battle-hover-latest]")
+  const hintEl = target.querySelector<HTMLElement>("[data-battle-hover-hint]")
+
+  if (!nameEl || !latestEl || !hintEl) return
+
+  const hoveredLine = payload.lines.find((line) => line.streamerId === hoveredStreamerId) ?? null
+
+  if (!hoveredLine) {
+    nameEl.textContent = "None"
+    latestEl.textContent = "Move over end markers"
+    hintEl.textContent = "Hover end markers to preview. Click one to focus."
+    return
+  }
+
+  nameEl.textContent = hoveredLine.name
+  latestEl.textContent = numberFmt.format(hoveredLine.latestViewers)
+  hintEl.textContent = "Click this marker to focus the detail panel."
+}
+
 async function loadPayload(form: HTMLFormElement, target: HTMLElement, uiState: UiState): Promise<UiState> {
   target.innerHTML = `<section class="card"><h2>Loading Battle Lines…</h2></section>`
 
@@ -157,11 +178,23 @@ async function loadPayload(form: HTMLFormElement, target: HTMLElement, uiState: 
 
     const nextState = normalizeUiState(payload, uiState)
     target.innerHTML = renderContentWithMode(payload, nextState)
+    updateHoverPreview(target, payload, null)
 
     const activePrimary = resolveActivePrimary(payload, nextState)
     const stage = target.querySelector<HTMLElement>("[data-battle-lines-stage]")
     if (stage) {
-      mountBattleLinesRenderer(stage, payload, nextState, activePrimary)
+      mountBattleLinesRenderer(stage, payload, nextState, activePrimary, {
+        onHoverChange: (streamerId) => {
+          updateHoverPreview(target, payload, streamerId)
+        },
+        onSelect: (streamerId) => {
+          void loadPayload(form, target, {
+            ...nextState,
+            mode: "custom",
+            focusId: streamerId
+          })
+        }
+      })
     }
 
     target.querySelectorAll<HTMLButtonElement>("[data-focus]").forEach((button) => {
