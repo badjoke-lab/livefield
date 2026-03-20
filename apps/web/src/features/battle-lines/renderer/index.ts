@@ -87,7 +87,8 @@ function drawBattleLinesCanvas(
     highlightedIds,
     primaryIds,
     uiState.focusId || null,
-    hoveredStreamerId
+    hoveredStreamerId,
+    payload.recommendation
   )
 }
 

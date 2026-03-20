@@ -171,21 +171,24 @@ function renderContentWithMode(payload: BattleLinesPayload, uiState: UiState): s
 function updateHoverPreview(target: HTMLElement, payload: BattleLinesPayload, hoveredStreamerId: string | null): void {
   const nameEl = target.querySelector<HTMLElement>("[data-battle-hover-name]")
   const latestEl = target.querySelector<HTMLElement>("[data-battle-hover-latest]")
+  const peakEl = target.querySelector<HTMLElement>("[data-battle-hover-peak]")
   const hintEl = target.querySelector<HTMLElement>("[data-battle-hover-hint]")
 
-  if (!nameEl || !latestEl || !hintEl) return
+  if (!nameEl || !latestEl || !peakEl || !hintEl) return
 
   const hoveredLine = payload.lines.find((line) => line.streamerId === hoveredStreamerId) ?? null
 
   if (!hoveredLine) {
     nameEl.textContent = "None"
     latestEl.textContent = "Move over end markers"
+    peakEl.textContent = "—"
     hintEl.textContent = "Hover end markers to preview. Click one to focus."
     return
   }
 
   nameEl.textContent = hoveredLine.name
   latestEl.textContent = numberFmt.format(hoveredLine.latestViewers)
+  peakEl.textContent = numberFmt.format(hoveredLine.peakViewers)
   hintEl.textContent = "Click this marker to focus the detail panel."
 }
 
