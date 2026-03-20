@@ -21,6 +21,7 @@ import {
   renderBattleSummaryStrip,
   renderRivalryRadarSection
 } from "./summary"
+import { mountBattleLinesRenderer } from "./renderer"
 
 const numberFmt = new Intl.NumberFormat("en-US")
 
@@ -44,30 +45,6 @@ function candidateTagLabel(tag: BattleCandidate["tag"]): string {
   return "Closing"
 }
 
-function toPath(points: number[], allLines: number[][]): string {
-  if (!points.length) return ""
-
-  const width = 1000
-  const height = 520
-  const paddingX = 44
-  const paddingTop = 24
-  const paddingBottom = 52
-
-  const flattened = allLines.flat()
-  const max = Math.max(...flattened, 1)
-  const min = Math.min(...flattened, 0)
-  const range = Math.max(max - min, 1)
-
-  return points
-    .map((value, pointIdx) => {
-      const x = paddingX + ((width - paddingX * 2) * pointIdx) / Math.max(points.length - 1, 1)
-      const normalized = (value - min) / range
-      const y = paddingTop + (height - paddingTop - paddingBottom) * (1 - normalized)
-      return `${pointIdx === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`
-    })
-    .join(" ")
-}
-
 function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimary: BattleCandidate | null): string {
   if (!payload.lines.length) {
     return `
@@ -82,7 +59,6 @@ function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimar
     `
   }
 
-  const allPoints = payload.lines.map((line) => line.points)
   const nowBucketIndex = Math.max(0, payload.buckets.length - 1)
   const nowRatio = payload.buckets.length > 1 ? nowBucketIndex / (payload.buckets.length - 1) : 0
   const nowLeft = 4 + nowRatio * 92
@@ -102,31 +78,19 @@ function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimar
         </div>
       </div>
 
-      <div class="battle-mock-stage">
-        <div class="battle-grid battle-grid--h"></div>
-        <div class="battle-grid battle-grid--v"></div>
+      <div class="battle-mock-stage" data-battle-lines-stage>
+        <canvas
+          class="battle-lines-canvas"
+          data-battle-lines-canvas
+          aria-label="Battle lines chart"
+          role="img"
+        ></canvas>
 
         <div class="battle-ylabels">
           <span>High</span>
           <span>Mid</span>
           <span>Low</span>
         </div>
-
-        <svg class="battle-lines-svg" viewBox="0 0 1000 520" preserveAspectRatio="none" aria-hidden="true">
-          ${payload.lines
-            .map((line, index) => {
-              const isHighlighted = highlightedIds.has(line.streamerId)
-              const isPrimary =
-                activePrimary !== null && (line.streamerId === activePrimary.leftId || line.streamerId === activePrimary.rightId)
-
-              const strokeWidth = isPrimary ? 5.2 : isHighlighted ? 4.2 : Math.max(2.2, 4.2 - index * 0.2)
-              const strokeOpacity = isPrimary ? 1 : isHighlighted ? 0.92 : 0.28
-
-              return `<path class="battle-line" style="stroke:${line.color};stroke-width:${strokeWidth};stroke-opacity:${strokeOpacity}" d="${toPath(line.points, allPoints)}" />`
-            })
-            .join("")}
-          <line class="battle-now-line" x1="${(nowLeft / 100) * 1000}" y1="26" x2="${(nowLeft / 100) * 1000}" y2="468" />
-        </svg>
 
         ${payload.lines
           .slice(0, 5)
@@ -193,6 +157,12 @@ async function loadPayload(form: HTMLFormElement, target: HTMLElement, uiState: 
 
     const nextState = normalizeUiState(payload, uiState)
     target.innerHTML = renderContentWithMode(payload, nextState)
+
+    const activePrimary = resolveActivePrimary(payload, nextState)
+    const stage = target.querySelector<HTMLElement>("[data-battle-lines-stage]")
+    if (stage) {
+      mountBattleLinesRenderer(stage, payload, nextState, activePrimary)
+    }
 
     target.querySelectorAll<HTMLButtonElement>("[data-focus]").forEach((button) => {
       button.addEventListener("click", () => {
