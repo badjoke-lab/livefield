@@ -2072,3 +2072,22 @@
     width: 100%;
   }
 }
+
+/* battle-lines pair detail polish */
+.battle-detail-card--reversal {
+  border-color: rgba(255, 211, 107, 0.14);
+}
+
+.battle-detail-card--reversal .kv-row strong {
+  color: rgba(255, 244, 207, 0.96);
+}
+
+.battle-detail-card--feed .kv-row strong {
+  line-height: 1.45;
+}
+
+@media (max-width: 560px) {
+  .battle-detail-card--reversal .kv-row strong {
+    color: rgba(255, 240, 194, 0.94);
+  }
+}
