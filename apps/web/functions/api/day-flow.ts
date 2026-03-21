@@ -18,6 +18,20 @@ type SnapshotRow = {
   agitation_level?: number | null
 }
 
+type DayflowRollupRow = {
+  day: string
+  bucket_time: string
+  streamer_id: string
+  display_name: string
+  is_others: number
+  avg_viewers: number
+  viewer_minutes: number
+  share: number
+  peak_viewers: number
+  first_seen_at: string | null
+  last_seen_at: string | null
+}
+
 type StreamSnapshot = {
   userId?: string
   displayName?: string
@@ -361,6 +375,38 @@ async function fetchMinuteSnapshotsChunked(
   return { results: all }
 }
 
+async function fetchHistoricalDayflowRows(
+  db: NonNullable<Env["DB"]>,
+  day: string,
+  topN: 10 | 20 | 50
+): Promise<{ rows: DayflowRollupRow[]; bucketSize: 5 | 10 | null }> {
+  const topScope = `top${topN}`
+  const five = (await db
+    .prepare(
+      `SELECT day, bucket_time, streamer_id, display_name, is_others, avg_viewers, viewer_minutes, share, peak_viewers, first_seen_at, last_seen_at
+       FROM dayflow_bands_5m
+       WHERE day = ? AND top_scope = ?
+       ORDER BY bucket_time ASC`
+    )
+    .bind(day, topScope)
+    .all()) as unknown as { results: DayflowRollupRow[] }
+
+  if (five.results.length) return { rows: five.results, bucketSize: 5 }
+
+  const ten = (await db
+    .prepare(
+      `SELECT day, bucket_time, streamer_id, display_name, is_others, avg_viewers, viewer_minutes, share, peak_viewers, first_seen_at, last_seen_at
+       FROM dayflow_bands_10m
+       WHERE day = ? AND top_scope = ?
+       ORDER BY bucket_time ASC`
+    )
+    .bind(day, topScope)
+    .all()) as unknown as { results: DayflowRollupRow[] }
+
+  if (ten.results.length) return { rows: ten.results, bucketSize: 10 }
+  return { rows: [], bucketSize: null }
+}
+
 export const onRequest = async (context: { env: Env; request: Request }) => {
   const url = new URL(context.request.url)
   const parsed = parseDay(url.searchParams.get("date"), url.searchParams.get("day"), url.searchParams.get("rangeMode"))
@@ -373,6 +419,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
   const dayEnd = `${selectedDate}T24:00:00.000Z`
   const isRolling = parsed.day === "rolling24h"
   const isToday = parsed.day === "today"
+  const isHistorical = parsed.day === "yesterday" || parsed.day === "date"
   const queryEnd = `${selectedDate}T23:59:59.999Z`
 
   const fallbackQueryStart = isRolling ? toIsoMinute(new Date(Date.now() - DAY_MS)) : dayStart
@@ -387,6 +434,200 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       status: "demo",
       note: "DB unavailable in this environment; returning demo-compatible payload shell."
     })
+  }
+
+  if (isHistorical) {
+    try {
+      const historical = await fetchHistoricalDayflowRows(db, selectedDate, topN)
+      if (!historical.rows.length || historical.bucketSize === null) {
+        return json(buildEmptyPayload({
+          dateScope: parsed.day,
+          selectedDate,
+          bucketSize,
+          topN,
+          mode,
+          updatedAt: new Date().toISOString(),
+          windowStart: dayStart,
+          windowEnd: dayEnd,
+          rankingWindowStart: dayStart,
+          rankingWindowEnd: dayEnd,
+          isRolling: false
+        }))
+      }
+
+      const effectiveBucketSize = historical.bucketSize
+      const buckets = buildBuckets(new Date(`${selectedDate}T00:00:00.000Z`), effectiveBucketSize)
+      const bucketIndexByIso = new Map(buckets.map((bucket, index) => [bucket, index]))
+      const streamAggById = new Map<string, StreamAgg>()
+      const totalByBucket = new Array<number>(buckets.length).fill(0)
+
+      for (const row of historical.rows) {
+        const bucketIso = toIsoMinute(new Date(row.bucket_time))
+        const bucketIndex = bucketIndexByIso.get(bucketIso)
+        if (bucketIndex === undefined) continue
+
+        let agg = streamAggById.get(row.streamer_id)
+        if (!agg) {
+          agg = {
+            id: row.streamer_id,
+            name: row.is_others === 1 ? "Others" : row.display_name,
+            title: row.is_others === 1 ? "Grouped remaining streams" : "",
+            url: row.is_others === 1 ? "" : `https://www.twitch.tv/${row.display_name}`,
+            points: new Array<number>(buckets.length).fill(0),
+            totalViewerMinutes: 0,
+            firstSeenBucket: row.first_seen_at,
+            lastSeenBucket: row.last_seen_at
+          }
+          streamAggById.set(row.streamer_id, agg)
+        }
+
+        agg.name = row.is_others === 1 ? "Others" : row.display_name
+        agg.points[bucketIndex] = Math.max(0, Math.round(row.avg_viewers))
+        agg.totalViewerMinutes += Math.max(0, row.viewer_minutes)
+        agg.firstSeenBucket = agg.firstSeenBucket ?? row.first_seen_at
+        agg.lastSeenBucket = agg.lastSeenBucket ?? row.last_seen_at
+        totalByBucket[bucketIndex] += Math.max(0, Math.round(row.avg_viewers))
+      }
+
+      const ordered = [...streamAggById.values()].sort((a, b) => b.totalViewerMinutes - a.totalViewerMinutes)
+      if (!ordered.length) {
+        return json(buildEmptyPayload({
+          dateScope: parsed.day,
+          selectedDate,
+          bucketSize,
+          topN,
+          mode,
+          updatedAt: new Date().toISOString(),
+          windowStart: dayStart,
+          windowEnd: dayEnd,
+          rankingWindowStart: dayStart,
+          rankingWindowEnd: dayEnd,
+          isRolling: false
+        }))
+      }
+
+      const topStreams = ordered.filter((stream) => stream.id !== "others")
+      const others = ordered.find((stream) => stream.id === "others")
+      const withOthers: StreamAgg[] = others
+        ? [...topStreams, others]
+        : [
+            ...topStreams,
+            {
+              id: "others",
+              name: "Others",
+              title: "Grouped remaining streams",
+              url: "",
+              points: new Array<number>(buckets.length).fill(0),
+              totalViewerMinutes: 0,
+              firstSeenBucket: null,
+              lastSeenBucket: null
+            }
+          ]
+
+      const bands = toBandSeries({ ordered: withOthers, bucketSize: effectiveBucketSize, totalByBucket, bucketKeys: buckets })
+      const latestBucket = historical.rows.at(-1)?.bucket_time ?? `${selectedDate}T23:55:00.000Z`
+      const currentBucketIndex = Math.max(0, bucketIndexByIso.get(toIsoMinute(new Date(latestBucket))) ?? (buckets.length - 1))
+      const focusItems = buildFocusItems(bands, currentBucketIndex)
+      const leaderBand = bands.filter((b) => !b.isOthers)[0]
+      const biggestRiseBand = [...bands].filter((b) => !b.isOthers).sort((a, b) => {
+        const aRise = a.buckets.reduce((best, bucket, idx, arr) => Math.max(best, idx > 0 ? bucket.viewers - arr[idx - 1].viewers : 0), 0)
+        const bRise = b.buckets.reduce((best, bucket, idx, arr) => Math.max(best, idx > 0 ? bucket.viewers - arr[idx - 1].viewers : 0), 0)
+        return bRise - aRise
+      })[0]
+
+      const dominanceCounts = new Map<string, number>()
+      for (let i = 0; i < buckets.length; i += 1) {
+        const leader = bands
+          .filter((b) => !b.isOthers)
+          .map((b) => ({ name: b.name, viewers: b.buckets[i]?.viewers ?? 0 }))
+          .sort((a, b) => b.viewers - a.viewers)[0]
+        if (leader && leader.viewers > 0) dominanceCounts.set(leader.name, (dominanceCounts.get(leader.name) ?? 0) + 1)
+      }
+      const longestDominance = [...dominanceCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "N/A"
+
+      return json({
+        ok: true,
+        tool: "day-flow",
+        source: "api",
+        state: "complete",
+        status: "complete",
+        note: effectiveBucketSize === 10 ? "Historical 5m rollup unavailable; served from 10m dayflow rollup." : undefined,
+        coverageNote: `Top ${topN} + Others by viewer-minutes in selected window`,
+        degradationNote: "Activity overlay is intentionally disabled in MVP until per-stream activity is fully wired.",
+        lastUpdated: latestBucket,
+        selectedDate,
+        bucketSize: effectiveBucketSize,
+        topN,
+        valueMode: mode,
+        defaultMode: mode,
+        dateScope: parsed.day,
+        rangeMode: parsed.day,
+        windowStart: dayStart,
+        windowEnd: dayEnd,
+        rankingWindowStart: dayStart,
+        rankingWindowEnd: dayEnd,
+        isRolling: false,
+        summary: {
+          peakLeader: leaderBand?.name ?? "N/A",
+          longestDominance,
+          highestActivity: "Activity unavailable",
+          biggestRise: biggestRiseBand?.name ?? "N/A"
+        },
+        timeline: {
+          dayStart,
+          dayEnd,
+          nowBucket: null,
+          bucketCount: buckets.length,
+          futureBlankFrom: null
+        },
+        buckets,
+        totalViewersByBucket: totalByBucket,
+        bands,
+        focusSnapshot: {
+          selectedBucket: buckets[currentBucketIndex] ?? null,
+          items: focusItems,
+          strongestMomentum: [...focusItems].sort((a, b) => b.momentum - a.momentum)[0]?.name ?? "N/A",
+          highestActivity: "Activity unavailable"
+        },
+        detailPanelSource: {
+          defaultStreamerId: bands.find((b) => !b.isOthers)?.streamerId ?? null,
+          streamers: bands
+            .filter((band) => !band.isOthers)
+            .map((band) => ({
+              streamerId: band.streamerId,
+              name: band.name,
+              title: band.title,
+              url: band.url,
+              peakViewers: band.peakViewers,
+              avgViewers: band.avgViewers,
+              viewerMinutes: band.totalViewerMinutes,
+              peakShare: band.peakShare,
+              highestActivity: null,
+              biggestRiseTime: band.biggestRiseBucket,
+              firstSeen: band.firstSeen,
+              lastSeen: band.lastSeen
+            }))
+        },
+        activity: {
+          available: false,
+          note: "Activity unavailable for day-flow MVP: snapshots currently do not provide per-stream activity."
+        }
+      })
+    } catch {
+      return json(buildEmptyPayload({
+        dateScope: parsed.day,
+        selectedDate,
+        bucketSize,
+        topN,
+        mode,
+        updatedAt: new Date().toISOString(),
+        windowStart: dayStart,
+        windowEnd: dayEnd,
+        rankingWindowStart: dayStart,
+        rankingWindowEnd: dayEnd,
+        isRolling: false
+      }))
+    }
   }
 
   let rollingWindowStartIso: string | null = null
