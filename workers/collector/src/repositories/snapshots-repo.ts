@@ -65,6 +65,18 @@ export async function insertMinuteSnapshot(db: D1Database, row: MinuteSnapshotRe
     .run()
 }
 
+export async function pruneMinuteSnapshotsBefore(db: D1Database, cutoffIso: string): Promise<number> {
+  const result = await db
+    .prepare(
+      `DELETE FROM minute_snapshots
+       WHERE provider = 'twitch' AND bucket_minute < ?`
+    )
+    .bind(cutoffIso)
+    .run()
+
+  return result.meta.changes ?? 0
+}
+
 export async function getLatestSnapshotMeta(db: D1Database): Promise<Record<string, unknown> | null> {
   const result = await db
     .prepare(

@@ -144,9 +144,38 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     const [collector, latestSnapshot] = await Promise.all([
       db
         .prepare(
-          `SELECT provider, last_attempt_at, last_success_at, last_failure_at, last_error, covered_pages, has_more, last_live_count, last_total_viewers, chat_state, chat_unavailable_reason
-           FROM collector_status
-           WHERE provider = 'twitch'
+          `SELECT
+             COALESCE(cs.provider, p.provider) AS provider,
+             cs.last_attempt_at,
+             COALESCE(cs.last_success_at, (
+               SELECT cr.run_at
+               FROM collector_runs cr
+               WHERE cr.provider = p.provider AND cr.status = 'success'
+               ORDER BY cr.run_at DESC
+               LIMIT 1
+             )) AS last_success_at,
+             COALESCE(cs.last_failure_at, (
+               SELECT cr.run_at
+               FROM collector_runs cr
+               WHERE cr.provider = p.provider AND cr.status = 'failure'
+               ORDER BY cr.run_at DESC
+               LIMIT 1
+             )) AS last_failure_at,
+             COALESCE(cs.last_error, (
+               SELECT COALESCE(cr.error_message, cr.error_code)
+               FROM collector_runs cr
+               WHERE cr.provider = p.provider AND cr.status = 'failure'
+               ORDER BY cr.run_at DESC
+               LIMIT 1
+             )) AS last_error,
+             cs.covered_pages,
+             cs.has_more,
+             cs.last_live_count,
+             cs.last_total_viewers,
+             cs.chat_state,
+             cs.chat_unavailable_reason
+           FROM (SELECT 'twitch' AS provider) p
+           LEFT JOIN collector_status cs ON cs.provider = p.provider
            LIMIT 1`
         )
         .first<CollectorStatusRow>(),
