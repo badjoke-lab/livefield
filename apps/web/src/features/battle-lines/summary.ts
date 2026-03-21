@@ -16,6 +16,12 @@ type SummaryHelpers = {
   candidateTagLabel: CandidateTagLabel
 }
 
+function formatDayLabel(payload: BattleLinesPayload): string {
+  if (payload.filters.day === "today") return "Today"
+  if (payload.filters.day === "yesterday") return "Yesterday"
+  return payload.filters.date || "Custom date"
+}
+
 export function renderReversalStrip(
   items: BattleReversalStripItem[],
   escapeHtml: EscapeHtml,
@@ -89,6 +95,17 @@ export function renderBattleSummaryStrip(payload: BattleLinesPayload, escapeHtml
       <div class="summary-item"><strong>Latest reversal</strong><span>${escapeHtml(payload.summary.latestReversal)}</span></div>
       <div class="summary-item"><strong>Fastest challenger</strong><span>${escapeHtml(payload.summary.fastestChallenger)}</span></div>
       <div class="summary-item"><strong>Most heated battle</strong><span>${escapeHtml(payload.summary.mostHeatedBattle)}</span></div>
+    </section>
+  `
+}
+
+export function renderBattleEmptySummaryStrip(payload: BattleLinesPayload, escapeHtml: EscapeHtml): string {
+  return `
+    <section class="summary-strip page-section summary-strip--battle-empty">
+      <div class="summary-item"><strong>Status</strong><span>${escapeHtml(payload.state)}</span></div>
+      <div class="summary-item"><strong>Current selection</strong><span>${escapeHtml(formatDayLabel(payload))}</span></div>
+      <div class="summary-item"><strong>Updated</strong><span>${escapeHtml(payload.updatedAt.slice(11, 19))} UTC</span></div>
+      <div class="summary-item"><strong>Next step</strong><span>Try Today, Yesterday, or reset the controls.</span></div>
     </section>
   `
 }
