@@ -541,7 +541,6 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       const payload = JSON.parse(row.payload_json) as SnapshotPayload
       for (const stream of payload.streams ?? []) {
         if (!stream.userId || !stream.displayName || typeof stream.viewerCount !== "number") continue
-        if (stream.language && stream.language !== "en") continue
 
         nameById.set(stream.userId, stream.displayName)
         totalById.set(stream.userId, (totalById.get(stream.userId) ?? 0) + stream.viewerCount)

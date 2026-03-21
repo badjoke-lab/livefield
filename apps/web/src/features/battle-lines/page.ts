@@ -11,7 +11,10 @@ import type {
   BattleLinesPayload
 } from "../../../../../packages/shared/src/types/battle-lines"
 import { BATTLE_LINES_CONTROLS_ID, renderBattleLinesControls } from "./controls"
-import { renderBattleDetailSections } from "./detail-panel"
+import {
+  renderBattleDetailSections,
+  renderBattleEmptyDetailSection
+} from "./detail-panel"
 import { renderFocusStripSection } from "./focus-strip"
 import {
   BATTLE_LINES_AUTO_REFRESH_MS,
@@ -23,6 +26,7 @@ import {
   type UiState
 } from "./state"
 import {
+  renderBattleEmptySummaryStrip,
   renderBattleSummaryStrip,
   renderRivalryRadarSection
 } from "./summary"
@@ -142,7 +146,18 @@ function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimar
   `
 }
 
+function renderEmptyRecoveryLayout(payload: BattleLinesPayload): string {
+  return `
+    ${renderBattleEmptySummaryStrip(payload, escapeHtml)}
+    ${renderBattleEmptyDetailSection(payload, escapeHtml)}
+  `
+}
+
 function renderContentWithMode(payload: BattleLinesPayload, uiState: UiState): string {
+  if (payload.state === "empty" || !payload.lines.length) {
+    return renderEmptyRecoveryLayout(payload)
+  }
+
   const activePrimary = resolveActivePrimary(payload, uiState)
   const battleFeed = buildBattleFeed(payload, activePrimary)
 
@@ -216,6 +231,27 @@ function applyRefreshUi(
     noteEl.textContent = overrideMessage ?? getRefreshNoteText(payload)
     noteEl.dataset.updating = updating ? "true" : "false"
   }
+}
+
+function setBattleLinesDay(form: HTMLFormElement, day: "today" | "yesterday"): void {
+  const dayEl = form.querySelector<HTMLSelectElement>('select[name="day"]')
+  const dateEl = form.querySelector<HTMLInputElement>('input[name="date"]')
+  if (dayEl) dayEl.value = day
+  if (dateEl) dateEl.value = ""
+}
+
+function resetBattleLinesControls(form: HTMLFormElement): void {
+  const dayEl = form.querySelector<HTMLSelectElement>('select[name="day"]')
+  const dateEl = form.querySelector<HTMLInputElement>('input[name="date"]')
+  const topEl = form.querySelector<HTMLSelectElement>('select[name="top"]')
+  const metricEl = form.querySelector<HTMLSelectElement>('select[name="metric"]')
+  const bucketEl = form.querySelector<HTMLSelectElement>('select[name="bucket"]')
+
+  if (dayEl) dayEl.value = "today"
+  if (dateEl) dateEl.value = ""
+  if (topEl) topEl.value = "5"
+  if (metricEl) metricEl.value = "viewers"
+  if (bucketEl) bucketEl.value = "5"
 }
 
 export function renderBattleLinesPage(root: HTMLElement): void {
@@ -304,7 +340,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
         signal: controller.signal
       })
 
-      if (disposed || controller.signal.aborted || requestId !== requestVersion) {
+      if (disposed || controller.signal.aborted || requestId != requestVersion) {
         return uiState
       }
 
@@ -318,7 +354,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
 
       const activePrimary = resolveActivePrimary(payload, nextState)
       const stage = content.querySelector<HTMLElement>("[data-battle-lines-stage]")
-      if (stage) {
+      if (stage && payload.state !== "empty" && payload.lines.length) {
         mountBattleLinesRenderer(stage, payload, nextState, activePrimary, {
           onHoverChange: (streamerId) => {
             updateHoverPreview(content, payload, streamerId)
@@ -393,6 +429,23 @@ export function renderBattleLinesPage(root: HTMLElement): void {
         })
       })
 
+      content.querySelectorAll<HTMLButtonElement>("[data-battle-quick-day]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const day = button.dataset.battleQuickDay
+          if (day === "today" || day === "yesterday") {
+            setBattleLinesDay(form, day)
+            void runLoad({ silent: false, reason: "manual" })
+          }
+        })
+      })
+
+      content.querySelectorAll<HTMLButtonElement>("[data-battle-reset-filters='true']").forEach((button) => {
+        button.addEventListener("click", () => {
+          resetBattleLinesControls(form)
+          void runLoad({ silent: false, reason: "manual" })
+        })
+      })
+
       scheduleAutoRefresh(payload)
       return nextState
     } catch (error) {
@@ -408,7 +461,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
 
       return uiState
     } finally {
-      if (requestId === requestVersion) {
+      if (requestId == requestVersion) {
         currentController = null
       }
     }

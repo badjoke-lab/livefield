@@ -2161,3 +2161,60 @@
     margin-bottom: 12px;
   }
 }
+
+/* battle-lines empty recovery */
+.battle-empty-layout {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.battle-empty-card {
+  min-width: 0;
+}
+
+.battle-empty-card--main p {
+  margin: 10px 0 0;
+  color: rgba(203, 215, 233, 0.82);
+  line-height: 1.55;
+}
+
+.battle-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.battle-empty-list {
+  display: grid;
+  gap: 10px;
+}
+
+.battle-empty-list p {
+  margin: 0;
+  color: rgba(223, 232, 245, 0.88);
+  line-height: 1.5;
+}
+
+.summary-strip--battle-empty .summary-item span {
+  line-height: 1.45;
+}
+
+@media (max-width: 980px) {
+  .battle-empty-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .battle-empty-actions {
+    flex-direction: column;
+  }
+
+  .battle-empty-actions .focus-chip {
+    width: 100%;
+    justify-content: center;
+  }
+}

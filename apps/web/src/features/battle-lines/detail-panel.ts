@@ -20,6 +20,16 @@ function findHoveredLine(payload: BattleLinesPayload): BattleLinesPayload["lines
   return payload.lines.find((line) => line.name === latest.passer || line.name === latest.passed) ?? null
 }
 
+function emptyReasonText(payload: BattleLinesPayload): string {
+  if (payload.filters.day === "today") {
+    return "There is no comparable live rivalry set yet for the current window."
+  }
+  if (payload.filters.day === "yesterday") {
+    return "Yesterday does not have enough stored rivalry data for the current controls."
+  }
+  return "This date does not currently have enough stored rivalry data for the selected controls."
+}
+
 export function renderBattleDetailSections(
   payload: BattleLinesPayload,
   uiState: UiState,
@@ -95,5 +105,42 @@ export function renderBattleDetailSections(
         </div>
       </section>
     </div>
+  `
+}
+
+export function renderBattleEmptyDetailSection(payload: BattleLinesPayload, escapeHtml: EscapeHtml): string {
+  return `
+    <section class="battle-empty-layout page-section">
+      <section class="card battle-empty-card battle-empty-card--main">
+        <h2>No battle lines for this selection</h2>
+        <p>${escapeHtml(emptyReasonText(payload))}</p>
+        <div class="battle-empty-actions">
+          <button type="button" class="focus-chip" data-battle-quick-day="today">Try Today</button>
+          <button type="button" class="focus-chip" data-battle-quick-day="yesterday">Try Yesterday</button>
+          <button type="button" class="focus-chip" data-battle-reset-filters="true">Reset controls</button>
+        </div>
+      </section>
+
+      <section class="card battle-empty-card">
+        <h2>What to try next</h2>
+        <div class="battle-empty-list">
+          <p>Switch the day above and refresh.</p>
+          <p>Use broader defaults like Top 5, Viewers, and 5m.</p>
+          <p>Check again later if today has not filled in yet.</p>
+        </div>
+      </section>
+
+      <section class="card battle-empty-card">
+        <h2>Current state</h2>
+        <div class="kv">
+          <div class="kv-row"><span>Source</span><strong>${payload.source}</strong></div>
+          <div class="kv-row"><span>Status</span><strong>${payload.state}</strong></div>
+          <div class="kv-row"><span>Top</span><strong>${payload.filters.top}</strong></div>
+          <div class="kv-row"><span>Metric</span><strong>${payload.filters.metric}</strong></div>
+          <div class="kv-row"><span>Bucket</span><strong>${payload.filters.bucketMinutes}m</strong></div>
+          <div class="kv-row"><span>Updated at</span><strong>${escapeHtml(payload.updatedAt.slice(11, 19))} UTC</strong></div>
+        </div>
+      </section>
+    </section>
   `
 }
