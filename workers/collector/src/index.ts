@@ -84,13 +84,21 @@ export default {
     ctx.waitUntil(
       (async () => {
         try {
-          await runMinuteCollection(env)
           await runCleanup(env)
+          await runMinuteCollection(env)
         } catch (error) {
           console.error("[collector] scheduled collection failed", {
             cron: controller.cron,
             scheduledTime: new Date(controller.scheduledTime).toISOString(),
             error: error instanceof Error ? error.message : error
+          })
+        } finally {
+          await runCleanup(env).catch((cleanupError) => {
+            console.error("[collector] scheduled cleanup retry failed", {
+              cron: controller.cron,
+              scheduledTime: new Date(controller.scheduledTime).toISOString(),
+              error: cleanupError instanceof Error ? cleanupError.message : cleanupError
+            })
           })
         }
       })()
