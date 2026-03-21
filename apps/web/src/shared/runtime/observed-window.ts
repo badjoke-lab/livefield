@@ -1,0 +1,75 @@
+export type ChartViewportMode = "observed" | "full-day"
+
+export type ObservedWindowState = {
+  startIndex: number
+  endIndex: number
+  observedCount: number
+  totalCount: number
+  hasObservedData: boolean
+  isSparseToday: boolean
+  defaultMode: ChartViewportMode
+  observedSinceLabel: string | null
+}
+
+function getTimeLabel(iso: string | undefined): string | null {
+  if (!iso || iso.length < 16) return null
+  return iso.slice(11, 16)
+}
+
+export function resolveObservedWindowState(args: {
+  dayMode: string
+  bucketMinutes: number
+  buckets: string[]
+  observedIndices: number[]
+}): ObservedWindowState {
+  const totalCount = args.buckets.length
+  if (totalCount <= 0 || args.observedIndices.length <= 0) {
+    return {
+      startIndex: 0,
+      endIndex: Math.max(0, totalCount - 1),
+      observedCount: 0,
+      totalCount,
+      hasObservedData: false,
+      isSparseToday: false,
+      defaultMode: "full-day",
+      observedSinceLabel: null
+    }
+  }
+
+  const deduped = [...new Set(args.observedIndices)].sort((a, b) => a - b)
+  const startIndex = deduped[0] ?? 0
+  const endIndex = deduped[deduped.length - 1] ?? Math.max(0, totalCount - 1)
+  const observedCount = deduped.length
+  const spanCount = Math.max(1, endIndex - startIndex + 1)
+  const spanMinutes = spanCount * Math.max(1, args.bucketMinutes)
+  const coverageRatio = spanCount / Math.max(1, totalCount)
+  const startsLate = startIndex >= Math.floor(totalCount * 0.55)
+  const limitedCoverage = coverageRatio <= 0.45
+  const veryShortWindow = spanMinutes <= 180
+  const veryFewBuckets = observedCount <= Math.max(6, Math.round(totalCount * 0.22))
+
+  const isSparseToday = args.dayMode === "today" && (veryFewBuckets || (limitedCoverage && startsLate) || veryShortWindow)
+  const defaultMode: ChartViewportMode = isSparseToday ? "observed" : "full-day"
+
+  return {
+    startIndex,
+    endIndex,
+    observedCount,
+    totalCount,
+    hasObservedData: true,
+    isSparseToday,
+    defaultMode,
+    observedSinceLabel: getTimeLabel(args.buckets[startIndex])
+  }
+}
+
+export function resolveViewportRange(
+  state: ObservedWindowState,
+  mode: ChartViewportMode
+): { startIndex: number; endIndex: number } {
+  if (mode === "observed" && state.hasObservedData) {
+    return { startIndex: state.startIndex, endIndex: state.endIndex }
+  }
+
+  return { startIndex: 0, endIndex: Math.max(0, state.totalCount - 1) }
+}
