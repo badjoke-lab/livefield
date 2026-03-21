@@ -70,6 +70,15 @@ function describeFreshness(payload: StatusPayload): string {
   return `Stale (${payload.freshness.minutesSinceSuccess}m since last success; target ≤ ${payload.freshness.thresholdMinutes}m).`
 }
 
+function describeStateMeaning(state: FeatureState): string {
+  if (state === "live") return "Live: fresh collector success and a current snapshot are available."
+  if (state === "partial") return "Partial: real payload is present, but collection coverage is incomplete for this run."
+  if (state === "stale") return "Stale: real payload exists, but the latest success is older than the freshness target."
+  if (state === "empty") return "Empty: API is reachable, but no rows are currently available for this view."
+  if (state === "demo") return "Demo: fallback payload used when live verification is unavailable."
+  return "Error: status checks failed for this endpoint."
+}
+
 function toStatusState(payload: StatusPayload): FeatureState {
   return payload.state
 }
@@ -118,7 +127,7 @@ function toFeatureState(endpoint: FeatureRow["endpoint"], body: unknown, status:
       state: "partial",
       mode: `${source} / partial`,
       updatedAt,
-      detail: "API is using real Twitch snapshots but coverage is incomplete."
+      detail: "API is serving real data, but this run has incomplete coverage."
     }
   }
 
@@ -137,9 +146,9 @@ function toFeatureState(endpoint: FeatureRow["endpoint"], body: unknown, status:
         derived === "live"
           ? "Real Twitch-backed payload is active."
           : derived === "stale"
-            ? "Real payload exists, but collector freshness is stale."
+            ? "Real payload exists, but freshness is outside target."
             : derived === "partial"
-              ? "Real payload exists, but collector reports partial page coverage."
+              ? "Real payload exists, but coverage is partial for this run."
               : "No rows in payload."
     }
   }
@@ -167,7 +176,7 @@ function renderInitial(root: HTMLElement): void {
     })}
     <section class="card page-section">
       <h2>Live status</h2>
-      <p class="code-note">Loading /api/status and feature endpoints...</p>
+      <p class="code-note">Loading /api/status and feature endpoints…</p>
     </section>
     ${renderFooter()}
   `
@@ -221,6 +230,16 @@ function renderLoaded(root: HTMLElement, status: StatusPayload, features: Featur
             `
           )
           .join("")}
+      </div>
+    </section>
+
+    <section class="card page-section">
+      <h2>State meanings</h2>
+      <div class="kv">
+        ${(["live", "partial", "stale", "empty", "demo", "error"] as FeatureState[])
+          .map((state) => `<div class="kv-row"><span>${statusChip(state)}</span><span>${escapeHtml(describeStateMeaning(state))}</span></div>`)
+          .join("")}
+        <div class="kv-row"><span><strong>Degraded</strong></span><span>Degraded is an umbrella label for non-live states (partial, stale, empty, demo, or error).</span></div>
       </div>
     </section>
 

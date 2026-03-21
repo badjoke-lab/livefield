@@ -330,14 +330,15 @@ function renderSummary(payload: DayFlowPayload): string {
 
 function renderStateNote(payload: DayFlowPayload): string {
   const expanded = payload.state === "error" || payload.state === "empty"
+  const partialText = payload.partialNote ? ` · Partial coverage: ${payload.partialNote}` : ""
   return `
     <section class="card dayflow-state-card ${expanded ? "dayflow-state-card--expanded" : ""}">
       <div class="dayflow-state-head">
         <h2>Data</h2>
         <div class="status-chip" data-state="${payload.state}">${payload.status}</div>
       </div>
-      <p class="muted">${payload.note ?? "Live data render from API day rollup."}</p>
-      <p class="dayflow-notes-inline">${payload.coverageNote}${payload.partialNote ? ` · Partial: ${payload.partialNote}` : ""} · ${payload.activity.note}</p>
+      <p class="muted">${payload.note ?? "Observed data render from API day rollup."}</p>
+      <p class="dayflow-notes-inline">${payload.coverageNote}${partialText} · ${payload.activity.note}</p>
     </section>
   `
 }
@@ -391,7 +392,7 @@ function renderFrame(payload: DayFlowPayload, viewport: DayFlowViewport): string
 function renderBootSkeleton(): string {
   return `
     <section class="dayflow-status-rail" id="dayflow-status-slot" aria-live="polite">
-      <span class="dayflow-status-indicator" id="dayflow-status-indicator">Loading initial Day Flow…</span>
+      <span class="dayflow-status-indicator" id="dayflow-status-indicator">Loading initial Day Flow window…</span>
     </section>
     <section class="grid-2 page-section dayflow-layout dayflow-layout--skeleton">
       <section class="card dayflow-main-card">
@@ -749,7 +750,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
       eyebrow: "TODAY",
       title: "Day Flow",
       subtitle: "Read today’s ownership landscape, hour by hour.",
-      note: "Real-data path active · Today default · Rolling 24h available · 5m buckets.",
+      note: "Today uses the live hot path; yesterday/date use rollup history. Sparse today may default to observed-window mode.",
       actions: [
         { href: "/heatmap/", label: "Heatmap (support)" },
         { href: "/method/", label: "Method (support)" }
@@ -774,7 +775,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
 
     <div id="day-flow-content"></div>
 
-    ${renderStatusNote("If activity data is unavailable, Day Flow shows explicit unavailable state instead of synthetic values.")}
+    ${renderStatusNote("Partial, sparse, or observed-window states are expected during live collection. Day Flow avoids synthetic full-day fill.")}
     ${renderFooter()}
   `
 
