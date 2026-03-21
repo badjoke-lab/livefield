@@ -99,6 +99,37 @@ function buildBattleChartPayload(
   }
 }
 
+function selectSparseBattleLines(
+  lines: BattleLinesPayload["lines"],
+  uiState: UiState,
+  activePrimary: BattleCandidate | null,
+  maxLines: number
+): BattleLinesPayload["lines"] {
+  if (lines.length <= maxLines) return lines
+
+  const requiredIds = new Set<string>()
+  if (uiState.focusId) requiredIds.add(uiState.focusId)
+  if (activePrimary) {
+    requiredIds.add(activePrimary.leftId)
+    requiredIds.add(activePrimary.rightId)
+  }
+
+  const selected: BattleLinesPayload["lines"] = []
+  for (const line of lines) {
+    if (!requiredIds.has(line.streamerId)) continue
+    selected.push(line)
+    if (selected.length >= maxLines) return selected
+  }
+
+  for (const line of lines) {
+    if (selected.some((candidate) => candidate.streamerId === line.streamerId)) continue
+    selected.push(line)
+    if (selected.length >= maxLines) break
+  }
+
+  return selected
+}
+
 function renderBattleViewportLabels(
   payload: BattleLinesPayload,
   highlightedIds: Set<string>,
@@ -425,10 +456,14 @@ export function renderBattleLinesPage(root: HTMLElement): void {
       const effectiveViewport = payload.filters.day === "today"
         ? (viewportPreference ?? observedState.defaultMode)
         : "full-day"
+      const activePrimary = resolveActivePrimary(payload, nextState)
       const viewportRange = resolveViewportRange(observedState, effectiveViewport)
       const chartPayloadBase = buildBattleChartPayload(payload, viewportRange.startIndex, viewportRange.endIndex)
       const chartPayload = observedState.isSparseToday && effectiveViewport === "observed"
-        ? { ...chartPayloadBase, lines: chartPayloadBase.lines.slice(0, 4) }
+        ? {
+            ...chartPayloadBase,
+            lines: selectSparseBattleLines(chartPayloadBase.lines, nextState, activePrimary, 4)
+          }
         : chartPayloadBase
       uiState = nextState
       lastPayload = payload
@@ -444,7 +479,6 @@ export function renderBattleLinesPage(root: HTMLElement): void {
       applyRefreshUi(content, payload, false)
       updateHoverPreview(content, payload, null)
 
-      const activePrimary = resolveActivePrimary(payload, nextState)
       const stage = content.querySelector<HTMLElement>("[data-battle-lines-stage]")
       if (stage && payload.state !== "empty" && payload.lines.length) {
         mountBattleLinesRenderer(stage, chartPayload, nextState, activePrimary, {
