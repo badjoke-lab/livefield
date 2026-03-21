@@ -49,6 +49,26 @@ type SnapshotPayload = {
   }>
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
+type HeatmapDayScope = "today" | "yesterday" | "date"
+
+function startOfUtcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+}
+
+function parseDay(rawDate: string | null, rawDay: string | null): { day: HeatmapDayScope; date: Date } {
+  const now = new Date()
+  if (rawDay === "yesterday") {
+    return { day: "yesterday", date: new Date(startOfUtcDay(now).getTime() - DAY_MS) }
+  }
+  if (rawDate) {
+    const parsed = new Date(`${rawDate}T00:00:00.000Z`)
+    if (!Number.isNaN(parsed.getTime())) return { day: "date", date: parsed }
+  }
+  return { day: "today", date: startOfUtcDay(now) }
+}
+
 function normalizeTop(rawTop: string | null): 20 | 50 | 100 {
   if (rawTop === "20") return 20
   if (rawTop === "100") return 100
@@ -217,12 +237,9 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
   const url = new URL(context.request.url)
   const top = normalizeTop(url.searchParams.get("top"))
-  const rawDay = url.searchParams.get("day")
-  const rawDate = url.searchParams.get("date")
-  const now = new Date()
-  const today = now.toISOString().slice(0, 10)
-  const selectedDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : today
-  const isHistorical = rawDay === "yesterday" || rawDay === "date" || (Boolean(rawDate) && selectedDate !== today)
+  const parsedDay = parseDay(url.searchParams.get("date"), url.searchParams.get("day"))
+  const selectedDate = startOfUtcDay(parsedDay.date).toISOString().slice(0, 10)
+  const isHistorical = parsedDay.day === "yesterday" || parsedDay.day === "date"
 
   if (isHistorical) {
     try {
