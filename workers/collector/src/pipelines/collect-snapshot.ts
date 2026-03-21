@@ -4,7 +4,7 @@ import { collectTwitchChatForStreams } from "../providers/twitch/chat-collector"
 import { collectCurrentTwitchLive } from "../providers/twitch/current-live"
 import type { TwitchStream } from "../providers/twitch/client"
 import { insertMinuteSnapshot } from "../repositories/snapshots-repo"
-import { upsertCollectorStatus } from "../repositories/status-repo"
+import { insertCollectorRun, upsertCollectorStatus } from "../repositories/status-repo"
 
 type PreviousSnapshotRow = {
   payload_json: string
@@ -167,10 +167,22 @@ export async function collectSnapshot(env: Env): Promise<void> {
       agitationLevel: aggregateAgitationLevel
     })
 
+    const successAt = new Date().toISOString()
+
+    await insertCollectorRun(env.DB, {
+      provider: "twitch",
+      runAt: successAt,
+      status: "success",
+      liveCount: streams.length,
+      totalViewers,
+      coveredPages: snapshot.coveredPages,
+      hasMore: snapshot.hasMore
+    })
+
     await upsertCollectorStatus(env.DB, {
       provider: "twitch",
       lastAttemptAt: attemptAt,
-      lastSuccessAt: new Date().toISOString(),
+      lastSuccessAt: successAt,
       lastError: chatSnapshot.available
         ? (chatSnapshot.sampled ? "chat sampled: short-lived session" : undefined)
         : `chat unavailable: ${chatSnapshot.reason ?? "unknown"}`,
@@ -184,13 +196,24 @@ export async function collectSnapshot(env: Env): Promise<void> {
         : chatSnapshot.reason
     })
   } catch (error) {
+    const failureAt = new Date().toISOString()
+    const message = error instanceof Error ? error.message : "Unknown collection failure"
+
+    await insertCollectorRun(env.DB, {
+      provider: "twitch",
+      runAt: failureAt,
+      status: "failure",
+      errorCode: "collection_failed",
+      errorMessage: message
+    })
+
     await upsertCollectorStatus(env.DB, {
       provider: "twitch",
       lastAttemptAt: attemptAt,
-      lastFailureAt: new Date().toISOString(),
-      lastError: error instanceof Error ? error.message : "Unknown collection failure",
+      lastFailureAt: failureAt,
+      lastError: message,
       chatState: "error",
-      chatUnavailableReason: error instanceof Error ? error.message : "unknown chat failure"
+      chatUnavailableReason: message
     })
 
     throw error

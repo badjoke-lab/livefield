@@ -1,4 +1,5 @@
 import type { Env } from "./config/env"
+import { runCleanup } from "./jobs/run-cleanup"
 import { runMinuteCollection } from "./jobs/run-minute-collection"
 import { getLatestSnapshotMeta } from "./repositories/snapshots-repo"
 import { getCollectorStatus } from "./repositories/status-repo"
@@ -81,13 +82,18 @@ export default {
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
-      runMinuteCollection(env).catch((error) => {
-        console.error("[collector] scheduled collection failed", {
-          cron: controller.cron,
-          scheduledTime: new Date(controller.scheduledTime).toISOString(),
-          error: error instanceof Error ? error.message : error
-        })
-      })
+      (async () => {
+        try {
+          await runMinuteCollection(env)
+          await runCleanup(env)
+        } catch (error) {
+          console.error("[collector] scheduled collection failed", {
+            cron: controller.cron,
+            scheduledTime: new Date(controller.scheduledTime).toISOString(),
+            error: error instanceof Error ? error.message : error
+          })
+        }
+      })()
     )
   }
 }
