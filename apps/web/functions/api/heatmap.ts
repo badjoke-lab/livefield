@@ -2,13 +2,31 @@ import demoPayload from "../../../../fixtures/demo/heatmap.json"
 import { resolveApiState, type ApiState } from "./_shared/state"
 import type { HeatmapNode, HeatmapPayload } from "../../../../packages/shared/src/types/heatmap"
 
-type Env = { DB?: { prepare: (sql: string) => { all: () => Promise<{ results: SnapshotRow[] }> } } }
+type Env = {
+  DB?: {
+    prepare: (sql: string) => {
+      bind: (...params: unknown[]) => { all: () => Promise<{ results: SnapshotRow[] }> }
+      all: () => Promise<{ results: SnapshotRow[] }>
+    }
+  }
+}
 
 type SnapshotRow = {
   collected_at: string
   covered_pages: number
   has_more: number
   payload_json: string
+}
+
+type HeatmapFrameRow = {
+  bucket_time: string
+  streamer_id: string
+  display_name: string
+  viewers: number
+  momentum_delta: number | null
+  activity_level: number | null
+  title: string | null
+  language: string | null
 }
 
 type SnapshotPayload = {
@@ -29,6 +47,26 @@ type SnapshotPayload = {
     activitySampled?: boolean
     activityUnavailableReason?: string | null
   }>
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+type HeatmapDayScope = "today" | "yesterday" | "date"
+
+function startOfUtcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+}
+
+function parseDay(rawDate: string | null, rawDay: string | null): { day: HeatmapDayScope; date: Date } {
+  const now = new Date()
+  if (rawDay === "yesterday") {
+    return { day: "yesterday", date: new Date(startOfUtcDay(now).getTime() - DAY_MS) }
+  }
+  if (rawDate) {
+    const parsed = new Date(`${rawDate}T00:00:00.000Z`)
+    if (!Number.isNaN(parsed.getTime())) return { day: "date", date: parsed }
+  }
+  return { day: "today", date: startOfUtcDay(now) }
 }
 
 function normalizeTop(rawTop: string | null): 20 | 50 | 100 {
@@ -175,13 +213,84 @@ function json(body: HeatmapPayload): Response {
   })
 }
 
+async function fetchHistoricalHeatmapRows(
+  db: NonNullable<Env["DB"]>,
+  day: string,
+  top: 20 | 50 | 100
+): Promise<{ results: HeatmapFrameRow[] }> {
+  return (await db
+    .prepare(
+      `SELECT bucket_time, streamer_id, display_name, viewers, momentum_delta, activity_level, title, language
+       FROM heatmap_frames_5m
+       WHERE day = ? AND top_scope = ?
+       ORDER BY bucket_time DESC`
+    )
+    .bind(day, `top${top}`)
+    .all()) as unknown as { results: HeatmapFrameRow[] }
+}
+
 export const onRequest = async (context: { env: Env; request: Request }) => {
   const db = context.env.DB
   if (!db) {
     return json({ ...(structuredClone(demoPayload as HeatmapPayload)), state: "demo", note: "DB unavailable" })
   }
 
-  const top = normalizeTop(new URL(context.request.url).searchParams.get("top"))
+  const url = new URL(context.request.url)
+  const top = normalizeTop(url.searchParams.get("top"))
+  const parsedDay = parseDay(url.searchParams.get("date"), url.searchParams.get("day"))
+  const selectedDate = startOfUtcDay(parsedDay.date).toISOString().slice(0, 10)
+  const isHistorical = parsedDay.day === "yesterday" || parsedDay.day === "date"
+
+  if (isHistorical) {
+    try {
+      const rows = await fetchHistoricalHeatmapRows(db, selectedDate, top)
+      if (!rows.results.length) return json(buildEmptyPayload(new Date().toISOString()))
+
+      const latestBucket = rows.results[0]?.bucket_time
+      if (!latestBucket) return json(buildEmptyPayload(new Date().toISOString()))
+      const frameRows = rows.results.filter((row) => row.bucket_time === latestBucket)
+      const nodes = frameRows.map((row, index) => {
+        const previous = Math.max(20, row.viewers - (row.momentum_delta ?? 0))
+        const momentum = previous > 0 ? (row.momentum_delta ?? 0) / previous : 0
+        const activityAvailable = typeof row.activity_level === "number"
+        return {
+          streamerId: row.streamer_id,
+          name: row.display_name,
+          title: row.title ?? "",
+          url: `https://www.twitch.tv/${encodeURIComponent(row.display_name)}`,
+          viewers: row.viewers,
+          commentCount: 0,
+          deltaComments: 0,
+          commentsPerMin: 0,
+          agitationRaw: activityAvailable ? row.activity_level ?? 0 : 0,
+          agitationLevel: activityAvailable ? Math.max(0, Math.min(5, Math.round(row.activity_level ?? 0))) as 0 | 1 | 2 | 3 | 4 | 5 : 0,
+          activityAvailable,
+          activitySampled: activityAvailable,
+          activityUnavailableReason: activityAvailable ? undefined : "historical activity unavailable",
+          momentum,
+          rankViewers: index + 1,
+          rankAgitation: 0,
+          rankMomentum: 0,
+          startedAt: latestBucket,
+          updatedAt: latestBucket
+        }
+      })
+      const agitationOrder = [...nodes].sort((a, b) => b.agitationRaw - a.agitationRaw)
+      const momentumOrder = [...nodes].sort((a, b) => b.momentum - a.momentum)
+      const agitationRankById = new Map(agitationOrder.map((node, i) => [node.streamerId, i + 1]))
+      const momentumRankById = new Map(momentumOrder.map((node, i) => [node.streamerId, i + 1]))
+      const rankedNodes = nodes.map((node) => ({
+        ...node,
+        rankAgitation: agitationRankById.get(node.streamerId) ?? nodes.length,
+        rankMomentum: momentumRankById.get(node.streamerId) ?? nodes.length
+      }))
+
+      return json(buildPayload(rankedNodes, latestBucket, "stale", "Historical heatmap frame from 5m read model."))
+    } catch {
+      return json(buildEmptyPayload(new Date().toISOString()))
+    }
+  }
+
   const rows = (await db
     .prepare(
       `SELECT collected_at, covered_pages, has_more, payload_json

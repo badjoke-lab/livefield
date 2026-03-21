@@ -40,6 +40,13 @@ type SnapshotPayload = {
 }
 
 type DraftLine = Omit<BattleLine, "reversalCount">
+type RollupSeriesRow = {
+  bucket_time: string
+  streamer_id: string
+  display_name: string
+  viewers: number
+  indexed_base_peak: number | null
+}
 
 type PairReversalRecord = {
   key: string
@@ -55,6 +62,17 @@ type PairReversalRecord = {
   gapBefore: number
   gapAfter: number
   heatOverlap: boolean
+}
+
+type BattleReversalEventRow = {
+  bucket_time: string
+  left_streamer_id: string
+  right_streamer_id: string
+  passer_streamer_id: string
+  passed_streamer_id: string
+  gap_before: number
+  gap_after: number
+  heat_overlap: number | null
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -130,7 +148,7 @@ function buildBuckets(day: Date, bucketMinutes: 1 | 5 | 10, now: Date): string[]
 }
 
 function buildCandidateKey(leftId: string, rightId: string): string {
-  return `${leftId}|${rightId}`
+  return [leftId, rightId].sort().join("|")
 }
 
 function gapTrendFrom(previousGap: number, latestGap: number): BattleGapTrend {
@@ -196,9 +214,10 @@ function buildPairReversalRecords(lines: DraftLine[], buckets: string[]): PairRe
 
 function enrichLinesAndBuildRecommendation(
   draftLines: DraftLine[],
-  buckets: string[]
+  buckets: string[],
+  reversalRecords?: PairReversalRecord[]
 ): { lines: BattleLine[]; events: BattleLinesEvent[]; recommendation: BattleLinesRecommendation } {
-  const pairReversals = buildPairReversalRecords(draftLines, buckets)
+  const pairReversals = reversalRecords ?? buildPairReversalRecords(draftLines, buckets)
   const reversalCountById = new Map<string, number>()
 
   for (const record of pairReversals) {
@@ -371,8 +390,9 @@ function buildPayloadFromDraftLines(args: {
   filters: BattleLinesFilters
   buckets: string[]
   draftLines: DraftLine[]
+  reversalRecords?: PairReversalRecord[]
 }): BattleLinesPayload {
-  const { lines, events, recommendation } = enrichLinesAndBuildRecommendation(args.draftLines, args.buckets)
+  const { lines, events, recommendation } = enrichLinesAndBuildRecommendation(args.draftLines, args.buckets, args.reversalRecords)
   const focusId = lines.find((line) => line.streamerId === args.filters.focus)?.streamerId ?? lines[0]?.streamerId ?? ""
   const focusLine = lines.find((line) => line.streamerId === focusId) ?? lines[0]
   const focusRiseEvent = events.find((event) => event.type === "rise" && event.streamerId === (focusLine?.streamerId ?? ""))
@@ -399,6 +419,82 @@ function buildPayloadFromDraftLines(args: {
     events,
     recommendation
   }
+}
+
+async function fetchHistoricalBattleRows(
+  db: NonNullable<Env["DB"]>,
+  day: string
+): Promise<{ rows: RollupSeriesRow[]; bucketMinutes: 5 | 10 | null }> {
+  const rows5m = (await db
+    .prepare(
+      `SELECT bucket_time, streamer_id, display_name, viewers, indexed_base_peak
+       FROM battlelines_series_5m
+       WHERE day = ?
+       ORDER BY bucket_time ASC`
+    )
+    .bind(day)
+    .all()) as unknown as { results: RollupSeriesRow[] }
+
+  if (rows5m.results.length) return { rows: rows5m.results, bucketMinutes: 5 }
+
+  const rows10m = (await db
+    .prepare(
+      `SELECT bucket_time, streamer_id, display_name, viewers, indexed_base_peak
+       FROM battlelines_series_10m
+       WHERE day = ?
+       ORDER BY bucket_time ASC`
+    )
+    .bind(day)
+    .all()) as unknown as { results: RollupSeriesRow[] }
+
+  if (rows10m.results.length) return { rows: rows10m.results, bucketMinutes: 10 }
+  return { rows: [], bucketMinutes: null }
+}
+
+async function fetchHistoricalReversalEvents(
+  db: NonNullable<Env["DB"]>,
+  day: string
+): Promise<{ results: BattleReversalEventRow[] }> {
+  return (await db
+    .prepare(
+      `SELECT bucket_time, left_streamer_id, right_streamer_id, passer_streamer_id, passed_streamer_id, gap_before, gap_after, heat_overlap
+       FROM battle_reversal_events
+       WHERE day = ?
+       ORDER BY bucket_time DESC
+       LIMIT 250`
+    )
+    .bind(day)
+    .all()) as unknown as { results: BattleReversalEventRow[] }
+}
+
+function toPairReversalRecordsFromRows(
+  rows: BattleReversalEventRow[],
+  nameById: Map<string, string>
+): PairReversalRecord[] {
+  return rows
+    .map((row) => {
+      const leftName = nameById.get(row.left_streamer_id) ?? row.left_streamer_id
+      const rightName = nameById.get(row.right_streamer_id) ?? row.right_streamer_id
+      const passerName = nameById.get(row.passer_streamer_id) ?? row.passer_streamer_id
+      const passedName = nameById.get(row.passed_streamer_id) ?? row.passed_streamer_id
+      const sortedPair = [row.left_streamer_id, row.right_streamer_id].sort()
+      return {
+        key: buildCandidateKey(sortedPair[0] ?? row.left_streamer_id, sortedPair[1] ?? row.right_streamer_id),
+        leftId: row.left_streamer_id,
+        rightId: row.right_streamer_id,
+        leftName,
+        rightName,
+        timestamp: row.bucket_time,
+        passerId: row.passer_streamer_id,
+        passerName,
+        passedId: row.passed_streamer_id,
+        passedName,
+        gapBefore: Math.max(0, row.gap_before),
+        gapAfter: Math.max(0, row.gap_after),
+        heatOverlap: row.heat_overlap === 1
+      }
+    })
+    .sort((a, b) => parseIsoMinute(b.timestamp) - parseIsoMinute(a.timestamp))
 }
 
 function buildDemoPayload(filters: BattleLinesFilters): BattleLinesPayload {
@@ -508,6 +604,85 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
   const db = context.env.DB
   if (!db) return json(buildDemoPayload(filters))
+  const isHistorical = filters.day === "yesterday" || filters.day === "date"
+
+  if (isHistorical) {
+    try {
+      const historical = await fetchHistoricalBattleRows(db, filters.date)
+      if (!historical.rows.length || historical.bucketMinutes === null) {
+        return json(buildEmptyPayload(filters, new Date().toISOString()))
+      }
+
+      const effectiveBucketMinutes = historical.bucketMinutes
+      const effectiveFilters: BattleLinesFilters = {
+        ...filters,
+        bucketMinutes: effectiveBucketMinutes
+      }
+      const now = new Date()
+      const buckets = buildBuckets(new Date(`${filters.date}T00:00:00.000Z`), effectiveBucketMinutes, now)
+      const bucketIndex = new Map(buckets.map((bucket, idx) => [bucket, idx]))
+      const nameById = new Map<string, string>()
+      const totalById = new Map<string, number>()
+      const pointsById = new Map<string, number[]>()
+      const indexedById = new Map<string, number[]>()
+
+      for (const row of historical.rows) {
+        const idx = bucketIndex.get(toIsoMinute(new Date(row.bucket_time)))
+        if (idx === undefined) continue
+        nameById.set(row.streamer_id, row.display_name)
+        totalById.set(row.streamer_id, (totalById.get(row.streamer_id) ?? 0) + row.viewers)
+        const viewers = pointsById.get(row.streamer_id) ?? new Array(buckets.length).fill(0)
+        viewers[idx] = row.viewers
+        pointsById.set(row.streamer_id, viewers)
+        const indexed = indexedById.get(row.streamer_id) ?? new Array(buckets.length).fill(0)
+        indexed[idx] = row.indexed_base_peak ?? 0
+        indexedById.set(row.streamer_id, indexed)
+      }
+
+      const rankedIds = [...totalById.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id)
+      const topIds = rankedIds.slice(0, effectiveFilters.top)
+      const draftLines: DraftLine[] = topIds.map((streamerId, index) => {
+        const viewerPoints = pointsById.get(streamerId) ?? new Array(buckets.length).fill(0)
+        const peakViewers = viewerPoints.reduce((best, value) => Math.max(best, value), 0)
+        const points =
+          effectiveFilters.metric === "indexed"
+            ? indexedById.get(streamerId)?.map((value) => Math.round(value * 10) / 10) ?? new Array(buckets.length).fill(0)
+            : [...viewerPoints]
+        let risePerMin = 0
+        for (let idx = 1; idx < viewerPoints.length; idx += 1) {
+          risePerMin = Math.max(risePerMin, (viewerPoints[idx] - viewerPoints[idx - 1]) / effectiveBucketMinutes)
+        }
+        return {
+          streamerId,
+          name: nameById.get(streamerId) ?? streamerId,
+          color: COLORS[index % COLORS.length],
+          points,
+          viewerPoints,
+          peakViewers,
+          latestViewers: viewerPoints[viewerPoints.length - 1] ?? 0,
+          risePerMin
+        }
+      })
+
+      if (!draftLines.length) return json(buildEmptyPayload(effectiveFilters, new Date().toISOString()))
+      const reversalRows = await fetchHistoricalReversalEvents(db, filters.date)
+      const reversalRecords = toPairReversalRecordsFromRows(reversalRows.results, nameById)
+      const updatedAt = historical.rows[historical.rows.length - 1]?.bucket_time ?? new Date().toISOString()
+      return json(
+        buildPayloadFromDraftLines({
+          source: "api",
+          state: "complete",
+          updatedAt,
+          filters: effectiveFilters,
+          buckets,
+          draftLines,
+          reversalRecords
+        })
+      )
+    } catch {
+      return json(buildEmptyPayload(filters, new Date().toISOString()))
+    }
+  }
 
   const dayStart = `${filters.date}T00:00:00.000Z`
   const dayEnd = `${filters.date}T23:59:59.999Z`
