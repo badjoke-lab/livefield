@@ -26,6 +26,11 @@ import {
   type UiState
 } from "./state"
 import {
+  resolveObservedWindowState,
+  resolveViewportRange,
+  type ChartViewportMode
+} from "../../shared/runtime/observed-window"
+import {
   renderBattleEmptySummaryStrip,
   renderBattleSummaryStrip,
   renderRivalryRadarSection
@@ -66,7 +71,67 @@ function getRefreshNoteText(payload: BattleLinesPayload | null): string {
   return "Live refresh is available on Today."
 }
 
-function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimary: BattleCandidate | null): string {
+function buildBattleObservedIndices(payload: BattleLinesPayload): number[] {
+  const indices: number[] = []
+  for (let index = 0; index < payload.buckets.length; index += 1) {
+    if (payload.lines.some((line) => (line.points[index] ?? 0) > 0 || (line.viewerPoints[index] ?? 0) > 0)) {
+      indices.push(index)
+    }
+  }
+  return indices
+}
+
+function buildBattleChartPayload(
+  payload: BattleLinesPayload,
+  startIndex: number,
+  endIndex: number
+): BattleLinesPayload {
+  const safeStart = Math.max(0, Math.min(startIndex, payload.buckets.length - 1))
+  const safeEnd = Math.max(safeStart, Math.min(endIndex, payload.buckets.length - 1))
+  return {
+    ...payload,
+    buckets: payload.buckets.slice(safeStart, safeEnd + 1),
+    lines: payload.lines.map((line) => ({
+      ...line,
+      points: line.points.slice(safeStart, safeEnd + 1),
+      viewerPoints: line.viewerPoints.slice(safeStart, safeEnd + 1)
+    }))
+  }
+}
+
+function renderBattleViewportLabels(
+  payload: BattleLinesPayload,
+  highlightedIds: Set<string>,
+  sparseMode: boolean
+): string {
+  const lines = payload.lines.slice(0, sparseMode ? 3 : 4)
+  if (!lines.length) return ""
+  const maxValue = Math.max(...lines.flatMap((line) => line.points), 1)
+  const minValue = Math.min(...lines.flatMap((line) => line.points), 0)
+  const range = Math.max(1, maxValue - minValue)
+  let previousTop = 8
+
+  return lines
+    .map((line) => {
+      const lastValue = line.points[line.points.length - 1] ?? 0
+      const rawTop = 10 + ((maxValue - lastValue) / range) * 68
+      const clampedTop = Math.max(previousTop + 8, Math.min(84, rawTop))
+      previousTop = clampedTop
+      const opacity = highlightedIds.has(line.streamerId) ? 0.95 : 0.55
+      return `<div class="battle-line-label" style="left:82%; top:${clampedTop}%; color:${line.color}; opacity:${opacity}">${escapeHtml(line.name)}</div>`
+    })
+    .join("")
+}
+
+function renderChart(
+  payload: BattleLinesPayload,
+  chartPayload: BattleLinesPayload,
+  uiState: UiState,
+  activePrimary: BattleCandidate | null,
+  viewportMode: ChartViewportMode,
+  observedSinceLabel: string | null,
+  sparseMode: boolean
+): string {
   if (!payload.lines.length) {
     return `
       <section class="battle-mock-card battle-mock-card--battle-lines battle-state-card battle-state-card--empty">
@@ -80,8 +145,8 @@ function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimar
     `
   }
 
-  const nowBucketIndex = Math.max(0, payload.buckets.length - 1)
-  const nowRatio = payload.buckets.length > 1 ? nowBucketIndex / (payload.buckets.length - 1) : 0
+  const nowBucketIndex = Math.max(0, chartPayload.buckets.length - 1)
+  const nowRatio = chartPayload.buckets.length > 1 ? nowBucketIndex / (chartPayload.buckets.length - 1) : 0
   const nowLeft = 4 + nowRatio * 92
   const highlightedIds = buildHighlightedIds(payload, uiState, activePrimary)
 
@@ -100,6 +165,11 @@ function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimar
           <span class="pill">${payload.filters.metric === "indexed" ? "Indexed" : "Viewers"}</span>
           <span class="pill">${payload.filters.bucketMinutes}m</span>
           <span class="pill">${payload.state}</span>
+          ${observedSinceLabel ? `<span class="pill pill--quiet">Observed since ${observedSinceLabel} UTC</span>` : ""}
+          ${payload.filters.day === "today"
+            ? `<button type="button" class="focus-chip ${viewportMode === "observed" ? "focus-chip--active" : ""}" data-battle-viewport="observed">Observed window</button>
+               <button type="button" class="focus-chip ${viewportMode === "full-day" ? "focus-chip--active" : ""}" data-battle-viewport="full-day">Full day</button>`
+            : ""}
         </div>
       </div>
 
@@ -117,23 +187,16 @@ function renderChart(payload: BattleLinesPayload, uiState: UiState, activePrimar
           <span>Low</span>
         </div>
 
-        ${payload.lines
-          .slice(0, 5)
-          .map((line, index) => {
-            const y = 24 + index * 12
-            const isHighlighted = highlightedIds.has(line.streamerId)
-            return `<div class="battle-line-label" style="left:86%; top:${y}%; color:${line.color}; opacity:${isHighlighted ? 1 : 0.42}">${escapeHtml(line.name)}</div>`
-          })
-          .join("")}
+        ${renderBattleViewportLabels(chartPayload, highlightedIds, sparseMode)}
 
         <div class="battle-now-badge" style="left:${nowLeft}%;"><span>Now</span></div>
 
         <div class="battle-xlabels">
-          <span>${payload.buckets[0]?.slice(11, 16) ?? "00:00"}</span>
-          <span>${payload.buckets[Math.floor(payload.buckets.length * 0.25)]?.slice(11, 16) ?? "06:00"}</span>
-          <span>${payload.buckets[Math.floor(payload.buckets.length * 0.5)]?.slice(11, 16) ?? "12:00"}</span>
-          <span>${payload.buckets[Math.floor(payload.buckets.length * 0.75)]?.slice(11, 16) ?? "18:00"}</span>
-          <span>${payload.buckets[payload.buckets.length - 1]?.slice(11, 16) ?? "24:00"}</span>
+          <span>${chartPayload.buckets[0]?.slice(11, 16) ?? "00:00"}</span>
+          <span>${chartPayload.buckets[Math.floor(chartPayload.buckets.length * 0.25)]?.slice(11, 16) ?? "06:00"}</span>
+          <span>${chartPayload.buckets[Math.floor(chartPayload.buckets.length * 0.5)]?.slice(11, 16) ?? "12:00"}</span>
+          <span>${chartPayload.buckets[Math.floor(chartPayload.buckets.length * 0.75)]?.slice(11, 16) ?? "18:00"}</span>
+          <span>${chartPayload.buckets[chartPayload.buckets.length - 1]?.slice(11, 16) ?? "24:00"}</span>
         </div>
       </div>
 
@@ -153,7 +216,14 @@ function renderEmptyRecoveryLayout(payload: BattleLinesPayload): string {
   `
 }
 
-function renderContentWithMode(payload: BattleLinesPayload, uiState: UiState): string {
+function renderContentWithMode(
+  payload: BattleLinesPayload,
+  chartPayload: BattleLinesPayload,
+  uiState: UiState,
+  viewportMode: ChartViewportMode,
+  observedSinceLabel: string | null,
+  sparseMode: boolean
+): string {
   if (payload.state === "empty" || !payload.lines.length) {
     return renderEmptyRecoveryLayout(payload)
   }
@@ -171,7 +241,7 @@ function renderContentWithMode(payload: BattleLinesPayload, uiState: UiState): s
     ${renderBattleSummaryStrip(payload, escapeHtml)}
 
     <section class="grid-2 page-section battle-lines-layout">
-      ${renderChart(payload, uiState, activePrimary)}
+      ${renderChart(payload, chartPayload, uiState, activePrimary, viewportMode, observedSinceLabel, sparseMode)}
       <section class="battle-side">
         ${renderFocusStripSection(payload, uiState, escapeHtml)}
         ${renderBattleDetailSections(payload, uiState, activePrimary, battleFeed, {
@@ -296,6 +366,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
   let currentController: AbortController | null = null
   let requestVersion = 0
   let lastPayload: BattleLinesPayload | null = null
+  let viewportPreference: ChartViewportMode | null = null
 
   function clearRefreshTimer(): void {
     if (refreshTimer !== null) {
@@ -345,17 +416,38 @@ export function renderBattleLinesPage(root: HTMLElement): void {
       }
 
       const nextState = normalizeUiState(payload, uiState)
+      const observedState = resolveObservedWindowState({
+        dayMode: payload.filters.day,
+        bucketMinutes: payload.filters.bucketMinutes,
+        buckets: payload.buckets,
+        observedIndices: buildBattleObservedIndices(payload)
+      })
+      const effectiveViewport = payload.filters.day === "today"
+        ? (viewportPreference ?? observedState.defaultMode)
+        : "full-day"
+      const viewportRange = resolveViewportRange(observedState, effectiveViewport)
+      const chartPayloadBase = buildBattleChartPayload(payload, viewportRange.startIndex, viewportRange.endIndex)
+      const chartPayload = observedState.isSparseToday && effectiveViewport === "observed"
+        ? { ...chartPayloadBase, lines: chartPayloadBase.lines.slice(0, 4) }
+        : chartPayloadBase
       uiState = nextState
       lastPayload = payload
 
-      content.innerHTML = renderContentWithMode(payload, nextState)
+      content.innerHTML = renderContentWithMode(
+        payload,
+        chartPayload,
+        nextState,
+        effectiveViewport,
+        observedState.isSparseToday ? observedState.observedSinceLabel : null,
+        observedState.isSparseToday
+      )
       applyRefreshUi(content, payload, false)
       updateHoverPreview(content, payload, null)
 
       const activePrimary = resolveActivePrimary(payload, nextState)
       const stage = content.querySelector<HTMLElement>("[data-battle-lines-stage]")
       if (stage && payload.state !== "empty" && payload.lines.length) {
-        mountBattleLinesRenderer(stage, payload, nextState, activePrimary, {
+        mountBattleLinesRenderer(stage, chartPayload, nextState, activePrimary, {
           onHoverChange: (streamerId) => {
             updateHoverPreview(content, payload, streamerId)
           },
@@ -443,6 +535,15 @@ export function renderBattleLinesPage(root: HTMLElement): void {
         button.addEventListener("click", () => {
           resetBattleLinesControls(form)
           void runLoad({ silent: false, reason: "manual" })
+        })
+      })
+
+      content.querySelectorAll<HTMLButtonElement>("[data-battle-viewport]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const mode = button.dataset.battleViewport
+          if (mode !== "observed" && mode !== "full-day") return
+          viewportPreference = mode
+          void runLoad({ silent: true, reason: "interaction" })
         })
       })
 

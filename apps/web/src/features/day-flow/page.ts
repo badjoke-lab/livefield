@@ -5,6 +5,11 @@ import { renderStatusNote } from "../../shared/app-shell/status-note"
 import { createCanvasHost } from "../../shared/canvas/canvas-host"
 import { getDayFlowPayload } from "../../shared/api/day-flow-api"
 import type { DayFlowPayload, DayFlowBandSeries } from "../../../../../packages/shared/src/types/day-flow"
+import {
+  resolveObservedWindowState,
+  resolveViewportRange,
+  type ChartViewportMode
+} from "../../shared/runtime/observed-window"
 
 const numberFmt = new Intl.NumberFormat("en-US")
 const pctFmt = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 })
@@ -27,6 +32,15 @@ type DayFlowViewState = {
   selectedStreamerId: string | null
   autoUpdateEnabled: boolean
   isolate: boolean
+  viewportPreference: ChartViewportMode | null
+}
+
+type DayFlowViewport = {
+  mode: ChartViewportMode
+  sparseToday: boolean
+  observedSinceLabel: string | null
+  startIndex: number
+  endIndex: number
 }
 
 type DayFlowMountController = {
@@ -100,6 +114,32 @@ function getLatestObservedBucketIndex(payload: DayFlowPayload): number {
   return -1
 }
 
+function getObservedBucketIndices(payload: DayFlowPayload): number[] {
+  const indices: number[] = []
+  for (let idx = 0; idx < payload.buckets.length; idx += 1) {
+    if ((payload.totalViewersByBucket[idx] ?? 0) > 0) indices.push(idx)
+  }
+  return indices
+}
+
+function resolveDayFlowViewport(payload: DayFlowPayload, preference: ChartViewportMode | null): DayFlowViewport {
+  const observedState = resolveObservedWindowState({
+    dayMode: payload.rangeMode,
+    bucketMinutes: payload.bucketSize,
+    buckets: payload.buckets,
+    observedIndices: getObservedBucketIndices(payload)
+  })
+  const mode = payload.rangeMode === "today" ? (preference ?? observedState.defaultMode) : "full-day"
+  const range = resolveViewportRange(observedState, mode)
+  return {
+    mode,
+    sparseToday: observedState.isSparseToday,
+    observedSinceLabel: observedState.observedSinceLabel,
+    startIndex: range.startIndex,
+    endIndex: range.endIndex
+  }
+}
+
 function resolveInitialBucketIndex(payload: DayFlowPayload, preferredBucketIndex: number | null): number {
   if (payload.buckets.length === 0) return 0
 
@@ -132,7 +172,12 @@ function bandAtPosition(payload: DayFlowPayload, bucketIndex: number, yRatio: nu
   return null
 }
 
-function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState: () => { selectedBucketIndex: number; selectedStreamerId: string | null; mode: "volume" | "share"; isolate: boolean }) {
+function drawChart(
+  canvas: HTMLCanvasElement,
+  payload: DayFlowPayload,
+  viewport: DayFlowViewport,
+  getState: () => { selectedBucketIndex: number; selectedStreamerId: string | null; mode: "volume" | "share"; isolate: boolean }
+) {
   const host = createCanvasHost(canvas, { maxDpr: 2 })
 
   const draw = () => {
@@ -141,7 +186,10 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
     const chartW = Math.max(1, width - pad.left - pad.right)
     const chartH = Math.max(1, height - pad.top - pad.bottom)
     const { selectedBucketIndex, selectedStreamerId, mode, isolate } = getState()
-    const selectedIndex = Math.max(0, Math.min(payload.buckets.length - 1, selectedBucketIndex))
+    const visibleStart = viewport.startIndex
+    const visibleEnd = viewport.endIndex
+    const visibleCount = Math.max(1, visibleEnd - visibleStart + 1)
+    const selectedIndex = Math.max(visibleStart, Math.min(visibleEnd, selectedBucketIndex))
     const maxTotal = Math.max(1, ...payload.totalViewersByBucket)
 
     ctx.clearRect(0, 0, width, height)
@@ -151,10 +199,9 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
     ctx.strokeStyle = "rgba(122,162,255,0.12)"
     ctx.strokeRect(pad.left, pad.top, chartW, chartH)
 
-    const drawBucketCount = Math.max(1, payload.buckets.length)
-
-    for (let i = 0; i < drawBucketCount; i += 1) {
-      const x = pad.left + (i / Math.max(1, payload.buckets.length - 1)) * chartW
+    for (let i = visibleStart; i <= visibleEnd; i += 1) {
+      const localIndex = i - visibleStart
+      const x = pad.left + (localIndex / Math.max(1, visibleCount - 1)) * chartW
       let yOffset = 0
 
       for (const band of payload.bands) {
@@ -168,10 +215,11 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
         const isSelected = selectedStreamerId === band.streamerId
         const isDimmed = isolate && selectedStreamerId && !isSelected
         ctx.globalAlpha = isDimmed ? 0.12 : (selectedStreamerId && !isSelected ? 0.35 : 0.88)
-        if (i === 0 || i === drawBucketCount - 1) {
+        if (i === visibleStart || i === visibleEnd) {
           ctx.fillRect(x - 1.2, y, 2.4, h)
         } else {
-          const nextX = pad.left + ((i + 1) / Math.max(1, payload.buckets.length - 1)) * chartW
+          const nextLocalIndex = Math.min(visibleCount - 1, localIndex + 1)
+          const nextX = pad.left + (nextLocalIndex / Math.max(1, visibleCount - 1)) * chartW
           ctx.fillRect(x, y, Math.max(1, nextX - x + 0.6), h)
         }
 
@@ -180,7 +228,7 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
     }
     ctx.globalAlpha = 1
 
-    const sx = pad.left + (selectedIndex / Math.max(1, payload.buckets.length - 1)) * chartW
+    const sx = pad.left + ((selectedIndex - visibleStart) / Math.max(1, visibleCount - 1)) * chartW
     ctx.strokeStyle = "rgba(210,228,255,0.82)"
     ctx.beginPath()
     ctx.moveTo(sx, pad.top)
@@ -249,8 +297,8 @@ function drawChart(canvas: HTMLCanvasElement, payload: DayFlowPayload, getState:
 
     ctx.fillStyle = "#c9d4f5"
     ctx.font = "12px ui-sans-serif"
-    ctx.fillText(isoTimeLabel(payload.buckets[0]), pad.left - 4, height - 10)
-    ctx.fillText(isoTimeLabel(payload.buckets[payload.buckets.length - 1]), width - 42, height - 10)
+    ctx.fillText(isoTimeLabel(payload.buckets[visibleStart]), pad.left - 4, height - 10)
+    ctx.fillText(isoTimeLabel(payload.buckets[visibleEnd]), width - 42, height - 10)
     ctx.fillText(mode === "share" ? "Share" : "Volume", 8, 14)
     ctx.fillText(isoTimeLabel(payload.buckets[selectedIndex]), sx + 4, selectedLineY)
 
@@ -294,7 +342,7 @@ function renderStateNote(payload: DayFlowPayload): string {
   `
 }
 
-function renderFrame(payload: DayFlowPayload): string {
+function renderFrame(payload: DayFlowPayload, viewport: DayFlowViewport): string {
   return `
     <section class="dayflow-status-rail" id="dayflow-status-slot" aria-live="polite">
       <span class="dayflow-status-indicator" id="dayflow-status-indicator" hidden></span>
@@ -309,6 +357,11 @@ function renderFrame(payload: DayFlowPayload): string {
             <span id="dayflow-coverage-chip"><strong>Coverage</strong> ${payload.coverageNote}</span>
             <span id="dayflow-bucket-chip"><strong>Bucket</strong> ${payload.bucketSize}m</span>
             <span id="dayflow-updated-chip"><strong>Updated</strong> ${payload.lastUpdated.slice(11, 16)} UTC</span>
+            ${viewport.sparseToday && viewport.observedSinceLabel ? `<span id="dayflow-observed-chip"><strong>Observed</strong> since ${viewport.observedSinceLabel} UTC</span>` : ""}
+            ${payload.rangeMode === "today"
+              ? `<button type="button" class="focus-chip ${viewport.mode === "observed" ? "focus-chip--active" : ""}" data-dayflow-viewport="observed">Observed window</button>
+                 <button type="button" class="focus-chip ${viewport.mode === "full-day" ? "focus-chip--active" : ""}" data-dayflow-viewport="full-day">Full day</button>`
+              : ""}
           </div>
         </div>
         <div class="dayflow-canvas-wrap">
@@ -317,7 +370,7 @@ function renderFrame(payload: DayFlowPayload): string {
         </div>
         <div class="dayflow-time-wrap">
           <span class="dayflow-time-label">Time selection</span>
-          <input id="dayflow-time" type="range" min="0" max="${Math.max(0, payload.buckets.length - 1)}" step="1" value="${Math.max(0, payload.buckets.length - 1)}" />
+          <input id="dayflow-time" type="range" min="${viewport.startIndex}" max="${viewport.endIndex}" step="1" value="${viewport.endIndex}" />
         </div>
         <div id="dayflow-focus-mobile" class="card dayflow-focus-mobile"></div>
         <button type="button" id="dayflow-open-sheet" class="action dayflow-open-sheet">Open detail</button>
@@ -446,6 +499,7 @@ function mountData(
   content: HTMLElement,
   viewState: DayFlowViewState,
   previousGood: DayFlowPayload | null,
+  onViewportChange: () => void,
   skipFetch = false
 ): { promise: Promise<DayFlowMountController | null>; abort: () => void } {
   let destroyed = false
@@ -502,7 +556,7 @@ function mountData(
         inline.innerHTML = `Initial load failed. <button type="button" id="retry-dayflow" class="action dayflow-inline-retry">Retry</button>`
       }
       content.querySelector<HTMLButtonElement>("#retry-dayflow")?.addEventListener("click", () => {
-        const next = mountData(form, content, viewState, previousGood)
+        const next = mountData(form, content, viewState, previousGood, onViewportChange)
         void next.promise
       })
       return null
@@ -510,7 +564,8 @@ function mountData(
 
     if (destroyed) return null
     writeCachedPayload(payload)
-    content.innerHTML = renderFrame(payload)
+    let viewport = resolveDayFlowViewport(payload, viewState.viewportPreference)
+    content.innerHTML = renderFrame(payload, viewport)
 
     const canvas = content.querySelector<HTMLCanvasElement>("#dayflow-canvas")
     const slider = content.querySelector<HTMLInputElement>("#dayflow-time")
@@ -522,13 +577,16 @@ function mountData(
     const openSheetButton = content.querySelector<HTMLButtonElement>("#dayflow-open-sheet")
     if (!canvas || !slider || !focus || !detail || !focusMobile || !detailMobile || !detailSheet) return null
 
-    viewState.selectedBucketIndex = resolveInitialBucketIndex(payload, viewState.selectedBucketIndex)
+    viewState.selectedBucketIndex = Math.max(
+      viewport.startIndex,
+      Math.min(viewport.endIndex, resolveInitialBucketIndex(payload, viewState.selectedBucketIndex))
+    )
     if (!payload.detailPanelSource.streamers.some((s) => s.streamerId === viewState.selectedStreamerId)) {
       viewState.selectedStreamerId = payload.detailPanelSource.defaultStreamerId
     }
 
     const state = () => ({ selectedBucketIndex: viewState.selectedBucketIndex, selectedStreamerId: viewState.selectedStreamerId, mode: viewState.valueMode, isolate: viewState.isolate })
-    let renderer = drawChart(canvas, payload, state)
+    let renderer = drawChart(canvas, payload, viewport, state)
 
     const wireDetailActions = () => {
       const isolateButtons = content.querySelectorAll<HTMLButtonElement>("#dayflow-isolate")
@@ -556,7 +614,7 @@ function mountData(
     }
 
     const syncViewState = () => {
-      const idx = Math.max(0, Math.min(payload.buckets.length - 1, Number(slider.value)))
+      const idx = Math.max(viewport.startIndex, Math.min(viewport.endIndex, Number(slider.value)))
       viewState.selectedBucketIndex = idx
       slider.value = String(idx)
       renderFocus(focus, payload, idx)
@@ -576,7 +634,13 @@ function mountData(
       const rect = canvas.getBoundingClientRect()
       const xRatio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
       const yRatio = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
-      const bucketIndex = Math.min(payload.buckets.length - 1, Math.max(0, Math.round(xRatio * (payload.buckets.length - 1))))
+      const bucketIndex = Math.max(
+        viewport.startIndex,
+        Math.min(
+          viewport.endIndex,
+          viewport.startIndex + Math.round(xRatio * Math.max(1, viewport.endIndex - viewport.startIndex))
+        )
+      )
       slider.value = String(bucketIndex)
       viewState.selectedBucketIndex = bucketIndex
       const band = bandAtPosition(payload, bucketIndex, 1 - yRatio, viewState.valueMode)
@@ -603,11 +667,23 @@ function mountData(
       }
     })
 
-    slider.value = String(resolveInitialBucketIndex(payload, viewState.selectedBucketIndex))
+    slider.min = String(viewport.startIndex)
+    slider.max = String(viewport.endIndex)
+    slider.value = String(Math.max(viewport.startIndex, Math.min(viewport.endIndex, resolveInitialBucketIndex(payload, viewState.selectedBucketIndex))))
     syncViewState()
+
+      content.querySelectorAll<HTMLButtonElement>("[data-dayflow-viewport]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const mode = button.dataset.dayflowViewport
+          if (mode !== "observed" && mode !== "full-day") return
+          viewState.viewportPreference = mode
+          onViewportChange()
+        })
+      })
 
     const updatePayload = (nextPayload: DayFlowPayload) => {
       payload = nextPayload
+      viewport = resolveDayFlowViewport(payload, viewState.viewportPreference)
       if (!payload.detailPanelSource.streamers.some((s) => s.streamerId === viewState.selectedStreamerId)) {
         viewState.selectedStreamerId = payload.detailPanelSource.defaultStreamerId
       }
@@ -627,13 +703,21 @@ function mountData(
         `<strong>Bucket</strong> ${payload.bucketSize}m`
       content.querySelector<HTMLElement>("#dayflow-updated-chip")!.innerHTML =
         `<strong>Updated</strong> ${payload.lastUpdated.slice(11, 16)} UTC`
+      const observedChip = content.querySelector<HTMLElement>("#dayflow-observed-chip")
+      if (observedChip) {
+        observedChip.innerHTML = `<strong>Observed</strong> since ${viewport.observedSinceLabel ?? "N/A"} UTC`
+      }
 
-      slider.max = String(Math.max(0, payload.buckets.length - 1))
-      viewState.selectedBucketIndex = resolveInitialBucketIndex(payload, viewState.selectedBucketIndex)
+      slider.min = String(viewport.startIndex)
+      slider.max = String(viewport.endIndex)
+      viewState.selectedBucketIndex = Math.max(
+        viewport.startIndex,
+        Math.min(viewport.endIndex, resolveInitialBucketIndex(payload, viewState.selectedBucketIndex))
+      )
       slider.value = String(viewState.selectedBucketIndex)
 
       renderer.destroy()
-      renderer = drawChart(canvas, payload, state)
+      renderer = drawChart(canvas, payload, viewport, state)
 
       syncViewState()
     }
@@ -714,7 +798,8 @@ export function renderDayFlowPage(root: HTMLElement): void {
     selectedBucketIndex: 0,
     selectedStreamerId: null,
     autoUpdateEnabled: autoUpdate.checked,
-    isolate: false
+    isolate: false,
+    viewportPreference: null
   }
 
   const syncControlsToViewState = () => {
@@ -747,7 +832,9 @@ export function renderDayFlowPage(root: HTMLElement): void {
         activeMountAbort = null
       }
 
-      const active = mountData(form, content, viewState, previousGood)
+      const active = mountData(form, content, viewState, previousGood, () => {
+        void remount()
+      })
       activeMountAbort = active.abort
       const next = await active.promise
 
