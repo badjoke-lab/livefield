@@ -5,9 +5,9 @@ import { insertCollectorRun, upsertCollectorStatus } from "../repositories/statu
 import { runFiveMinuteRollup } from "./run-five-minute-rollup"
 
 export async function runMinuteCollection(env: Env): Promise<void> {
-  await collectSnapshot(env)
-
+  const attemptAt = new Date().toISOString()
   try {
+    await collectSnapshot(env)
     await runFiveMinuteRollup(env)
     const succeededAt = new Date().toISOString()
     const latestSnapshot = await getLatestSnapshotMeta(env.DB)
@@ -40,7 +40,7 @@ export async function runMinuteCollection(env: Env): Promise<void> {
 
     await upsertCollectorStatus(env.DB, {
       provider: "twitch",
-      lastAttemptAt: failedAt,
+      lastAttemptAt: attemptAt,
       lastFailureAt: failedAt,
       lastError: message,
       chatState: "error",
