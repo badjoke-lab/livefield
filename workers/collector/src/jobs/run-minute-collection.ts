@@ -9,6 +9,18 @@ export async function runMinuteCollection(env: Env): Promise<void> {
 
   try {
     await runFiveMinuteRollup(env)
+    const succeededAt = new Date().toISOString()
+    const latestSnapshot = await getLatestSnapshotMeta(env.DB)
+
+    await insertCollectorRun(env.DB, {
+      provider: "twitch",
+      runAt: succeededAt,
+      status: "success",
+      liveCount: typeof latestSnapshot?.live_count === "number" ? latestSnapshot.live_count : null,
+      totalViewers: typeof latestSnapshot?.total_viewers === "number" ? latestSnapshot.total_viewers : null,
+      coveredPages: typeof latestSnapshot?.covered_pages === "number" ? latestSnapshot.covered_pages : null,
+      hasMore: typeof latestSnapshot?.has_more === "number" ? latestSnapshot.has_more > 0 : null
+    })
   } catch (error) {
     const failedAt = new Date().toISOString()
     const message = error instanceof Error ? error.message : "rollup execution failed"
