@@ -131,8 +131,12 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       source: "demo",
       lastUpdated: now.toISOString(),
       coverageNote: "DB binding is not configured, so collector-backed coverage cannot be measured.",
-      degradationNote: "Serving demo status because Cloudflare D1 binding `DB` is missing.",
-      knownLimitations: ["No collector telemetry without D1 binding.", "No live Twitch snapshot can be verified in this mode."],
+      degradationNote: "Demo mode: Cloudflare D1 binding `DB` is missing, so status cannot verify collector or snapshot health.",
+      knownLimitations: [
+        "No collector telemetry without D1 binding.",
+        "No live Twitch snapshot can be verified in demo mode.",
+        "Use this mode only for UI smoke checks."
+      ],
       collectorState: "unconfigured",
       freshness: { minutesSinceSuccess: null, isFresh: false, thresholdMinutes: FRESHNESS_MINUTES },
       collector: null,
@@ -222,7 +226,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
             : "idle"
 
     const coverageNote = latestSnapshot
-      ? `Observed ${latestSnapshot.live_count} streams across ${latestSnapshot.covered_pages} page(s)${latestSnapshot.has_more === 1 ? " with remaining pages." : "."}${activityCoverage ? ` Activity available for ${activityCoverage.available}/${latestSnapshot.live_count} streams.` : ""}`
+      ? `Observed window currently includes ${latestSnapshot.live_count} streams across ${latestSnapshot.covered_pages} page(s)${latestSnapshot.has_more === 1 ? " with additional pages not yet collected for this run." : "."}${activityCoverage ? ` Activity samples are available for ${activityCoverage.available}/${latestSnapshot.live_count} streams.` : ""}`
       : "No minute snapshot rows are available yet."
 
     const sampledChat = collector?.chat_unavailable_reason?.includes("sampled") ?? false
@@ -230,7 +234,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       ? sampledChat
         ? "Chat ingest: running in sampled short-lived mode."
         : "Chat ingest: running."
-      : `Chat ingest unavailable${collector?.chat_unavailable_reason ? ` (${collector.chat_unavailable_reason})` : "."}`
+      : `Chat ingest is not running${collector?.chat_unavailable_reason ? ` (${collector.chat_unavailable_reason})` : "."}`
 
     const activityReliability = !activityCoverage || !latestSnapshot || latestSnapshot.live_count === 0
       ? "Heatmap activity reliability: unknown."
@@ -242,11 +246,11 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
     const degradationNote =
       state === "live"
-        ? "Collector telemetry is fresh and snapshot coverage is available."
+        ? "Collector telemetry is fresh for the current observed window."
         : state === "partial"
-          ? `Collector is partial. ${(latestSnapshot?.has_more ?? 0) === 1 ? "streams has_more=true. " : ""}${chatNote} ${activityReliability}`
+          ? `Partial coverage: ${(latestSnapshot?.has_more ?? 0) === 1 ? "snapshot pagination is incomplete for this run. " : ""}${chatNote} ${activityReliability}`
           : state === "stale"
-            ? `Collector snapshot exists but freshness exceeded ${FRESHNESS_MINUTES} minutes.`
+            ? `Snapshot exists but freshness exceeded ${FRESHNESS_MINUTES} minutes, so this view may lag current Twitch conditions.`
             : state === "empty"
               ? "Collector telemetry exists but no snapshot rows are available yet."
               : "Unknown status degradation."

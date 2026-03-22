@@ -30,7 +30,7 @@ function getModeLabel(mode: HeatmapMode): string {
   if (mode === "demo") return "Demo data"
   if (mode === "stale") return "Stale data"
   if (mode === "partial") return "Partial data"
-  return "Live-like"
+  return "Live data"
 }
 
 function getModeNote(mode: HeatmapMode, payload: HeatmapPayload, lowLoad: boolean, animationEnabled: boolean): string {
@@ -38,10 +38,10 @@ function getModeNote(mode: HeatmapMode, payload: HeatmapPayload, lowLoad: boolea
     mode === "demo"
       ? "This is demo data, not a live collection feed."
       : mode === "stale"
-        ? "Data updates are delayed."
+        ? "Data updates are delayed beyond the freshness target."
         : mode === "partial"
-          ? "Sampled activity is partial; sampled-zero and unavailable channels are shown separately while viewers and momentum continue to update."
-          : "The current payload is in a live-like state."
+          ? "Coverage is partial for this run; viewers and momentum still reflect observed channels while activity chips show sampled-zero and unavailable states."
+          : "The current payload is live for the observed window."
 
   return `${modeText} ${payload.note ?? ""} Low Load: ${lowLoad ? "ON" : "OFF"} / Animation: ${animationEnabled ? "ON" : "OFF"}`
 }
@@ -58,7 +58,7 @@ function renderReady(root: HTMLElement, payload: HeatmapPayload, mode: HeatmapMo
 
   if (!selected) {
     root.className = "site-shell"
-    root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production treemap of live Twitch streams right now.", note: `Treemap area = viewers / color = momentum / badges = sampled activity state. Current state: ${getModeLabel(mode)}`, actions: [{ href: "/status/", label: "Open Status" }, { href: "/day-flow/", label: "Open Day Flow" }] })}<div class="controls controls--heatmap controls--heatmap-pre"><span class="pill">Top ${visibleCount}</span><span class="pill">1m sampled activity</span><span class="pill">Visible tiles: 0</span><span class="pill">${getModeLabel(mode)}</span><span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span></div><section class="card page-section"><h2>No live streams in current snapshot</h2><p>${escapeHtml(payload.note ?? "The API returned no English Twitch streams for this moment.")}</p></section>${renderStatusNote(getModeNote(mode, payload, lowLoad, animationEnabled))}${renderFooter()}`
+    root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production treemap of live Twitch streams right now.", note: `Treemap area = viewers / color = momentum / badges = sampled activity state. Current status: ${getModeLabel(mode)}.`, actions: [{ href: "/status/", label: "Open Status" }, { href: "/day-flow/", label: "Open Day Flow" }] })}<div class="controls controls--heatmap controls--heatmap-pre"><span class="pill">Top ${visibleCount}</span><span class="pill">1m sampled activity</span><span class="pill">Visible tiles: 0</span><span class="pill">${getModeLabel(mode)}</span><span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span></div><section class="card page-section"><h2>No streams in current observed window</h2><p>${escapeHtml(payload.note ?? "The API returned no English Twitch streams for this observed window.")}</p></section>${renderStatusNote(getModeNote(mode, payload, lowLoad, animationEnabled))}${renderFooter()}`
     return
   }
 
@@ -76,7 +76,7 @@ function renderReady(root: HTMLElement, payload: HeatmapPayload, mode: HeatmapMo
 
   root.className = "site-shell"
   root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production treemap for reading Twitch momentum at a glance.", note: `Area = viewers / color = momentum / activity = sampled overlay. ${getModeLabel(mode)} snapshot.`, actions: [{ href: "/status/", label: "Open Status" }, { href: "/day-flow/", label: "Open Day Flow" }] })}
-    <section class="card page-section heatmap-state-note">${payload.note ? `<p>${escapeHtml(payload.note)}</p>` : `<p class="muted">Snapshot state: ${getModeLabel(mode)}.</p>`}</section>
+    <section class="card page-section heatmap-state-note">${payload.note ? `<p>${escapeHtml(payload.note)}</p>` : `<p class="muted">Snapshot status: ${getModeLabel(mode)}.</p>`}</section>
     <section class="card page-section heatmap-map-section"><h2>Now view treemap</h2><p class="muted">Tile area follows viewers. Click empty map space to enter map focus, then use wheel to zoom and drag to pan. Press Esc or click outside map to exit focus.</p><div class="heatmap-tile-stage" id="heatmapTileStage"></div><div class="heatmap-map-helper"><span class="pill heatmap-map-helper__hint" data-focus-status>Map focus: OFF (wheel scrolls page)</span><button type="button" class="pill" data-map-focus-toggle>Focus map</button><button type="button" class="pill" data-zoom-in>Zoom in</button><button type="button" class="pill" data-zoom-out>Zoom out</button><button type="button" class="pill" data-zoom-reset>Reset zoom</button></div></section>
     <div class="controls controls--heatmap controls--heatmap-post"><span class="pill">Top ${visibleCount}</span><span class="pill">1m sampled activity</span><button type="button" class="pill" data-low-load-toggle>Low Load: ${lowLoad ? "ON" : "OFF"}</button><button type="button" class="pill" data-animation-toggle>Animation: ${animationEnabled ? "ON" : "OFF"}</button><span class="pill">Visible tiles: ${visibleNodes.length}</span><span class="pill">${getModeLabel(mode)}</span><span class="pill">Updated: ${escapeHtml(payload.updatedAt)}</span></div>
     <section class="grid-2 page-section"><section class="card"><h2>Selected details</h2><div class="kv"><div class="kv-row"><span>Streamer</span><strong>${escapeHtml(selected.name)}</strong></div><div class="kv-row"><span>Current viewers</span><strong>${selected.viewers.toLocaleString()}</strong></div><div class="kv-row"><span>Momentum</span><strong>${formatMomentum(selected.momentum)}</strong></div><div class="kv-row"><span>Activity state</span><strong>${escapeHtml(formatActivityState(selected))}</strong></div><div class="kv-row"><span>Comments / min</span><strong>${selected.activityAvailable ? selected.commentsPerMin.toLocaleString() : "-"}</strong></div><div class="kv-row"><span>Activity level</span><strong>${selected.activityAvailable ? `Lv${selected.agitationLevel}` : "-"}</strong></div><div class="kv-row"><span>Viewer rank</span><strong>#${selected.rankViewers}</strong></div><div class="kv-row"><span>Open stream</span><strong><a href="${escapeHtml(selected.url)}" target="_blank" rel="noopener noreferrer">Open stream ↗</a></strong></div></div></section></section>
@@ -107,7 +107,7 @@ function renderReady(root: HTMLElement, payload: HeatmapPayload, mode: HeatmapMo
 
 function renderLoading(root: HTMLElement): void {
   root.className = "site-shell"
-  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production treemap of live Twitch streams right now.", note: "Loading Heatmap data" })}<section class="card page-section"><h2>Loading</h2><p>Loading Heatmap data...</p></section>${renderFooter()}`
+  root.innerHTML = `${renderHeader("heatmap")}${renderHero({ eyebrow: "NOW", title: "Heatmap", subtitle: "Production treemap of live Twitch streams right now.", note: "Loading Heatmap data" })}<section class="card page-section"><h2>Loading</h2><p>Loading Heatmap observed window...</p></section>${renderFooter()}`
 }
 
 function renderError(root: HTMLElement, message: string): void {

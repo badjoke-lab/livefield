@@ -64,11 +64,11 @@ function candidateTagLabel(tag: BattleCandidate["tag"]): string {
 }
 
 function getRefreshNoteText(payload: BattleLinesPayload | null): string {
-  if (!payload) return "Loading live battle lines…"
+  if (!payload) return "Loading battle lines data…"
   if (shouldAutoRefreshBattleLines(payload.filters)) {
-    return `Live refresh runs every ${Math.round(BATTLE_LINES_AUTO_REFRESH_MS / 1000)}s on Today.`
+    return `Auto-refresh runs every ${Math.round(BATTLE_LINES_AUTO_REFRESH_MS / 1000)}s on Today.`
   }
-  return "Live refresh is available on Today."
+  return "Auto-refresh is available only on Today."
 }
 
 function buildBattleObservedIndices(payload: BattleLinesPayload): number[] {
@@ -169,7 +169,7 @@ function renderChart(
         <div class="battle-mock-card__head">
           <div>
             <strong>Battle lines</strong>
-            <p>No battle lines are available for this selection yet.</p>
+            <p>No battle lines are available in the observed window for this selection yet.</p>
           </div>
         </div>
       </section>
@@ -188,7 +188,7 @@ function renderChart(
           <strong>Battle lines</strong>
           <p>Start with the recommended battle, then keep your own focus when you want to track a specific pair.</p>
           <div class="battle-live-row">
-            <span class="pill pill--quiet" data-battle-refresh-state>${shouldAutoRefreshBattleLines(payload.filters) ? "Live refresh on" : "Live refresh off"}</span>
+            <span class="pill pill--quiet" data-battle-refresh-state>${shouldAutoRefreshBattleLines(payload.filters) ? "Auto-refresh on" : "Auto-refresh off"}</span>
             <span class="battle-live-note" data-battle-refresh-note>${escapeHtml(getRefreshNoteText(payload))}</span>
           </div>
         </div>
@@ -323,8 +323,8 @@ function applyRefreshUi(
     stateEl.textContent = updating
       ? "Refreshing…"
       : payload && shouldAutoRefreshBattleLines(payload.filters)
-        ? "Live refresh on"
-        : "Live refresh off"
+        ? "Auto-refresh on"
+        : "Auto-refresh off"
     stateEl.dataset.updating = updating ? "true" : "false"
   }
 
@@ -366,7 +366,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
       eyebrow: "RIVALRIES",
       title: "Rivalry Radar",
       subtitle: "See who is fighting for attention right now.",
-      note: "Today/Yesterday/Date, Top 3/5/10, Viewers/Indexed, 1m/5m/10m, recommended battle, custom focus, and reversal strip.",
+      note: "Today uses live hot data; Yesterday/Date use saved rollup history. Sparse Today may default to observed-window mode.",
       actions: [
         { href: "/day-flow/", label: "Open Day Flow" },
         { href: "/method/", label: "Open Method" }
@@ -377,7 +377,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
 
     <div id="battle-lines-content" class="battle-lines-content"></div>
 
-    ${renderStatusNote("Rivalry Radar combines API battle recommendations with your current custom focus.")}
+    ${renderStatusNote("Partial or sparse states are normal during collection windows: rankings reflect observed data, not full-day completeness.")}
     ${renderFooter()}
   `
 
@@ -431,7 +431,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
     const silent = options.silent ?? false
 
     if (!silent) {
-      content.innerHTML = `<section class="card battle-state-card battle-state-card--loading"><h2>Loading battle lines…</h2><p>Pulling the latest rivalry state now.</p></section>`
+      content.innerHTML = `<section class="card battle-state-card battle-state-card--loading"><h2>Loading battle lines…</h2><p>Fetching the latest observed rivalry window now.</p></section>`
     } else {
       applyRefreshUi(content, lastPayload, true, options.reason === "auto" ? "Refreshing the live battle snapshot…" : "Updating your current selection…")
     }
@@ -591,7 +591,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
       if (!silent) {
         content.innerHTML = `<section class="card battle-state-card battle-state-card--error"><h2>Battle lines unavailable</h2><p>Could not refresh battle lines right now. Try again shortly.</p></section>`
       } else {
-        applyRefreshUi(content, lastPayload, false, "Refresh failed. Keeping your previous live view.")
+        applyRefreshUi(content, lastPayload, false, "Refresh failed. Keeping your previous observed view.")
       }
 
       return uiState
