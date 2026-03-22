@@ -1,7 +1,7 @@
 import type { HeatmapPayload } from "../../../../../packages/shared/src/types/heatmap"
 import { getHeatmapPayload } from "../../shared/api/heatmap-api"
 
-export type HeatmapMode = "live" | "stale" | "partial" | "demo"
+export type HeatmapMode = "live" | "stale" | "partial" | "empty" | "error" | "demo"
 
 export type HeatmapPageState =
   | { status: "loading" }
@@ -43,6 +43,8 @@ function getAgeMinutes(updatedAt: string): number | null {
 
 function resolveMode(payload: HeatmapPayload): HeatmapMode {
   if (payload.source === "demo" || payload.state === "demo") return "demo"
+  if (payload.state === "error") return "error"
+  if (payload.state === "empty") return "empty"
   if (payload.state === "partial") return "partial"
   if (payload.state === "stale") return "stale"
 

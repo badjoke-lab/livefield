@@ -20,6 +20,8 @@ function escapeHtml(value: string): string {
 
 function getModeLabel(mode: HeatmapMode): string {
   if (mode === "demo") return "Demo data"
+  if (mode === "error") return "Error state"
+  if (mode === "empty") return "Empty state"
   if (mode === "stale") return "Stale data"
   if (mode === "partial") return "Partial data"
   return "Live data"
@@ -29,6 +31,12 @@ function getModeNote(mode: HeatmapMode, payload: HeatmapPayload, lowLoad: boolea
   const modeText =
     mode === "demo"
       ? "This is demo data, not a live collection feed."
+      : mode === "error"
+        ? "Heatmap payload is in an error fallback state."
+        : mode === "empty"
+          ? isHistorical
+            ? "No historical frame exists for this selection."
+            : "No streams were available in the latest observed window."
       : mode === "stale"
         ? isHistorical
           ? "Playback is from historical storage and is not a live feed."
