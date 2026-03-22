@@ -207,6 +207,42 @@ function buildEmptyPayload(updatedAt: string): HeatmapPayload {
   }
 }
 
+function buildEmptyHistoricalPayload(updatedAt: string, day: string): HeatmapPayload {
+  return {
+    ok: true,
+    source: "api",
+    tool: "heatmap",
+    state: "empty",
+    note: `No historical heatmap frame available for ${day}.`,
+    updatedAt,
+    summary: {
+      activeStreams: 0,
+      totalViewers: 0,
+      highestAgitationName: "No historical frame",
+      strongestMomentumName: "No historical frame"
+    },
+    nodes: []
+  }
+}
+
+function buildErrorPayload(updatedAt: string, note: string): HeatmapPayload {
+  return {
+    ok: true,
+    source: "api",
+    tool: "heatmap",
+    state: "error",
+    note,
+    updatedAt,
+    summary: {
+      activeStreams: 0,
+      totalViewers: 0,
+      highestAgitationName: "Unavailable",
+      strongestMomentumName: "Unavailable"
+    },
+    nodes: []
+  }
+}
+
 function json(body: HeatmapPayload): Response {
   return new Response(JSON.stringify(body, null, 2), {
     headers: { "content-type": "application/json; charset=utf-8" }
@@ -244,11 +280,12 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
   if (isHistorical) {
     try {
       const rows = await fetchHistoricalHeatmapRows(db, selectedDate, top)
-      if (!rows.results.length) return json(buildEmptyPayload(new Date().toISOString()))
+      if (!rows.results.length) return json(buildEmptyHistoricalPayload(new Date().toISOString(), selectedDate))
 
       const latestBucket = rows.results[0]?.bucket_time
-      if (!latestBucket) return json(buildEmptyPayload(new Date().toISOString()))
+      if (!latestBucket) return json(buildEmptyHistoricalPayload(new Date().toISOString(), selectedDate))
       const frameRows = rows.results.filter((row) => row.bucket_time === latestBucket)
+      if (!frameRows.length) return json(buildEmptyHistoricalPayload(new Date().toISOString(), selectedDate))
       const nodes = frameRows.map((row, index) => {
         const previous = Math.max(20, row.viewers - (row.momentum_delta ?? 0))
         const momentum = previous > 0 ? (row.momentum_delta ?? 0) / previous : 0
@@ -285,9 +322,15 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
         rankMomentum: momentumRankById.get(node.streamerId) ?? nodes.length
       }))
 
-      return json(buildPayload(rankedNodes, latestBucket, "stale", "Historical heatmap frame from 5m read model."))
+      const unavailableCount = rankedNodes.filter((node) => !node.activityAvailable).length
+      const historicalState: ApiState = unavailableCount > 0 ? "partial" : "stale"
+      const note = unavailableCount > 0
+        ? `Historical playback frame from ${latestBucket}. Activity was unavailable for ${unavailableCount}/${rankedNodes.length} channels in this frame.`
+        : `Historical playback frame from ${latestBucket}. This is a point-in-time read from 5m history.`
+
+      return json(buildPayload(rankedNodes, latestBucket, historicalState, note))
     } catch {
-      return json(buildEmptyPayload(new Date().toISOString()))
+      return json(buildErrorPayload(new Date().toISOString(), "Historical playback failed for the requested day."))
     }
   }
 
