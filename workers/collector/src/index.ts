@@ -1,6 +1,7 @@
 import type { Env } from "./config/env"
 import { runCleanup } from "./jobs/run-cleanup"
 import { runMinuteCollection } from "./jobs/run-minute-collection"
+import { isRollupStepName, ROLLUP_STEP_NAMES } from "./jobs/run-five-minute-rollup"
 import { getLatestSnapshotMeta } from "./repositories/snapshots-repo"
 import { getCollectorStatus } from "./repositories/status-repo"
 
@@ -63,14 +64,59 @@ export default {
     }
 
     if (url.pathname === "/collect" && request.method === "POST") {
-      try {
-        await runMinuteCollection(env)
-        return jsonResponse({ ok: true, triggered: "manual" })
-      } catch (error) {
+      const modeParam = url.searchParams.get("mode")
+      const stepParam = url.searchParams.get("step")
+
+      if (modeParam && modeParam !== "snapshot-only") {
         return jsonResponse(
           {
             ok: false,
-            error: error instanceof Error ? error.message : "manual collection failed"
+            error: "invalid mode; supported values: snapshot-only"
+          },
+          400
+        )
+      }
+
+      if (stepParam && !isRollupStepName(stepParam)) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: "invalid step",
+            supportedSteps: ROLLUP_STEP_NAMES
+          },
+          400
+        )
+      }
+
+      const step = stepParam && isRollupStepName(stepParam) ? stepParam : undefined
+
+      try {
+        const startedAt = Date.now()
+        const result = await runMinuteCollection(env, {
+          mode: modeParam === "snapshot-only" ? "snapshot-only" : "full",
+          step
+        })
+        return jsonResponse({
+          ok: true,
+          triggered: "manual",
+          mode: result.mode,
+          step: result.step ?? null,
+          timing: {
+            snapshotMs: result.snapshotDurationMs,
+            rollupMs: result.rollupDurationMs ?? null,
+            totalMs: Date.now() - startedAt
+          }
+        })
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "manual collection failed"
+        const failedStep = errorMessage.match(
+          /(dayflow_bands_5m|battlelines_series_5m|heatmap_frames_5m|dayflow_bands_10m|battlelines_series_10m|daily_stream_summaries)/
+        )?.[1]
+        return jsonResponse(
+          {
+            ok: false,
+            step: failedStep ?? (step ?? null),
+            error: errorMessage
           },
           500
         )
