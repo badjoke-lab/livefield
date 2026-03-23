@@ -14,7 +14,11 @@ type RollupTaskResult = {
 }
 
 function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  if (error instanceof Error) {
+    const stackLine = error.stack?.split("\n")[1]?.trim()
+    return stackLine ? `${error.message} (${stackLine})` : error.message
+  }
+  return String(error)
 }
 
 async function runRollupStep(step: string, fn: () => Promise<void>): Promise<RollupTaskResult> {
@@ -32,11 +36,12 @@ async function runRollupStep(step: string, fn: () => Promise<void>): Promise<Rol
 
 export async function runFiveMinuteRollup(env: Env, now = new Date()): Promise<void> {
   const day = dayKey(now)
-  const fiveMinute = await Promise.all([
-    runRollupStep("dayflow_bands_5m", async () => buildDayflow5mRollup(env.DB, day, now)),
-    runRollupStep("battlelines_series_5m", async () => buildBattleLines5mRollup(env.DB, day, now)),
-    runRollupStep("heatmap_frames_5m", async () => buildHeatmap5mFrames(env.DB, day, now))
-  ])
+  const fiveMinute: RollupTaskResult[] = []
+  fiveMinute.push(await runRollupStep("dayflow_bands_5m", async () => buildDayflow5mRollup(env.DB, day, now)))
+  fiveMinute.push(
+    await runRollupStep("battlelines_series_5m", async () => buildBattleLines5mRollup(env.DB, day, now))
+  )
+  fiveMinute.push(await runRollupStep("heatmap_frames_5m", async () => buildHeatmap5mFrames(env.DB, day, now)))
 
   const tenMinute: RollupTaskResult[] = []
   const dayflow5mOk = fiveMinute.some((step) => step.step === "dayflow_bands_5m" && step.ok)
