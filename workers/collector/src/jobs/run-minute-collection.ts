@@ -22,10 +22,14 @@ export async function runMinuteCollection(env: Env, options: MinuteCollectionOpt
   const startedAtMs = Date.now()
   const attemptAt = new Date().toISOString()
   const mode = options.step ? "step-only" : options.mode ?? "full"
+
   try {
-    const snapshotStartedAt = Date.now()
-    await collectSnapshot(env)
-    const snapshotDurationMs = Date.now() - snapshotStartedAt
+    let snapshotDurationMs = 0
+    if (mode !== "step-only") {
+      const snapshotStartedAt = Date.now()
+      await collectSnapshot(env)
+      snapshotDurationMs = Date.now() - snapshotStartedAt
+    }
 
     let rollupDurationMs: number | undefined
     if (mode !== "snapshot-only") {
@@ -59,14 +63,19 @@ export async function runMinuteCollection(env: Env, options: MinuteCollectionOpt
     }
   } catch (error) {
     const failedAt = new Date().toISOString()
-    const message = error instanceof Error ? error.message : "rollup execution failed"
+    const message = error instanceof Error ? error.message : "minute collection failed"
     const latestSnapshot = await getLatestSnapshotMeta(env.DB)
 
     await insertCollectorRun(env.DB, {
       provider: "twitch",
       runAt: failedAt,
       status: "failure",
-      errorCode: "rollup_failed",
+      errorCode:
+        mode === "snapshot-only"
+          ? "snapshot_failed"
+          : mode === "step-only"
+            ? "step_failed"
+            : "collection_failed",
       errorMessage: message,
       liveCount: typeof latestSnapshot?.live_count === "number" ? latestSnapshot.live_count : null,
       totalViewers: typeof latestSnapshot?.total_viewers === "number" ? latestSnapshot.total_viewers : null,
