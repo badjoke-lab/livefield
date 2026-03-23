@@ -36,6 +36,7 @@ type HeatmapRow = {
 
 const WINDOW_HOURS = 36
 const TOP_SCOPES = [20, 50, 100] as const
+const WRITE_BATCH_SIZE = 50
 
 function floorIsoToBucket(iso: string, minutes: 5): string {
   const d = new Date(iso)
@@ -171,6 +172,25 @@ export async function buildHeatmap5mFrames(db: D1Database, day: string, _now = n
   const previousByScopeStreamer = new Map<string, number>()
   const buckets = [...bucketAgg.keys()].sort((a, b) => a.localeCompare(b))
   let frameWrites = 0
+  const frameInsertStatement = db.prepare(
+    `INSERT INTO heatmap_frames_5m (
+      day, bucket_time, top_scope, streamer_id, display_name, viewers,
+      momentum_delta, momentum_state, activity_state, activity_level,
+      title, game_id, game_name, language
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(day, bucket_time, top_scope, streamer_id) DO UPDATE SET
+      display_name=excluded.display_name,
+      viewers=excluded.viewers,
+      momentum_delta=excluded.momentum_delta,
+      momentum_state=excluded.momentum_state,
+      activity_state=excluded.activity_state,
+      activity_level=excluded.activity_level,
+      title=excluded.title,
+      game_id=excluded.game_id,
+      game_name=excluded.game_name,
+      language=excluded.language`
+  )
+  const frameStatements: D1PreparedStatement[] = []
 
   for (const bucket of buckets) {
     const streamers = [...(bucketAgg.get(bucket)?.entries() ?? [])]
@@ -213,26 +233,8 @@ export async function buildHeatmap5mFrames(db: D1Database, day: string, _now = n
       })
 
       for (const row of rows) {
-        const result = await db
-          .prepare(
-            `INSERT INTO heatmap_frames_5m (
-              day, bucket_time, top_scope, streamer_id, display_name, viewers,
-              momentum_delta, momentum_state, activity_state, activity_level,
-              title, game_id, game_name, language
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(day, bucket_time, top_scope, streamer_id) DO UPDATE SET
-              display_name=excluded.display_name,
-              viewers=excluded.viewers,
-              momentum_delta=excluded.momentum_delta,
-              momentum_state=excluded.momentum_state,
-              activity_state=excluded.activity_state,
-              activity_level=excluded.activity_level,
-              title=excluded.title,
-              game_id=excluded.game_id,
-              game_name=excluded.game_name,
-              language=excluded.language`
-          )
-          .bind(
+        frameStatements.push(
+          frameInsertStatement.bind(
             row.day,
             row.bucketTime,
             row.topScope,
@@ -248,10 +250,14 @@ export async function buildHeatmap5mFrames(db: D1Database, day: string, _now = n
             row.gameName,
             row.language
           )
-          .run()
-        frameWrites += result.meta.changes ?? 0
+        )
       }
     }
+  }
+
+  for (let start = 0; start < frameStatements.length; start += WRITE_BATCH_SIZE) {
+    const results = await db.batch(frameStatements.slice(start, start + WRITE_BATCH_SIZE))
+    frameWrites += results.reduce((sum, result) => sum + (result.meta.changes ?? 0), 0)
   }
 
   if (frameWrites === 0) {

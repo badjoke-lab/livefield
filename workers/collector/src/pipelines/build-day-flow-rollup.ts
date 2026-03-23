@@ -43,6 +43,7 @@ type DayFlowRow = {
 
 const TOP_SCOPES = [10, 20, 50] as const
 const WINDOW_HOURS = 36
+const WRITE_BATCH_SIZE = 50
 
 function floorIsoToBucket(iso: string, minutes: 5 | 10): string {
   const d = new Date(iso)
@@ -204,46 +205,50 @@ async function replace5mRows(db: D1Database, day: string, rows: DayFlowRow[]): P
     .run()
 
   let writes = 0
-  for (const row of rows) {
-    const result = await db
-      .prepare(
-        `INSERT INTO dayflow_bands_5m (
-          day, bucket_time, top_scope, streamer_id, display_name, is_others,
-          avg_viewers, viewer_minutes, share, peak_viewers,
-          first_seen_at, last_seen_at, momentum_delta, activity_state, activity_level
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(day, bucket_time, top_scope, streamer_id) DO UPDATE SET
-          display_name=excluded.display_name,
-          is_others=excluded.is_others,
-          avg_viewers=excluded.avg_viewers,
-          viewer_minutes=excluded.viewer_minutes,
-          share=excluded.share,
-          peak_viewers=excluded.peak_viewers,
-          first_seen_at=excluded.first_seen_at,
-          last_seen_at=excluded.last_seen_at,
-          momentum_delta=excluded.momentum_delta,
-          activity_state=excluded.activity_state,
-          activity_level=excluded.activity_level`
+  const insertStatement = db.prepare(
+    `INSERT INTO dayflow_bands_5m (
+      day, bucket_time, top_scope, streamer_id, display_name, is_others,
+      avg_viewers, viewer_minutes, share, peak_viewers,
+      first_seen_at, last_seen_at, momentum_delta, activity_state, activity_level
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(day, bucket_time, top_scope, streamer_id) DO UPDATE SET
+      display_name=excluded.display_name,
+      is_others=excluded.is_others,
+      avg_viewers=excluded.avg_viewers,
+      viewer_minutes=excluded.viewer_minutes,
+      share=excluded.share,
+      peak_viewers=excluded.peak_viewers,
+      first_seen_at=excluded.first_seen_at,
+      last_seen_at=excluded.last_seen_at,
+      momentum_delta=excluded.momentum_delta,
+      activity_state=excluded.activity_state,
+      activity_level=excluded.activity_level`
+  )
+
+  for (let start = 0; start < rows.length; start += WRITE_BATCH_SIZE) {
+    const chunk = rows.slice(start, start + WRITE_BATCH_SIZE)
+    const results = await db.batch(
+      chunk.map((row) =>
+        insertStatement.bind(
+          row.day,
+          row.bucketTime,
+          row.topScope,
+          row.streamerId,
+          row.displayName,
+          row.isOthers,
+          row.avgViewers,
+          row.viewerMinutes,
+          row.share,
+          row.peakViewers,
+          row.firstSeenAt,
+          row.lastSeenAt,
+          row.momentumDelta,
+          row.activityState,
+          row.activityLevel
+        )
       )
-      .bind(
-        row.day,
-        row.bucketTime,
-        row.topScope,
-        row.streamerId,
-        row.displayName,
-        row.isOthers,
-        row.avgViewers,
-        row.viewerMinutes,
-        row.share,
-        row.peakViewers,
-        row.firstSeenAt,
-        row.lastSeenAt,
-        row.momentumDelta,
-        row.activityState,
-        row.activityLevel
-      )
-      .run()
-    writes += result.meta.changes ?? 0
+    )
+    writes += results.reduce((sum, result) => sum + (result.meta.changes ?? 0), 0)
   }
 
   return writes

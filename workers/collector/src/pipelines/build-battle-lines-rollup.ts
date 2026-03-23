@@ -21,6 +21,7 @@ type BucketStreamer = {
 
 const WINDOW_HOURS = 36
 const TOP_SERIES = 10
+const WRITE_BATCH_SIZE = 50
 
 function floorIsoToBucket(iso: string, minutes: 5 | 10): string {
   const d = new Date(iso)
@@ -120,26 +121,27 @@ export async function buildBattleLines5mRollup(db: D1Database, day: string, _now
   const peakByStreamer = new Map<string, number>()
   const prevByStreamer = new Map<string, number>()
   let seriesWrites = 0
+  const seriesInsertStatement = db.prepare(
+    `INSERT INTO battlelines_series_5m (
+      day, bucket_time, streamer_id, display_name, viewers,
+      indexed_base_peak, viewer_delta, momentum_delta, activity_state
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(day, bucket_time, streamer_id) DO UPDATE SET
+      display_name=excluded.display_name,
+      viewers=excluded.viewers,
+      indexed_base_peak=excluded.indexed_base_peak,
+      viewer_delta=excluded.viewer_delta,
+      momentum_delta=excluded.momentum_delta,
+      activity_state=excluded.activity_state`
+  )
 
   for (const [bucket, rows] of bucketSeries.entries()) {
+    const statements: D1PreparedStatement[] = []
     for (const row of rows) {
       const peak = Math.max(peakByStreamer.get(row.streamerId) ?? 0, row.viewers)
       const prev = prevByStreamer.get(row.streamerId)
-      const result = await db
-        .prepare(
-          `INSERT INTO battlelines_series_5m (
-            day, bucket_time, streamer_id, display_name, viewers,
-            indexed_base_peak, viewer_delta, momentum_delta, activity_state
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(day, bucket_time, streamer_id) DO UPDATE SET
-            display_name=excluded.display_name,
-            viewers=excluded.viewers,
-            indexed_base_peak=excluded.indexed_base_peak,
-            viewer_delta=excluded.viewer_delta,
-            momentum_delta=excluded.momentum_delta,
-            activity_state=excluded.activity_state`
-        )
-        .bind(
+      statements.push(
+        seriesInsertStatement.bind(
           isoDay(bucket),
           bucket,
           row.streamerId,
@@ -150,15 +152,26 @@ export async function buildBattleLines5mRollup(db: D1Database, day: string, _now
           prev === undefined ? null : (row.viewers - prev) / 5,
           activityStateFromLevel(row.activityLevel)
         )
-        .run()
-      seriesWrites += result.meta.changes ?? 0
+      )
 
       peakByStreamer.set(row.streamerId, peak)
       prevByStreamer.set(row.streamerId, row.viewers)
     }
+
+    for (let start = 0; start < statements.length; start += WRITE_BATCH_SIZE) {
+      const results = await db.batch(statements.slice(start, start + WRITE_BATCH_SIZE))
+      seriesWrites += results.reduce((sum, result) => sum + (result.meta.changes ?? 0), 0)
+    }
   }
 
   const buckets = [...bucketSeries.keys()]
+  const reversalInsertStatement = db.prepare(
+    `INSERT INTO battle_reversal_events (
+      day, bucket_time, left_streamer_id, right_streamer_id, passer_streamer_id, passed_streamer_id,
+      gap_before, gap_after, heat_overlap, pair_score
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  const reversalStatements: D1PreparedStatement[] = []
   for (let idx = 1; idx < buckets.length; idx += 1) {
     const prevRows = bucketSeries.get(buckets[idx - 1]) ?? []
     const currRows = bucketSeries.get(buckets[idx]) ?? []
@@ -186,14 +199,8 @@ export async function buildBattleLines5mRollup(db: D1Database, day: string, _now
         const heatOverlap = (prevLeft.activityLevel ?? 0) >= 3 && (prevRight.activityLevel ?? 0) >= 3
         const pairScore = Math.max(0, 1000 - Math.abs(currDiff) + Math.abs(prevDiff - currDiff))
 
-        await db
-          .prepare(
-            `INSERT INTO battle_reversal_events (
-              day, bucket_time, left_streamer_id, right_streamer_id, passer_streamer_id, passed_streamer_id,
-              gap_before, gap_after, heat_overlap, pair_score
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          )
-          .bind(
+        reversalStatements.push(
+          reversalInsertStatement.bind(
             isoDay(buckets[idx]),
             buckets[idx],
             leftId,
@@ -205,9 +212,13 @@ export async function buildBattleLines5mRollup(db: D1Database, day: string, _now
             heatOverlap ? 1 : 0,
             pairScore
           )
-          .run()
+        )
       }
     }
+  }
+
+  for (let start = 0; start < reversalStatements.length; start += WRITE_BATCH_SIZE) {
+    await db.batch(reversalStatements.slice(start, start + WRITE_BATCH_SIZE))
   }
 
   if (seriesWrites === 0) {
