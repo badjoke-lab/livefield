@@ -48,6 +48,12 @@ function isoDay(iso: string): string {
   return iso.slice(0, 10)
 }
 
+function dayBounds(day: string): { dayStartIso: string; dayEndIso: string } {
+  const dayStartIso = `${day}T00:00:00.000Z`
+  const dayEndIso = new Date(new Date(dayStartIso).getTime() + 24 * 60 * 60_000).toISOString().slice(0, 19) + ".000Z"
+  return { dayStartIso, dayEndIso }
+}
+
 function activityState(level: number | null): string | null {
   if (level === null) return null
   if (level >= 4) return "hot"
@@ -60,6 +66,21 @@ function momentumState(delta: number | null): string | null {
   if (delta >= 40) return "rising"
   if (delta <= -40) return "falling"
   return "flat"
+}
+
+async function loadSnapshotsForDay(db: D1Database, day: string): Promise<SnapshotRow[]> {
+  const { dayStartIso, dayEndIso } = dayBounds(day)
+  const result = await db
+    .prepare(
+      `SELECT bucket_minute, total_viewers, payload_json
+       FROM minute_snapshots
+       WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute < ?
+       ORDER BY bucket_minute ASC`
+    )
+    .bind(dayStartIso, dayEndIso)
+    .all<SnapshotRow>()
+
+  return result.results ?? []
 }
 
 async function loadSnapshotsSince(db: D1Database, sinceIso: string): Promise<SnapshotRow[]> {
@@ -76,9 +97,11 @@ async function loadSnapshotsSince(db: D1Database, sinceIso: string): Promise<Sna
   return result.results ?? []
 }
 
-export async function buildHeatmap5mFrames(db: D1Database, _day: string, now = new Date()): Promise<void> {
-  const fromIso = new Date(now.getTime() - WINDOW_HOURS * 60 * 60_000).toISOString().slice(0, 19) + ".000Z"
-  const snapshots = await loadSnapshotsSince(db, fromIso)
+export async function buildHeatmap5mFrames(db: D1Database, day: string, _now = new Date()): Promise<void> {
+  const snapshots = await loadSnapshotsForDay(db, day)
+  if (snapshots.length === 0) {
+    throw new Error(`heatmap_frames_5m: no minute_snapshots found for day=${day} provider=twitch`)
+  }
 
   const bucketAgg = new Map<string, Map<string, {
     displayName: string
@@ -143,10 +166,11 @@ export async function buildHeatmap5mFrames(db: D1Database, _day: string, now = n
     bucketAgg.set(bucket, perStreamer)
   }
 
-  await db.prepare(`DELETE FROM heatmap_frames_5m WHERE bucket_time >= ?`).bind(fromIso).run()
+  await db.prepare(`DELETE FROM heatmap_frames_5m WHERE day = ?`).bind(day).run()
 
   const previousByScopeStreamer = new Map<string, number>()
   const buckets = [...bucketAgg.keys()].sort((a, b) => a.localeCompare(b))
+  let frameWrites = 0
 
   for (const bucket of buckets) {
     const streamers = [...(bucketAgg.get(bucket)?.entries() ?? [])]
@@ -189,7 +213,7 @@ export async function buildHeatmap5mFrames(db: D1Database, _day: string, now = n
       })
 
       for (const row of rows) {
-        await db
+        const result = await db
           .prepare(
             `INSERT INTO heatmap_frames_5m (
               day, bucket_time, top_scope, streamer_id, display_name, viewers,
@@ -225,8 +249,13 @@ export async function buildHeatmap5mFrames(db: D1Database, _day: string, now = n
             row.language
           )
           .run()
+        frameWrites += result.meta.changes ?? 0
       }
     }
+  }
+
+  if (frameWrites === 0) {
+    throw new Error(`heatmap_frames_5m: wrote 0 rows from ${snapshots.length} snapshots for day=${day}`)
   }
 }
 

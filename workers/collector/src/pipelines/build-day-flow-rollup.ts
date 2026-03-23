@@ -55,6 +55,12 @@ function isoDay(iso: string): string {
   return iso.slice(0, 10)
 }
 
+function dayBounds(day: string): { dayStartIso: string; dayEndIso: string } {
+  const dayStartIso = `${day}T00:00:00.000Z`
+  const dayEndIso = new Date(new Date(dayStartIso).getTime() + 24 * 60 * 60_000).toISOString().slice(0, 19) + ".000Z"
+  return { dayStartIso, dayEndIso }
+}
+
 function activityStateFromLevel(level: number | null): string | null {
   if (level === null) return null
   if (level >= 4) return "hot"
@@ -62,15 +68,16 @@ function activityStateFromLevel(level: number | null): string | null {
   return "steady"
 }
 
-async function loadSnapshotsSince(db: D1Database, sinceIso: string): Promise<SnapshotRow[]> {
+async function loadSnapshotsForDay(db: D1Database, day: string): Promise<SnapshotRow[]> {
+  const { dayStartIso, dayEndIso } = dayBounds(day)
   const result = await db
     .prepare(
       `SELECT bucket_minute, payload_json
        FROM minute_snapshots
-       WHERE provider = 'twitch' AND bucket_minute >= ?
+       WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute < ?
        ORDER BY bucket_minute ASC`
     )
-    .bind(sinceIso)
+    .bind(dayStartIso, dayEndIso)
     .all<SnapshotRow>()
 
   return result.results ?? []
@@ -190,14 +197,15 @@ function build5mRows(snapshots: SnapshotRow[]): DayFlowRow[] {
   return rows
 }
 
-async function replace5mRows(db: D1Database, fromIso: string, rows: DayFlowRow[]): Promise<void> {
+async function replace5mRows(db: D1Database, day: string, rows: DayFlowRow[]): Promise<number> {
   await db
-    .prepare(`DELETE FROM dayflow_bands_5m WHERE bucket_time >= ?`)
-    .bind(fromIso)
+    .prepare(`DELETE FROM dayflow_bands_5m WHERE day = ?`)
+    .bind(day)
     .run()
 
+  let writes = 0
   for (const row of rows) {
-    await db
+    const result = await db
       .prepare(
         `INSERT INTO dayflow_bands_5m (
           day, bucket_time, top_scope, streamer_id, display_name, is_others,
@@ -235,14 +243,27 @@ async function replace5mRows(db: D1Database, fromIso: string, rows: DayFlowRow[]
         row.activityLevel
       )
       .run()
+    writes += result.meta.changes ?? 0
   }
+
+  return writes
 }
 
-export async function buildDayflow5mRollup(db: D1Database, _day: string, now = new Date()): Promise<void> {
-  const fromIso = new Date(now.getTime() - WINDOW_HOURS * 60 * 60_000).toISOString().slice(0, 19) + ".000Z"
-  const snapshots = await loadSnapshotsSince(db, fromIso)
+export async function buildDayflow5mRollup(db: D1Database, day: string, _now = new Date()): Promise<void> {
+  const snapshots = await loadSnapshotsForDay(db, day)
+  if (snapshots.length === 0) {
+    throw new Error(`dayflow_bands_5m: no minute_snapshots found for day=${day} provider=twitch`)
+  }
+
   const rows = build5mRows(snapshots)
-  await replace5mRows(db, fromIso, rows)
+  if (rows.length === 0) {
+    throw new Error(`dayflow_bands_5m: built 0 rows from ${snapshots.length} snapshots for day=${day}`)
+  }
+
+  const writes = await replace5mRows(db, day, rows)
+  if (writes === 0) {
+    throw new Error(`dayflow_bands_5m: wrote 0 rows for day=${day} from ${snapshots.length} snapshots`)
+  }
 }
 
 export async function buildDayflow10mRollup(db: D1Database, now = new Date()): Promise<void> {

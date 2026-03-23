@@ -33,6 +33,12 @@ function isoDay(iso: string): string {
   return iso.slice(0, 10)
 }
 
+function dayBounds(day: string): { dayStartIso: string; dayEndIso: string } {
+  const dayStartIso = `${day}T00:00:00.000Z`
+  const dayEndIso = new Date(new Date(dayStartIso).getTime() + 24 * 60 * 60_000).toISOString().slice(0, 19) + ".000Z"
+  return { dayStartIso, dayEndIso }
+}
+
 function activityStateFromLevel(level: number | null): string | null {
   if (level === null) return null
   if (level >= 4) return "hot"
@@ -40,15 +46,16 @@ function activityStateFromLevel(level: number | null): string | null {
   return "steady"
 }
 
-async function loadSnapshotsSince(db: D1Database, sinceIso: string): Promise<SnapshotRow[]> {
+async function loadSnapshotsForDay(db: D1Database, day: string): Promise<SnapshotRow[]> {
+  const { dayStartIso, dayEndIso } = dayBounds(day)
   const result = await db
     .prepare(
       `SELECT bucket_minute, payload_json
        FROM minute_snapshots
-       WHERE provider = 'twitch' AND bucket_minute >= ?
+       WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute < ?
        ORDER BY bucket_minute ASC`
     )
-    .bind(sinceIso)
+    .bind(dayStartIso, dayEndIso)
     .all<SnapshotRow>()
   return result.results ?? []
 }
@@ -96,22 +103,29 @@ function buildBucketSeries(snapshots: SnapshotRow[]): Map<string, BucketStreamer
   return new Map([...series.entries()].sort((a, b) => a[0].localeCompare(b[0])))
 }
 
-export async function buildBattleLines5mRollup(db: D1Database, _day: string, now = new Date()): Promise<void> {
-  const fromIso = new Date(now.getTime() - WINDOW_HOURS * 60 * 60_000).toISOString().slice(0, 19) + ".000Z"
-  const snapshots = await loadSnapshotsSince(db, fromIso)
-  const bucketSeries = buildBucketSeries(snapshots)
+export async function buildBattleLines5mRollup(db: D1Database, day: string, _now = new Date()): Promise<void> {
+  const snapshots = await loadSnapshotsForDay(db, day)
+  if (snapshots.length === 0) {
+    throw new Error(`battlelines_series_5m: no minute_snapshots found for day=${day} provider=twitch`)
+  }
 
-  await db.prepare(`DELETE FROM battlelines_series_5m WHERE bucket_time >= ?`).bind(fromIso).run()
-  await db.prepare(`DELETE FROM battle_reversal_events WHERE bucket_time >= ?`).bind(fromIso).run()
+  const bucketSeries = buildBucketSeries(snapshots)
+  if (bucketSeries.size === 0) {
+    throw new Error(`battlelines_series_5m: built 0 buckets from ${snapshots.length} snapshots for day=${day}`)
+  }
+
+  await db.prepare(`DELETE FROM battlelines_series_5m WHERE day = ?`).bind(day).run()
+  await db.prepare(`DELETE FROM battle_reversal_events WHERE day = ?`).bind(day).run()
 
   const peakByStreamer = new Map<string, number>()
   const prevByStreamer = new Map<string, number>()
+  let seriesWrites = 0
 
   for (const [bucket, rows] of bucketSeries.entries()) {
     for (const row of rows) {
       const peak = Math.max(peakByStreamer.get(row.streamerId) ?? 0, row.viewers)
       const prev = prevByStreamer.get(row.streamerId)
-      await db
+      const result = await db
         .prepare(
           `INSERT INTO battlelines_series_5m (
             day, bucket_time, streamer_id, display_name, viewers,
@@ -137,6 +151,7 @@ export async function buildBattleLines5mRollup(db: D1Database, _day: string, now
           activityStateFromLevel(row.activityLevel)
         )
         .run()
+      seriesWrites += result.meta.changes ?? 0
 
       peakByStreamer.set(row.streamerId, peak)
       prevByStreamer.set(row.streamerId, row.viewers)
@@ -193,6 +208,10 @@ export async function buildBattleLines5mRollup(db: D1Database, _day: string, now
           .run()
       }
     }
+  }
+
+  if (seriesWrites === 0) {
+    throw new Error(`battlelines_series_5m: wrote 0 rows from ${bucketSeries.size} buckets for day=${day}`)
   }
 }
 
