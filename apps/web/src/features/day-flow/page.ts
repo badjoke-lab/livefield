@@ -775,7 +775,17 @@ export function renderDayFlowPage(root: HTMLElement): void {
 
     <div id="day-flow-content"></div>
 
-    ${renderStatusNote("Partial, sparse, or observed-window states are expected during live collection. Day Flow avoids synthetic full-day fill.")}
+    ${renderStatusNote({
+      eyebrow: "LIVE COVERAGE",
+      title: "What partial means in Day Flow",
+      body: "Today and Rolling 24h show the observed window from current collection, not a synthetic full-day fill.",
+      items: [
+        "partial = observed channels/pages only, not complete site-wide coverage",
+        "coverage grows as the collector sees more pages in the current window",
+        "activity unavailable is expected in the current MVP feed"
+      ],
+      tone: "info"
+    })}
     ${renderFooter()}
   `
 

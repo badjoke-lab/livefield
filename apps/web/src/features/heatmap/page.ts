@@ -93,7 +93,23 @@ function renderReady(
     ${renderHeatmapDetailPanel(selected, isHistorical)}
     <section class="card page-section heatmap-legend-section"><h2>Activity sampling legend</h2><p class="muted">Sampled coverage: ${activityBreakdown.active + activityBreakdown.sampledZero + activityBreakdown.sampledUnavailable} / ${visibleNodes.length} tiles.</p><div class="heatmap-state-legend"><span class="heatmap-state-chip heatmap-state-chip--active">active (${activityBreakdown.active})</span><span class="heatmap-state-chip heatmap-state-chip--sampled-zero">sampled · zero (${activityBreakdown.sampledZero})</span><span class="heatmap-state-chip heatmap-state-chip--sampled-unavailable">sampled · unavailable (${activityBreakdown.sampledUnavailable})</span><span class="heatmap-state-chip heatmap-state-chip--not-sampled">not sampled (${activityBreakdown.notSampled})</span></div></section>
     ${renderHeatmapSummary(payload, isHistorical)}
-    ${renderStatusNote(getModeNote(mode, payload, lowLoad, animationEnabled, isHistorical))}${renderFooter()}`
+    ${renderStatusNote({
+      eyebrow: isHistorical ? "PLAYBACK COVERAGE" : "LIVE COVERAGE",
+      title: "How to read Heatmap status",
+      body: getModeNote(mode, payload, lowLoad, animationEnabled, isHistorical),
+      items: isHistorical
+        ? [
+            "historical playback reads saved frames, not a live collector window",
+            "partial means the saved frame came from limited observed coverage",
+            "activity chips still reflect sampled availability, not universal chat coverage"
+          ]
+        : [
+            "partial = the frame reflects observed channels/pages, not the full live directory",
+            "sampled activity applies only where the collector has chat coverage",
+            "hasMore/partial states are expected while live collection is still paging"
+          ],
+      tone: mode === "partial" || mode === "stale" ? "warning" : "info"
+    })}${renderFooter()}`
 
   const tileStage = root.querySelector<HTMLElement>("#heatmapTileStage")
   if (!tileStage) throw new Error("tile stage not found")
