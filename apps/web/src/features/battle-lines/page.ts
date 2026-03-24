@@ -377,7 +377,17 @@ export function renderBattleLinesPage(root: HTMLElement): void {
 
     <div id="battle-lines-content" class="battle-lines-content"></div>
 
-    ${renderStatusNote("Partial or sparse states are normal during collection windows: rankings reflect observed data, not full-day completeness.")}
+    ${renderStatusNote({
+      eyebrow: "LIVE COVERAGE",
+      title: "What partial means in Rivalry Radar",
+      body: "Battle lines reflect the currently observed rivalry window, so sparse or partial states are expected early in collection.",
+      items: [
+        "partial = rankings are based on observed channels/pages, not full Twitch coverage",
+        "observed-window mode avoids faking a full-day chart before enough buckets exist",
+        "today auto-refresh keeps the same focus while the observed window grows"
+      ],
+      tone: "info"
+    })}
     ${renderFooter()}
   `
 
