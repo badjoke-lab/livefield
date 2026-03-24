@@ -355,6 +355,28 @@ function resetBattleLinesControls(form: HTMLFormElement): void {
   if (bucketEl) bucketEl.value = "5"
 }
 
+function initializeBattleDetailDisclosures(target: HTMLElement): void {
+  const isMobile = window.matchMedia("(max-width: 768px)").matches
+
+  target.querySelectorAll<HTMLElement>("[data-battle-disclosure]").forEach((section) => {
+    const toggle = section.querySelector<HTMLButtonElement>("[data-battle-disclosure-toggle]")
+    const panel = section.querySelector<HTMLElement>("[data-battle-disclosure-panel]")
+    if (!toggle || !panel) return
+
+    const setExpanded = (expanded: boolean): void => {
+      toggle.setAttribute("aria-expanded", expanded ? "true" : "false")
+      panel.hidden = !expanded
+      section.dataset.expanded = expanded ? "true" : "false"
+    }
+
+    setExpanded(!isMobile)
+    toggle.onclick = () => {
+      const expanded = toggle.getAttribute("aria-expanded") === "true"
+      setExpanded(!expanded)
+    }
+  })
+}
+
 export function renderBattleLinesPage(root: HTMLElement): void {
   const rootEl = root as RootWithCleanup
   rootEl.__battleLinesDispose?.()
@@ -380,11 +402,10 @@ export function renderBattleLinesPage(root: HTMLElement): void {
     ${renderStatusNote({
       eyebrow: "LIVE COVERAGE",
       title: "What partial means in Rivalry Radar",
-      body: "Battle lines reflect the currently observed rivalry window, so sparse or partial states are expected early in collection.",
+      body: "Battle lines use the observed rivalry window, so early Today views can look sparse before coverage fills in.",
       items: [
-        "partial = rankings are based on observed channels/pages, not full Twitch coverage",
-        "observed-window mode avoids faking a full-day chart before enough buckets exist",
-        "today auto-refresh keeps the same focus while the observed window grows"
+        "partial = observed channels/pages only, not full Twitch coverage",
+        "observed mode avoids fake full-day curves before enough buckets exist"
       ],
       tone: "info"
     })}
@@ -486,6 +507,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
         observedState.isSparseToday ? observedState.observedSinceLabel : null,
         observedState.isSparseToday
       )
+      initializeBattleDetailDisclosures(content)
       applyRefreshUi(content, payload, false)
       updateHoverPreview(content, payload, null)
 

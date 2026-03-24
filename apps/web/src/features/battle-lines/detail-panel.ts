@@ -78,13 +78,6 @@ export function renderBattleDetailSections(
         </div>
       </section>
 
-      <section class="card battle-detail-card battle-detail-card--feed">
-        <h2>Battle feed</h2>
-        <div class="kv battle-feed-list">
-          ${battleFeed.map((line) => `<div class="kv-row"><span>Feed</span><strong>${escapeHtml(line)}</strong></div>`).join("")}
-        </div>
-      </section>
-
       <section class="card battle-detail-card battle-detail-card--reversal">
         <h2>Latest reversal</h2>
         <div class="kv">
@@ -95,9 +88,22 @@ export function renderBattleDetailSections(
         </div>
       </section>
 
-      <section class="card battle-detail-card">
-        <h2>Data state</h2>
-        <div class="kv">
+      <section class="card battle-detail-card battle-detail-card--feed battle-detail-card--collapsible" data-battle-disclosure>
+        <button type="button" class="battle-detail-toggle" data-battle-disclosure-toggle aria-expanded="true" aria-controls="battle-feed-panel">
+          <span>Battle feed</span>
+          <span class="battle-detail-toggle__icon" aria-hidden="true">▾</span>
+        </button>
+        <div class="kv battle-feed-list battle-detail-body" id="battle-feed-panel" data-battle-disclosure-panel>
+          ${battleFeed.map((line) => `<div class="kv-row"><span>Feed</span><strong>${escapeHtml(line)}</strong></div>`).join("")}
+        </div>
+      </section>
+
+      <section class="card battle-detail-card battle-detail-card--collapsible" data-battle-disclosure>
+        <button type="button" class="battle-detail-toggle" data-battle-disclosure-toggle aria-expanded="true" aria-controls="battle-data-state-panel">
+          <span>Data state</span>
+          <span class="battle-detail-toggle__icon" aria-hidden="true">▾</span>
+        </button>
+        <div class="kv battle-detail-body" id="battle-data-state-panel" data-battle-disclosure-panel>
           <div class="kv-row"><span>Source</span><strong>${payload.source}</strong></div>
           <div class="kv-row"><span>Status</span><strong>${payload.state}</strong></div>
           <div class="kv-row"><span>Top</span><strong>${payload.filters.top}</strong></div>

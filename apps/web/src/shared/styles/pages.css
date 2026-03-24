@@ -1871,6 +1871,26 @@
   min-width: 0;
 }
 
+.controls--battle-lines select,
+.controls--battle-lines input[type="date"] {
+  appearance: none;
+  border-radius: 999px;
+  border: 1px solid rgba(122, 162, 255, 0.2);
+  background: rgba(122, 162, 255, 0.07);
+  color: var(--text);
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.controls--battle-lines input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.8;
+}
+
+.controls--battle-lines .action {
+  min-height: 40px;
+  border-radius: 999px;
+}
+
 .battle-lines-layout {
   align-items: start;
 }
@@ -1903,6 +1923,38 @@
 .battle-side {
   min-width: 0;
   gap: 16px;
+}
+
+.battle-detail-card--collapsible {
+  gap: 10px;
+}
+
+.battle-detail-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid rgba(122, 162, 255, 0.16);
+  background: rgba(122, 162, 255, 0.06);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.battle-detail-toggle__icon {
+  font-size: 0.82rem;
+  transition: transform 0.16s ease;
+}
+
+.battle-detail-card[data-expanded="false"] .battle-detail-toggle__icon {
+  transform: rotate(-90deg);
+}
+
+.battle-detail-body[hidden] {
+  display: none;
 }
 
 .battle-side .card,
@@ -1949,7 +2001,7 @@
   }
 
   .battle-mock-stage--battle-lines {
-    min-height: 400px;
+    min-height: 340px;
   }
 
   .battle-line-label {
@@ -1960,6 +2012,32 @@
 
   .summary-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .battle-side {
+    gap: 10px;
+  }
+
+  .battle-side > .card:first-child {
+    order: 2;
+  }
+
+  .battle-detail-sections {
+    order: 1;
+  }
+
+  .battle-mock-card--battle-lines {
+    padding: 14px;
+  }
+
+  .battle-mock-card--battle-lines .battle-mock-card__head {
+    margin-bottom: 10px;
+  }
+
+  .battle-legend-row {
+    padding-top: 8px;
+    gap: 6px 10px;
+    font-size: 12px;
   }
 }
 
@@ -1976,7 +2054,7 @@
   }
 
   .battle-mock-stage--battle-lines {
-    min-height: 360px;
+    min-height: 300px;
   }
 
   .battle-xlabels span:nth-child(2),
@@ -2013,11 +2091,34 @@
   .focus-chip-row {
     gap: 8px;
   }
+
+  .battle-mock-stage--battle-lines .battle-xlabels {
+    left: 48px;
+    right: 12px;
+    bottom: 8px;
+  }
+
+  .battle-mock-stage--battle-lines .battle-ylabels {
+    top: 12px;
+    bottom: 36px;
+  }
+
+  .battle-detail-card--collapsible .battle-detail-body {
+    margin-top: 6px;
+  }
+
+  .status-note__body {
+    line-height: 1.4;
+  }
+
+  .status-note__list li:nth-child(n+3) {
+    display: none;
+  }
 }
 
 @media (max-width: 420px) {
   .battle-mock-stage--battle-lines {
-    min-height: 320px;
+    min-height: 260px;
   }
 
   .battle-now-badge {
