@@ -421,33 +421,29 @@ function buildPayloadFromDraftLines(args: {
   }
 }
 
-async function fetchHistoricalBattleRows(
+async function fetchRollupBattleRows(
   db: NonNullable<Env["DB"]>,
-  day: string
+  day: string,
+  requestedBucketMinutes: 5 | 10
 ): Promise<{ rows: RollupSeriesRow[]; bucketMinutes: 5 | 10 | null }> {
-  const rows5m = (await db
-    .prepare(
-      `SELECT bucket_time, streamer_id, display_name, viewers, indexed_base_peak
-       FROM battlelines_series_5m
-       WHERE day = ?
-       ORDER BY bucket_time ASC`
-    )
-    .bind(day)
-    .all()) as unknown as { results: RollupSeriesRow[] }
+  const candidateBuckets: Array<5 | 10> =
+    requestedBucketMinutes === 10 ? [10, 5] : [5, 10]
 
-  if (rows5m.results.length) return { rows: rows5m.results, bucketMinutes: 5 }
+  for (const bucketMinutes of candidateBuckets) {
+    const table = bucketMinutes === 10 ? "battlelines_series_10m" : "battlelines_series_5m"
+    const rows = (await db
+      .prepare(
+        `SELECT bucket_time, streamer_id, display_name, viewers, indexed_base_peak
+         FROM ${table}
+         WHERE day = ?
+         ORDER BY bucket_time ASC`
+      )
+      .bind(day)
+      .all()) as unknown as { results: RollupSeriesRow[] }
 
-  const rows10m = (await db
-    .prepare(
-      `SELECT bucket_time, streamer_id, display_name, viewers, indexed_base_peak
-       FROM battlelines_series_10m
-       WHERE day = ?
-       ORDER BY bucket_time ASC`
-    )
-    .bind(day)
-    .all()) as unknown as { results: RollupSeriesRow[] }
+    if (rows.results.length) return { rows: rows.results, bucketMinutes }
+  }
 
-  if (rows10m.results.length) return { rows: rows10m.results, bucketMinutes: 10 }
   return { rows: [], bucketMinutes: null }
 }
 
@@ -495,6 +491,87 @@ function toPairReversalRecordsFromRows(
       }
     })
     .sort((a, b) => parseIsoMinute(b.timestamp) - parseIsoMinute(a.timestamp))
+}
+
+async function buildRollupPayload(
+  db: NonNullable<Env["DB"]>,
+  filters: BattleLinesFilters,
+  state: BattleLinesState
+): Promise<BattleLinesPayload | null> {
+  if (filters.bucketMinutes === 1) return null
+
+  const historical = await fetchRollupBattleRows(db, filters.date, filters.bucketMinutes)
+  if (!historical.rows.length || historical.bucketMinutes === null) return null
+
+  const effectiveBucketMinutes = historical.bucketMinutes
+  const effectiveFilters: BattleLinesFilters = {
+    ...filters,
+    bucketMinutes: effectiveBucketMinutes
+  }
+  const now = new Date()
+  const buckets = buildBuckets(new Date(`${filters.date}T00:00:00.000Z`), effectiveBucketMinutes, now)
+  const bucketIndex = new Map(buckets.map((bucket, idx) => [bucket, idx]))
+  const nameById = new Map<string, string>()
+  const totalById = new Map<string, number>()
+  const pointsById = new Map<string, number[]>()
+  const indexedById = new Map<string, number[]>()
+
+  for (const row of historical.rows) {
+    const idx = bucketIndex.get(toIsoMinute(new Date(row.bucket_time)))
+    if (idx === undefined) continue
+    nameById.set(row.streamer_id, row.display_name)
+    totalById.set(row.streamer_id, (totalById.get(row.streamer_id) ?? 0) + row.viewers)
+    const viewers = pointsById.get(row.streamer_id) ?? new Array(buckets.length).fill(0)
+    viewers[idx] = row.viewers
+    pointsById.set(row.streamer_id, viewers)
+    const indexed = indexedById.get(row.streamer_id) ?? new Array(buckets.length).fill(0)
+    indexed[idx] = row.indexed_base_peak ?? 0
+    indexedById.set(row.streamer_id, indexed)
+  }
+
+  const rankedIds = [...totalById.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id)
+  const topIds = rankedIds.slice(0, effectiveFilters.top)
+
+  const draftLines: DraftLine[] = topIds.map((streamerId, index) => {
+    const viewerPoints = pointsById.get(streamerId) ?? new Array(buckets.length).fill(0)
+    const peakViewers = viewerPoints.reduce((best, value) => Math.max(best, value), 0)
+    const points =
+      effectiveFilters.metric === "indexed"
+        ? indexedById.get(streamerId)?.map((value) => Math.round(value * 10) / 10) ?? new Array(buckets.length).fill(0)
+        : [...viewerPoints]
+    let risePerMin = 0
+    for (let idx = 1; idx < viewerPoints.length; idx += 1) {
+      risePerMin = Math.max(risePerMin, (viewerPoints[idx] - viewerPoints[idx - 1]) / effectiveBucketMinutes)
+    }
+    return {
+      streamerId,
+      name: nameById.get(streamerId) ?? streamerId,
+      color: COLORS[index % COLORS.length],
+      points,
+      viewerPoints,
+      peakViewers,
+      latestViewers: viewerPoints[viewerPoints.length - 1] ?? 0,
+      risePerMin
+    }
+  })
+
+  if (!draftLines.length) {
+    return buildEmptyPayload(effectiveFilters, historical.rows[historical.rows.length - 1]?.bucket_time ?? new Date().toISOString())
+  }
+
+  const reversalRows = await fetchHistoricalReversalEvents(db, filters.date)
+  const reversalRecords = toPairReversalRecordsFromRows(reversalRows.results, nameById)
+  const updatedAt = historical.rows[historical.rows.length - 1]?.bucket_time ?? new Date().toISOString()
+
+  return buildPayloadFromDraftLines({
+    source: "api",
+    state,
+    updatedAt,
+    filters: effectiveFilters,
+    buckets,
+    draftLines,
+    reversalRecords
+  })
 }
 
 function buildDemoPayload(filters: BattleLinesFilters): BattleLinesPayload {
@@ -606,82 +683,21 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
   if (!db) return json(buildDemoPayload(filters))
   const isHistorical = filters.day === "yesterday" || filters.day === "date"
 
-  if (isHistorical) {
-    try {
-      const historical = await fetchHistoricalBattleRows(db, filters.date)
-      if (!historical.rows.length || historical.bucketMinutes === null) {
-        return json(buildEmptyPayload(filters, new Date().toISOString()))
-      }
-
-      const effectiveBucketMinutes = historical.bucketMinutes
-      const effectiveFilters: BattleLinesFilters = {
-        ...filters,
-        bucketMinutes: effectiveBucketMinutes
-      }
-      const now = new Date()
-      const buckets = buildBuckets(new Date(`${filters.date}T00:00:00.000Z`), effectiveBucketMinutes, now)
-      const bucketIndex = new Map(buckets.map((bucket, idx) => [bucket, idx]))
-      const nameById = new Map<string, string>()
-      const totalById = new Map<string, number>()
-      const pointsById = new Map<string, number[]>()
-      const indexedById = new Map<string, number[]>()
-
-      for (const row of historical.rows) {
-        const idx = bucketIndex.get(toIsoMinute(new Date(row.bucket_time)))
-        if (idx === undefined) continue
-        nameById.set(row.streamer_id, row.display_name)
-        totalById.set(row.streamer_id, (totalById.get(row.streamer_id) ?? 0) + row.viewers)
-        const viewers = pointsById.get(row.streamer_id) ?? new Array(buckets.length).fill(0)
-        viewers[idx] = row.viewers
-        pointsById.set(row.streamer_id, viewers)
-        const indexed = indexedById.get(row.streamer_id) ?? new Array(buckets.length).fill(0)
-        indexed[idx] = row.indexed_base_peak ?? 0
-        indexedById.set(row.streamer_id, indexed)
-      }
-
-      const rankedIds = [...totalById.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id)
-      const topIds = rankedIds.slice(0, effectiveFilters.top)
-      const draftLines: DraftLine[] = topIds.map((streamerId, index) => {
-        const viewerPoints = pointsById.get(streamerId) ?? new Array(buckets.length).fill(0)
-        const peakViewers = viewerPoints.reduce((best, value) => Math.max(best, value), 0)
-        const points =
-          effectiveFilters.metric === "indexed"
-            ? indexedById.get(streamerId)?.map((value) => Math.round(value * 10) / 10) ?? new Array(buckets.length).fill(0)
-            : [...viewerPoints]
-        let risePerMin = 0
-        for (let idx = 1; idx < viewerPoints.length; idx += 1) {
-          risePerMin = Math.max(risePerMin, (viewerPoints[idx] - viewerPoints[idx - 1]) / effectiveBucketMinutes)
-        }
-        return {
-          streamerId,
-          name: nameById.get(streamerId) ?? streamerId,
-          color: COLORS[index % COLORS.length],
-          points,
-          viewerPoints,
-          peakViewers,
-          latestViewers: viewerPoints[viewerPoints.length - 1] ?? 0,
-          risePerMin
-        }
-      })
-
-      if (!draftLines.length) return json(buildEmptyPayload(effectiveFilters, new Date().toISOString()))
-      const reversalRows = await fetchHistoricalReversalEvents(db, filters.date)
-      const reversalRecords = toPairReversalRecordsFromRows(reversalRows.results, nameById)
-      const updatedAt = historical.rows[historical.rows.length - 1]?.bucket_time ?? new Date().toISOString()
-      return json(
-        buildPayloadFromDraftLines({
-          source: "api",
-          state: "complete",
-          updatedAt,
-          filters: effectiveFilters,
-          buckets,
-          draftLines,
-          reversalRecords
-        })
-      )
-    } catch {
+  try {
+    const rollupPayload = await buildRollupPayload(
+      db,
+      filters,
+      filters.day === "today" ? "partial" : "complete"
+    )
+    if (rollupPayload) return json(rollupPayload)
+  } catch {
+    if (isHistorical) {
       return json(buildEmptyPayload(filters, new Date().toISOString()))
     }
+  }
+
+  if (isHistorical) {
+    return json(buildEmptyPayload(filters, new Date().toISOString()))
   }
 
   const dayStart = `${filters.date}T00:00:00.000Z`
