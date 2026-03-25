@@ -388,7 +388,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
       eyebrow: "RIVALRIES",
       title: "Rivalry Radar",
       subtitle: "See who is fighting for attention right now.",
-      note: "Today uses live hot data; Yesterday/Date use saved rollup history. Sparse Today may default to observed-window mode.",
+      note: "Today = live hot path. Yesterday/Date = saved rollup history. Sparse Today may switch to observed-window mode.",
       actions: [
         { href: "/day-flow/", label: "Open Day Flow" },
         { href: "/method/", label: "Open Method" }
@@ -402,7 +402,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
     ${renderStatusNote({
       eyebrow: "LIVE COVERAGE",
       title: "What partial means in Rivalry Radar",
-      body: "Battle lines use the observed rivalry window, so early Today views can look sparse before coverage fills in.",
+      body: "Today shows the observed rivalry window, so sparse views are normal before coverage fills in.",
       items: [
         "partial = observed channels/pages only, not full Twitch coverage",
         "observed mode avoids fake full-day curves before enough buckets exist"

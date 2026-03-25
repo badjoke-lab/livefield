@@ -58,10 +58,10 @@ export function renderBattleDetailSections(
           <div class="kv-row"><span>Latest viewers</span><strong>${numberFmt.format(focusLine?.latestViewers ?? payload.focusDetail.latestViewers)}</strong></div>
           <div class="kv-row"><span>Biggest rise</span><strong>${escapeHtml(payload.focusDetail.biggestRiseTime)}</strong></div>
           <div class="kv-row"><span>Reversals</span><strong>${numberFmt.format(focusLine?.reversalCount ?? payload.focusDetail.reversalCount)}</strong></div>
-          <div class="kv-row"><span>Hovered stream</span><strong data-battle-hover-name>${escapeHtml(hoverFallback?.name ?? "None")}</strong></div>
-          <div class="kv-row"><span>Hovered latest viewers</span><strong data-battle-hover-latest>${hoverFallback ? numberFmt.format(hoverFallback.latestViewers) : "Move over end markers"}</strong></div>
-          <div class="kv-row"><span>Hovered peak viewers</span><strong data-battle-hover-peak>${hoverFallback ? numberFmt.format(hoverFallback.peakViewers) : "—"}</strong></div>
-          <div class="kv-row kv-row--feature"><span>Interaction</span><small data-battle-hover-hint>Hover end markers to preview. Click one to focus.</small></div>
+          <div class="kv-row battle-kv-row--hover"><span>Hovered stream</span><strong data-battle-hover-name>${escapeHtml(hoverFallback?.name ?? "None")}</strong></div>
+          <div class="kv-row battle-kv-row--hover"><span>Hovered latest viewers</span><strong data-battle-hover-latest>${hoverFallback ? numberFmt.format(hoverFallback.latestViewers) : "Move over end markers"}</strong></div>
+          <div class="kv-row battle-kv-row--hover"><span>Hovered peak viewers</span><strong data-battle-hover-peak>${hoverFallback ? numberFmt.format(hoverFallback.peakViewers) : "—"}</strong></div>
+          <div class="kv-row kv-row--feature battle-kv-row--hover"><span>Interaction</span><small data-battle-hover-hint>Hover end markers to preview. Click one to focus.</small></div>
         </div>
       </section>
 
@@ -72,9 +72,9 @@ export function renderBattleDetailSections(
           <div class="kv-row"><span>Gap now</span><strong>${activePrimary ? escapeHtml(activePrimary.currentGapLabel) : "N/A"}</strong></div>
           <div class="kv-row"><span>Gap trend</span><strong>${activePrimary ? escapeHtml(activePrimary.gapTrend) : "N/A"}</strong></div>
           <div class="kv-row"><span>Match tag</span><strong>${activePrimary ? escapeHtml(candidateTagLabel(activePrimary.tag)) : "N/A"}</strong></div>
-          <div class="kv-row"><span>Compared rival</span><strong>${escapeHtml(rivalLine?.name ?? "N/A")}</strong></div>
+          <div class="kv-row battle-kv-row--secondary"><span>Compared rival</span><strong>${escapeHtml(rivalLine?.name ?? "N/A")}</strong></div>
           <div class="kv-row"><span>Latest viewers</span><strong>${focusLine && rivalLine ? `${numberFmt.format(focusLine.latestViewers)} vs ${numberFmt.format(rivalLine.latestViewers)}` : "N/A"}</strong></div>
-          <div class="kv-row"><span>Peak viewers</span><strong>${focusLine && rivalLine ? `${numberFmt.format(focusLine.peakViewers)} vs ${numberFmt.format(rivalLine.peakViewers)}` : "N/A"}</strong></div>
+          <div class="kv-row battle-kv-row--secondary"><span>Peak viewers</span><strong>${focusLine && rivalLine ? `${numberFmt.format(focusLine.peakViewers)} vs ${numberFmt.format(rivalLine.peakViewers)}` : "N/A"}</strong></div>
         </div>
       </section>
 
