@@ -79,6 +79,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const COLORS = ["#7aa2ff", "#4cdfff", "#8cf3c5", "#bd9bff", "#ff9ac6", "#f5cb6b", "#9fb3d8", "#d99fff", "#7df2c8", "#ffc38f"]
 
 const numberFmt = new Intl.NumberFormat("en-US")
+const TODAY_ROLLUP_FRESHNESS_MINUTES = 15
+const TODAY_RECENT_SNAPSHOT_WINDOW_MINUTES = 240
 
 function normalizeTop(raw: string | null): 3 | 5 | 10 {
   return raw === "3" ? 3 : raw === "10" ? 10 : 5
@@ -142,6 +144,24 @@ function buildBuckets(day: Date, bucketMinutes: 1 | 5 | 10, now: Date): string[]
 
   const buckets: string[] = []
   for (let ts = start.getTime(); ts < limit.getTime(); ts += bucketMinutes * 60 * 1000) {
+    buckets.push(toIsoMinute(new Date(ts)))
+  }
+  return buckets
+}
+
+function buildBucketsInRange(start: Date, end: Date, bucketMinutes: 1 | 5 | 10): string[] {
+  const rangeStart = new Date(start.getTime())
+  const rangeEnd = new Date(end.getTime())
+  if (rangeEnd.getTime() <= rangeStart.getTime()) return []
+
+  rangeStart.setUTCSeconds(0, 0)
+  rangeEnd.setUTCSeconds(0, 0)
+
+  const minute = rangeStart.getUTCMinutes()
+  rangeStart.setUTCMinutes(minute - (minute % bucketMinutes))
+
+  const buckets: string[] = []
+  for (let ts = rangeStart.getTime(); ts < rangeEnd.getTime(); ts += bucketMinutes * 60 * 1000) {
     buckets.push(toIsoMinute(new Date(ts)))
   }
   return buckets
@@ -496,7 +516,8 @@ function toPairReversalRecordsFromRows(
 async function buildRollupPayload(
   db: NonNullable<Env["DB"]>,
   filters: BattleLinesFilters,
-  state: BattleLinesState
+  state: BattleLinesState,
+  options: { freshnessMinutes: number | null } = { freshnessMinutes: null }
 ): Promise<BattleLinesPayload | null> {
   if (filters.bucketMinutes === 1) return null
 
@@ -559,9 +580,14 @@ async function buildRollupPayload(
     return buildEmptyPayload(effectiveFilters, historical.rows[historical.rows.length - 1]?.bucket_time ?? new Date().toISOString())
   }
 
+  const updatedAt = historical.rows[historical.rows.length - 1]?.bucket_time ?? new Date().toISOString()
+  if (options.freshnessMinutes !== null) {
+    const ageMs = Date.now() - parseIsoMinute(updatedAt)
+    if (ageMs > options.freshnessMinutes * 60_000) return null
+  }
+
   const reversalRows = await fetchHistoricalReversalEvents(db, filters.date)
   const reversalRecords = toPairReversalRecordsFromRows(reversalRows.results, nameById)
-  const updatedAt = historical.rows[historical.rows.length - 1]?.bucket_time ?? new Date().toISOString()
 
   return buildPayloadFromDraftLines({
     source: "api",
@@ -687,7 +713,10 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     const rollupPayload = await buildRollupPayload(
       db,
       filters,
-      filters.day === "today" ? "partial" : "complete"
+      filters.day === "today" ? "partial" : "complete",
+      {
+        freshnessMinutes: filters.day === "today" ? TODAY_ROLLUP_FRESHNESS_MINUTES : null
+      }
     )
     if (rollupPayload) return json(rollupPayload)
   } catch {
@@ -700,8 +729,11 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     return json(buildEmptyPayload(filters, new Date().toISOString()))
   }
 
-  const dayStart = `${filters.date}T00:00:00.000Z`
-  const dayEnd = `${filters.date}T23:59:59.999Z`
+  const now = new Date()
+  const dayStartDate = new Date(`${filters.date}T00:00:00.000Z`)
+  const recentWindowStart = new Date(
+    Math.max(dayStartDate.getTime(), now.getTime() - TODAY_RECENT_SNAPSHOT_WINDOW_MINUTES * 60_000)
+  )
 
   const rows = await db
     .prepare(
@@ -710,14 +742,13 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
        WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute <= ?
        ORDER BY bucket_minute ASC`
     )
-    .bind(dayStart, dayEnd)
+    .bind(toIsoMinute(recentWindowStart), now.toISOString())
     .all()
 
   if (!rows.results.length) return json(buildEmptyPayload(filters, new Date().toISOString()))
 
   try {
-    const now = new Date()
-    const buckets = buildBuckets(new Date(`${filters.date}T00:00:00.000Z`), filters.bucketMinutes, now)
+    const buckets = buildBucketsInRange(recentWindowStart, now, filters.bucketMinutes)
     const bucketIndex = new Map(buckets.map((bucket, idx) => [bucket, idx]))
 
     const nameById = new Map<string, string>()
