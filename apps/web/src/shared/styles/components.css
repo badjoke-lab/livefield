@@ -247,3 +247,39 @@ button.action {
     font-size: 13px;
   }
 }
+
+
+/* donate-ux-polish */
+.nav-link--featured {
+  background: rgba(132, 240, 255, 0.12);
+  border-color: rgba(132, 240, 255, 0.26);
+  color: var(--text);
+}
+
+.nav-link--featured:hover {
+  background: rgba(132, 240, 255, 0.18);
+  border-color: rgba(132, 240, 255, 0.34);
+}
+
+.action--primary {
+  background: rgba(132, 240, 255, 0.14);
+  border-color: rgba(132, 240, 255, 0.30);
+  color: var(--text);
+}
+
+.action--primary:hover {
+  background: rgba(132, 240, 255, 0.20);
+  border-color: rgba(132, 240, 255, 0.38);
+}
+
+.action--disabled {
+  opacity: 0.72;
+  cursor: default;
+  pointer-events: none;
+}
+
+.action--disabled:hover {
+  transform: none;
+  background: rgba(122, 162, 255, 0.08);
+  border-color: rgba(122, 162, 255, 0.16);
+}
