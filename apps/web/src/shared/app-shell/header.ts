@@ -5,6 +5,7 @@ const items = [
   { href: "/battle-lines/", label: "Rivalry Radar", key: "battle-lines" },
   { href: "/method/", label: "Method", key: "method" },
   { href: "/about/", label: "About", key: "about" },
+  { href: "/donate/", label: "Donate", key: "donate" },
   { href: "/status/", label: "Status", key: "status" }
 ]
 

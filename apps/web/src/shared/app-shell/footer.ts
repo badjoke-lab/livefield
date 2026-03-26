@@ -3,6 +3,7 @@ export function renderFooter(): string {
     <footer class="footer-links">
       <span>Static shell + Cloudflare Pages + Pages Functions + Worker Cron</span>
       <a href="/method/">Method</a>
+      <a href="/donate/">Donate</a>
       <a href="/status/">Status</a>
     </footer>
   `

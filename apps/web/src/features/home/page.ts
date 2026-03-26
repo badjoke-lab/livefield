@@ -17,7 +17,8 @@ export function renderHomePage(root: HTMLElement): void {
       actions: [
         { href: "/heatmap/", label: "Open Heatmap" },
         { href: "/day-flow/", label: "Open Day Flow" },
-        { href: "/battle-lines/", label: "Open Rivalry Radar" }
+        { href: "/battle-lines/", label: "Open Rivalry Radar" },
+        { href: "/donate/", label: "Support Livefield" }
       ]
     })}
 
@@ -118,6 +119,17 @@ export function renderHomePage(root: HTMLElement): void {
           </div>
         </div>
       </section>
+    </section>
+
+    <section class="card page-section">
+      <h2>Support Livefield</h2>
+      <p>
+        Livefield is kept public as an unofficial observation site. If you want to support collection, storage, uptime,
+        and future expansion, use the dedicated donate page.
+      </p>
+      <div class="actions">
+        <a class="action" href="/donate/">Open Donate Page</a>
+      </div>
     </section>
 
     <section class="card page-section">
