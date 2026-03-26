@@ -6,6 +6,8 @@ Livefield is an unofficial Twitch observation site with three core views:
 - Day Flow
 - Rivalry Radar
 
+It also includes lightweight support pages such as Method, About, Donate, and Status.
+
 This repository currently targets a Twitch-only MVP.
 
 ## Current focus
@@ -28,3 +30,4 @@ This repository currently targets a Twitch-only MVP.
 - Heatmap = Now
 - Day Flow = Today
 - Rivalry Radar = Compare
+- Donate = Support

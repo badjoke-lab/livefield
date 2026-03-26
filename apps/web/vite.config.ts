@@ -13,6 +13,7 @@ export default defineConfig({
         battleLines: resolve(__dirname, "battle-lines/index.html"),
         method: resolve(__dirname, "method/index.html"),
         about: resolve(__dirname, "about/index.html"),
+        donate: resolve(__dirname, "donate/index.html"),
         status: resolve(__dirname, "status/index.html")
       }
     }
