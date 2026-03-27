@@ -369,7 +369,7 @@ function initializeBattleDetailDisclosures(target: HTMLElement): void {
       section.dataset.expanded = expanded ? "true" : "false"
     }
 
-    setExpanded(!isMobile)
+    setExpanded(false)
     toggle.onclick = () => {
       const expanded = toggle.getAttribute("aria-expanded") === "true"
       setExpanded(!expanded)

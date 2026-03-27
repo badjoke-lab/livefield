@@ -2901,3 +2901,131 @@
     min-height: 190px;
   }
 }
+
+
+/* rivalry-radar chart-first pass */
+.battle-lines-layout {
+  grid-template-columns: minmax(0, 1.85fr) minmax(300px, 0.75fr);
+  gap: 14px;
+}
+
+.battle-side {
+  gap: 10px;
+}
+
+.battle-detail-sections {
+  gap: 10px;
+}
+
+.battle-detail-card {
+  padding: 10px 12px;
+}
+
+.battle-detail-card h2 {
+  margin-bottom: 8px;
+}
+
+.battle-detail-card .kv {
+  gap: 6px;
+}
+
+.battle-detail-toggle[aria-expanded="false"] {
+  background: rgba(122, 162, 255, 0.04);
+}
+
+@media (max-width: 760px) {
+  .battle-lines-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .battle-lines-content > .page-section {
+    margin-top: 0;
+  }
+
+  .battle-lines-content > .rivalry-radar {
+    order: 1;
+  }
+
+  .battle-lines-content > .battle-lines-layout {
+    order: 2;
+  }
+
+  .battle-lines-content > .summary-strip--battle-lines {
+    order: 3;
+  }
+
+  .battle-lines-page .rivalry-radar__head p {
+    display: none;
+  }
+
+  .battle-lines-page .rivalry-secondary--strip,
+  .battle-lines-page .rivalry-secondary--add-rival {
+    display: none;
+  }
+
+  .battle-lines-page .rivalry-secondary--battles .focus-chip-row > :nth-child(n+3) {
+    display: none;
+  }
+
+  .battle-lines-page .summary-strip--battle-lines .summary-item:nth-child(n+3) {
+    display: none;
+  }
+
+  .battle-lines-page .battle-focus-strip-card {
+    order: 5;
+  }
+
+  .battle-lines-page .battle-mock-card--battle-lines {
+    padding: 8px 9px;
+  }
+
+  .battle-lines-page .battle-mock-card--battle-lines .battle-mock-card__head {
+    margin-bottom: 5px;
+  }
+
+  .battle-lines-page .battle-mock-card--battle-lines .battle-mock-card__head p {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .battle-lines-page .battle-mock-stage--battle-lines {
+    min-height: 200px;
+  }
+
+  .battle-lines-page .battle-live-row {
+    margin-top: 4px;
+  }
+
+  .battle-lines-page .battle-side {
+    gap: 5px;
+  }
+
+  .battle-lines-page .battle-detail-sections {
+    gap: 5px;
+  }
+
+  .battle-lines-page .battle-detail-card {
+    padding: 7px 9px;
+  }
+
+  .battle-lines-page .battle-detail-card h2 {
+    font-size: 13px;
+    margin-bottom: 5px;
+  }
+
+  .battle-lines-page .kv-row {
+    padding: 7px 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .battle-lines-page .summary-strip--battle-lines {
+    grid-template-columns: 1fr;
+  }
+
+  .battle-lines-page .battle-mock-stage--battle-lines {
+    min-height: 176px;
+  }
+}

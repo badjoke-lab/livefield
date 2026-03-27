@@ -66,7 +66,7 @@ export function renderRivalryRadarSection(
         <p>Fastest challenger: ${escapeHtml(payload.recommendation.fastestChallenger)}</p>
       </div>
 
-      <div class="rivalry-secondary">
+      <div class="rivalry-secondary rivalry-secondary--battles">
         <strong>Secondary battles</strong>
         <div class="focus-chip-row">
           ${payload.recommendation.secondaryBattles
@@ -90,7 +90,7 @@ export function renderRivalryRadarSection(
 
 export function renderBattleSummaryStrip(payload: BattleLinesPayload, escapeHtml: EscapeHtml): string {
   return `
-    <section class="summary-strip page-section">
+    <section class="summary-strip page-section summary-strip--battle-lines">
       <div class="summary-item"><strong>Live battle</strong><span>${escapeHtml(payload.summary.liveBattleNow)}</span></div>
       <div class="summary-item"><strong>Latest reversal</strong><span>${escapeHtml(payload.summary.latestReversal)}</span></div>
       <div class="summary-item"><strong>Fastest challenger</strong><span>${escapeHtml(payload.summary.fastestChallenger)}</span></div>
