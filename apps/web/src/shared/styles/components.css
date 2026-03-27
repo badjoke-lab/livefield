@@ -283,3 +283,66 @@ button.action {
   background: rgba(122, 162, 255, 0.08);
   border-color: rgba(122, 162, 255, 0.16);
 }
+
+
+/* mobile-header-density-fix */
+.topbar {
+  gap: 12px;
+}
+
+.topbar__brand {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.topbar__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .topbar__brand {
+    font-size: 14px;
+    line-height: 1.1;
+    padding-top: 2px;
+  }
+
+  .topbar__nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+    gap: 6px;
+  }
+
+  .topbar__nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .topbar__nav .nav-link {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 420px) {
+  .topbar {
+    gap: 6px;
+  }
+
+  .topbar__nav .nav-link {
+    padding: 6px 9px;
+    font-size: 11px;
+  }
+}
