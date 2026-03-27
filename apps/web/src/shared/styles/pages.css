@@ -2675,3 +2675,229 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* rivalry-radar mobile density pass 2 */
+.battle-lines-page .hero {
+  padding: 10px 14px;
+  margin-bottom: 6px;
+}
+
+.battle-lines-page .hero h1 {
+  margin-bottom: 4px;
+}
+
+.battle-lines-page .hero p {
+  max-width: 54ch;
+}
+
+.battle-lines-page .hero .actions {
+  margin-top: 10px;
+}
+
+.battle-lines-page .summary-strip {
+  gap: 10px;
+}
+
+.battle-lines-page .summary-item {
+  padding: 10px 12px;
+}
+
+.battle-lines-page .summary-item strong {
+  font-size: 13px;
+}
+
+.battle-lines-page .reversal-strip span,
+.battle-lines-page .focus-chip {
+  font-size: 11px;
+}
+
+.battle-lines-page .battle-mock-card--battle-lines {
+  padding: 10px 12px;
+}
+
+.battle-lines-page .battle-mock-stage--battle-lines {
+  min-height: 360px;
+}
+
+.battle-lines-page .battle-detail-card {
+  padding: 10px 12px;
+}
+
+.battle-lines-page .status-note {
+  margin-top: 10px;
+}
+
+@media (max-width: 760px) {
+  .battle-lines-page .hero {
+    padding: 7px 9px;
+    margin-bottom: 2px;
+  }
+
+  .battle-lines-page .hero h1 {
+    font-size: clamp(18px, 7.2vw, 24px);
+    margin-bottom: 3px;
+  }
+
+  .battle-lines-page .hero p {
+    font-size: 12px;
+    line-height: 1.22;
+  }
+
+  .battle-lines-page .hero .code-note {
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
+  .battle-lines-page .hero .actions {
+    margin-top: 8px;
+    gap: 6px;
+  }
+
+  .battle-lines-page .hero .actions .action {
+    padding: 6px 9px;
+    font-size: 11px;
+  }
+
+  .battle-lines-page .controls--battle-lines {
+    margin: 2px 0 6px;
+    gap: 5px;
+  }
+
+  .battle-lines-page .controls--battle-lines .controls-group {
+    gap: 5px;
+  }
+
+  .battle-lines-page .controls--battle-lines select,
+  .battle-lines-page .controls--battle-lines input[type="date"],
+  .battle-lines-page .controls--battle-lines .action {
+    min-height: 32px;
+    font-size: 12px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .battle-lines-page .summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin: 8px 0 10px;
+  }
+
+  .battle-lines-page .summary-item {
+    padding: 8px 10px;
+    min-height: 0;
+  }
+
+  .battle-lines-page .summary-item strong {
+    font-size: 12px;
+    margin-bottom: 3px;
+  }
+
+  .battle-lines-page .rivalry-radar {
+    gap: 8px;
+  }
+
+  .battle-lines-page .rivalry-primary {
+    padding: 8px 10px;
+  }
+
+  .battle-lines-page .reversal-strip span {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .battle-lines-page .battle-mock-card--battle-lines {
+    padding: 9px 10px;
+  }
+
+  .battle-lines-page .battle-mock-card--battle-lines .battle-mock-card__head {
+    margin-bottom: 6px;
+    gap: 6px;
+  }
+
+  .battle-lines-page .battle-mock-card--battle-lines .battle-mock-card__head h2 {
+    font-size: 15px;
+    margin-bottom: 0;
+  }
+
+  .battle-lines-page .battle-mock-card--battle-lines .battle-mock-card__head p {
+    font-size: 12px;
+    line-height: 1.32;
+  }
+
+  .battle-lines-page .battle-live-row {
+    margin-top: 6px;
+    gap: 5px;
+  }
+
+  .battle-lines-page .battle-mock-stage--battle-lines {
+    min-height: 230px;
+  }
+
+  .battle-lines-page .battle-legend-row {
+    padding-top: 6px;
+    gap: 4px 8px;
+    font-size: 10px;
+  }
+
+  .battle-lines-page .battle-side {
+    gap: 6px;
+  }
+
+  .battle-lines-page .battle-detail-sections {
+    gap: 6px;
+  }
+
+  .battle-lines-page .battle-detail-card {
+    padding: 8px 10px;
+  }
+
+  .battle-lines-page .battle-detail-card h2 {
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+
+  .battle-lines-page .kv-row {
+    padding: 9px 0;
+    gap: 8px;
+  }
+
+  .battle-lines-page .status-note {
+    margin-top: 8px;
+    padding: 8px 10px;
+  }
+
+  .battle-lines-page .status-note__body {
+    font-size: 12px;
+    line-height: 1.28;
+  }
+
+  .battle-lines-page .status-note__list li:nth-child(n+3) {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .battle-lines-page .summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .battle-lines-page .battle-mock-stage--battle-lines {
+    min-height: 210px;
+  }
+}
+
+@media (max-width: 420px) {
+  .battle-lines-page .hero .actions {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .battle-lines-page .summary-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .battle-lines-page .battle-mock-stage--battle-lines {
+    min-height: 190px;
+  }
+}
