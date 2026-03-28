@@ -291,7 +291,9 @@ button.action {
 
 
 
-/* mobile-header-redo */
+
+
+/* mobile-header-menu-redo */
 .topbar {
   gap: 12px;
 }
@@ -314,46 +316,87 @@ button.action {
   line-height: 1.2;
 }
 
-.topbar__more-trigger {
+.topbar__menu-button {
   border: 1px solid rgba(122, 162, 255, 0.18);
   background: rgba(122, 162, 255, 0.08);
   border-radius: 999px;
-  padding: 8px 11px;
+  padding: 7px 12px;
   font-size: 12px;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.topbar__menu-panel {
+  background: rgba(10, 16, 28, 0.97);
+  border-left: 1px solid rgba(122, 162, 255, 0.2);
+  box-shadow: -14px 0 30px rgba(0, 0, 0, 0.3);
+  padding: 14px 12px;
+}
+
+.topbar__menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.topbar__menu-head strong {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.topbar__menu-close {
+  border: 1px solid rgba(122, 162, 255, 0.18);
+  background: rgba(122, 162, 255, 0.08);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 11px;
+  line-height: 1.2;
   color: var(--text);
   cursor: pointer;
 }
 
-.topbar__more[open] .topbar__more-trigger {
-  background: rgba(122, 162, 255, 0.16);
-  border-color: rgba(122, 162, 255, 0.3);
+.topbar__menu-section {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
 }
 
-.topbar__more-menu .nav-link {
-  display: block;
+.topbar__menu-title {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.topbar__menu-link {
+  width: 100%;
   text-align: left;
 }
 
 @media (max-width: 760px) {
-  .topbar__nav .nav-link {
-    padding: 7px 10px;
+  .topbar__menu-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 11px;
     font-size: 11px;
   }
 
-  .topbar__more-trigger {
-    padding: 7px 10px;
-    font-size: 11px;
+  .topbar__menu-panel {
+    padding: 12px 10px;
   }
 }
 
 @media (max-width: 420px) {
-  .topbar__nav .nav-link {
-    padding: 6px 9px;
+  .topbar__menu-button {
+    padding: 6px 10px;
     font-size: 10px;
   }
 
-  .topbar__more-trigger {
-    padding: 6px 9px;
-    font-size: 10px;
+  .topbar__menu-head {
+    margin-bottom: 10px;
   }
 }

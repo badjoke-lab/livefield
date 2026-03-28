@@ -24,7 +24,7 @@
 .topbar__brand {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   font-weight: 760;
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -34,7 +34,7 @@
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
-  opacity: 0.92;
+  opacity: 0.9;
 }
 
 .topbar__nav {
@@ -45,7 +45,10 @@
   min-width: 0;
 }
 
-.topbar__more {
+.topbar__menu-button,
+.topbar__menu-toggle,
+.topbar__menu-overlay,
+.topbar__menu-panel {
   display: none;
 }
 
@@ -72,10 +75,8 @@
 
 @media (max-width: 760px) {
   .topbar {
-    align-items: flex-start;
-    flex-wrap: wrap;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 9px 11px;
   }
 
   .topbar__brand {
@@ -83,39 +84,52 @@
   }
 
   .topbar__nav {
-    width: 100%;
-    justify-content: flex-start;
-    gap: 6px;
-  }
-
-  .topbar__nav .nav-link--secondary {
     display: none;
   }
 
-  .topbar__more {
-    display: block;
-    position: relative;
+  .topbar__menu-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
   }
 
-  .topbar__more-trigger {
-    list-style: none;
-  }
-
-  .topbar__more-trigger::-webkit-details-marker {
-    display: none;
-  }
-
-  .topbar__more-menu {
+  .topbar__menu-toggle {
     position: absolute;
-    top: calc(100% + 8px);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .topbar__menu-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 34;
+    background: rgba(4, 9, 16, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease;
+  }
+
+  .topbar__menu-panel {
+    position: fixed;
+    top: 0;
     right: 0;
-    min-width: 158px;
-    display: grid;
-    gap: 6px;
-    padding: 8px;
-    border-radius: 12px;
-    background: rgba(9, 15, 27, 0.97);
-    border: 1px solid rgba(122, 162, 255, 0.2);
-    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+    z-index: 35;
+    width: min(300px, 84vw);
+    height: 100dvh;
+    transform: translateX(104%);
+    transition: transform 180ms ease;
+    pointer-events: none;
+    overflow-y: auto;
+  }
+
+  .topbar__menu-toggle:checked ~ .topbar__menu-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .topbar__menu-toggle:checked ~ .topbar__menu-panel {
+    transform: translateX(0);
+    pointer-events: auto;
   }
 }
