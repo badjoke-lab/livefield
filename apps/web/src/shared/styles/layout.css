@@ -24,13 +24,21 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
 }
 
-.topbar__brand {
+.topbar__brand,
+.topbar__menu-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: 7px;
   font-weight: 760;
   letter-spacing: 0.01em;
   white-space: nowrap;
+}
+
+.topbar__logo {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  opacity: 0.96;
 }
 
 .topbar__nav {
@@ -140,6 +148,11 @@
 
   .topbar__brand {
     font-size: 13px;
+  }
+
+  .topbar__logo {
+    width: 16px;
+    height: 16px;
   }
 
   .topbar__menu-panel {

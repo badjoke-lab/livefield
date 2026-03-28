@@ -3189,3 +3189,73 @@
     opacity: 0.82;
   }
 }
+
+
+/* final-pc-battlelines-and-title-pass */
+.site-shell .hero h1 {
+  font-size: clamp(30px, 4vw, 44px) !important;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 760px) {
+  .site-shell .hero h1 {
+    font-size: clamp(26px, 8.8vw, 34px) !important;
+  }
+}
+
+@media (min-width: 981px) {
+  .battle-lines-page .battle-lines-primary-flow {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .battle-lines-page .battle-lines-chart-block,
+  .battle-lines-page .rivalry-radar,
+  .battle-lines-page .battle-lines-primary-details {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  .battle-lines-page .battle-detail-sections {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+
+  .battle-lines-page .battle-detail-sections > .battle-detail-card {
+    min-height: 100%;
+  }
+
+  .battle-lines-page .battle-lines-utility__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  .battle-lines-page .summary-strip--battle-lines {
+    order: -1;
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  .battle-lines-page .battle-utility-disclosure {
+    grid-column: 1;
+    align-self: start;
+  }
+
+  .battle-lines-page .battle-detail-sections--utility {
+    grid-column: 2;
+    display: grid;
+    gap: 16px;
+    align-self: start;
+  }
+
+  .battle-lines-page .battle-mock-card--battle-lines {
+    min-height: 0;
+  }
+}

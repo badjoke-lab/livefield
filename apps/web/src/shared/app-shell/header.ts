@@ -90,6 +90,7 @@ export function renderHeader(active: string): string {
     <div class="topbar-shell">
       <header class="topbar">
         <div class="topbar__brand" aria-label="Livefield">
+          <img class="topbar__logo" src="/icons/lvf-mark.svg" alt="" width="18" height="18" decoding="async" />
           <span>Livefield</span>
         </div>
 
@@ -112,7 +113,10 @@ export function renderHeader(active: string): string {
         aria-label="Mobile menu"
       >
         <div class="topbar__menu-head">
-          <strong>Livefield</strong>
+          <div class="topbar__menu-brand">
+            <img class="topbar__logo" src="/icons/lvf-mark.svg" alt="" width="18" height="18" decoding="async" />
+            <strong>Livefield</strong>
+          </div>
           <button type="button" class="topbar__menu-close" data-topbar-menu-close aria-label="Close menu">Close</button>
         </div>
 
