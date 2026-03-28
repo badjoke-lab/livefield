@@ -102,7 +102,7 @@
     position: fixed;
     inset: 0;
     z-index: 34;
-    background: rgba(4, 9, 16, 0.5);
+    background: rgba(4, 9, 16, 0.34);
     opacity: 0;
     pointer-events: none;
     transition: opacity 160ms ease;
@@ -113,9 +113,9 @@
     top: 0;
     right: 0;
     z-index: 35;
-    width: min(300px, 84vw);
+    width: min(290px, 78vw);
     height: 100dvh;
-    transform: translateX(104%);
+    transform: translateX(102%);
     transition: transform 180ms ease;
     pointer-events: none;
     overflow-y: auto;
