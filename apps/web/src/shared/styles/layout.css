@@ -72,10 +72,10 @@
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .topbar {
     gap: 8px;
-    padding: 9px 11px;
+    padding: 8px 10px;
   }
 
   .topbar__brand {
@@ -125,4 +125,19 @@
     transform: translateX(0);
     pointer-events: auto;
   }
+}
+
+
+@media (max-width: 520px) {
+  .topbar__logo {
+    display: none;
+  }
+
+  .topbar__brand {
+    gap: 0;
+  }
+}
+
+body.topbar-menu-lock {
+  overflow: hidden;
 }
