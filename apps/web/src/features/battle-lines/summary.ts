@@ -87,29 +87,44 @@ export function renderSecondaryBattlesSection(
   helpers: SummaryHelpers
 ): string {
   const { escapeHtml, candidateTagLabel } = helpers
+  const secondaryBattles = payload.recommendation.secondaryBattles
+  const visibleBattles = secondaryBattles.slice(0, 2)
+  const overflowBattles = secondaryBattles.slice(2)
+
+  const renderBattleChip = (item: BattleCandidate): string =>
+    `<button type="button" class="focus-chip ${uiState.primaryKey === item.key ? "focus-chip--active" : ""}" data-primary-battle="${escapeHtml(item.key)}" data-primary-focus="${escapeHtml(item.leftId)}">${escapeHtml(item.leftName)} vs ${escapeHtml(item.rightName)} · ${escapeHtml(candidateTagLabel(item.tag))}</button>`
 
   return `
-    <section class="card rivalry-secondary rivalry-secondary--battles">
+    <section class="rivalry-secondary rivalry-secondary--battles battle-utility-item">
       <strong>Secondary battles</strong>
       <div class="focus-chip-row">
-        ${payload.recommendation.secondaryBattles
-          .map(
-            (item) =>
-              `<button type="button" class="focus-chip ${uiState.primaryKey === item.key ? "focus-chip--active" : ""}" data-primary-battle="${escapeHtml(item.key)}" data-primary-focus="${escapeHtml(item.leftId)}">${escapeHtml(item.leftName)} vs ${escapeHtml(item.rightName)} · ${escapeHtml(candidateTagLabel(item.tag))}</button>`
-          )
-          .join("") || `<span class="muted">No secondary battles right now.</span>`}
+        ${visibleBattles.map((item) => renderBattleChip(item)).join("") || `<span class="muted">No secondary battles right now.</span>`}
       </div>
+      ${overflowBattles.length
+        ? `<details class="battle-inline-more" data-battle-inline-more>
+            <summary>More battles (${overflowBattles.length})</summary>
+            <div class="focus-chip-row">${overflowBattles.map((item) => renderBattleChip(item)).join("")}</div>
+          </details>`
+        : ""}
     </section>
   `
 }
 
 export function renderReversalStripSection(payload: BattleLinesPayload, helpers: SummaryHelpers): string {
   const { escapeHtml, formatGap } = helpers
+  const visibleReversals = payload.recommendation.reversalStrip.slice(0, 3)
+  const overflowReversals = payload.recommendation.reversalStrip.slice(3)
 
   return `
-    <section class="card rivalry-secondary rivalry-secondary--strip">
+    <section class="rivalry-secondary rivalry-secondary--strip battle-utility-item">
       <strong>Reversal strip</strong>
-      <div class="reversal-strip">${renderReversalStrip(payload.recommendation.reversalStrip, escapeHtml, formatGap)}</div>
+      <div class="reversal-strip">${renderReversalStrip(visibleReversals, escapeHtml, formatGap)}</div>
+      ${overflowReversals.length
+        ? `<details class="battle-inline-more battle-inline-more--reversal" data-battle-inline-more>
+            <summary>More reversals (${overflowReversals.length})</summary>
+            <div class="reversal-strip">${renderReversalStrip(overflowReversals, escapeHtml, formatGap)}</div>
+          </details>`
+        : ""}
     </section>
   `
 }
@@ -119,7 +134,7 @@ export function renderAddRivalUtilitySection(
   uiState: UiState,
   helpers: SummaryHelpers
 ): string {
-  return `<section class="card rivalry-secondary rivalry-secondary--add-rival">${renderAddRivalSection(payload, uiState, helpers.escapeHtml)}</section>`
+  return `<section class="rivalry-secondary rivalry-secondary--add-rival battle-utility-item">${renderAddRivalSection(payload, uiState, helpers.escapeHtml)}</section>`
 }
 
 export function renderBattleSummaryStrip(payload: BattleLinesPayload, escapeHtml: EscapeHtml): string {

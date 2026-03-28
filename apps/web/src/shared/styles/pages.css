@@ -2945,6 +2945,44 @@
   margin-top: 0;
 }
 
+.battle-utility-disclosure .battle-detail-toggle {
+  padding: 11px 12px;
+}
+
+.battle-utility-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.battle-utility-item {
+  border: 1px solid rgba(122, 162, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(12, 20, 37, 0.72);
+  padding: 10px;
+}
+
+.battle-utility-item > strong,
+.battle-utility-item > h3 {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.battle-inline-more {
+  margin-top: 8px;
+}
+
+.battle-inline-more summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.battle-inline-more .focus-chip-row,
+.battle-inline-more .reversal-strip {
+  margin-top: 8px;
+}
+
 .battle-detail-toggle[aria-expanded="false"] {
   background: rgba(122, 162, 255, 0.04);
 }
@@ -2986,6 +3024,10 @@
 
   .battle-lines-page .battle-lines-utility__grid {
     gap: 10px;
+  }
+
+  .battle-lines-page .battle-utility-item {
+    padding: 9px;
   }
 }
 
