@@ -151,10 +151,12 @@
 .footer-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-  padding-top: 8px;
-  color: var(--muted);
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 4px;
+  color: color-mix(in oklab, var(--muted) 88%, #9fb2d6 12%);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .code-note {
@@ -220,7 +222,13 @@ button.action {
     font-size: 14px;
   }
 
-  .actions,
+  .actions {
+    flex-wrap: wrap;
+    overflow: visible;
+    padding-bottom: 0;
+    gap: 8px;
+  }
+
   .pills {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -235,6 +243,24 @@ button.action {
     padding: 8px 12px;
   }
 
+  .home-page .hero .actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .home-page .hero .action {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    line-height: 1.24;
+    padding: 9px 10px;
+  }
+
   .status-note {
     padding: 10px 12px;
     font-size: 13px;
@@ -242,9 +268,11 @@ button.action {
   }
 
   .footer-links {
-    margin-top: 12px;
-    gap: 8px;
-    font-size: 13px;
+    margin-top: 8px;
+    gap: 6px;
+    padding-top: 2px;
+    font-size: 11px;
+    line-height: 1.35;
   }
 }
 
@@ -284,65 +312,111 @@ button.action {
   border-color: rgba(122, 162, 255, 0.16);
 }
 
-
-/* mobile-header-density-fix */
-.topbar {
-  gap: 12px;
+/* mobile-drawer-shell */
+.topbar__menu-button {
+  border: 1px solid rgba(122, 162, 255, 0.18);
+  background: rgba(122, 162, 255, 0.08);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--text);
+  cursor: pointer;
 }
 
-.topbar__brand {
-  flex: 0 0 auto;
-  min-width: 0;
+.topbar__menu-panel {
+  background: rgba(7, 12, 23, 0.98);
 }
 
-.topbar__nav {
+.topbar__menu-head {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.topbar__menu-head strong {
+  font-size: 15px;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.topbar__menu-close {
+  border: 1px solid rgba(122, 162, 255, 0.18);
+  background: rgba(122, 162, 255, 0.08);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.topbar__menu-section {
+  display: grid;
   gap: 8px;
-  min-width: 0;
 }
 
-@media (max-width: 760px) {
-  .topbar {
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .topbar__brand {
-    font-size: 14px;
-    line-height: 1.1;
-    padding-top: 2px;
-  }
-
-  .topbar__nav {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-    gap: 6px;
-  }
-
-  .topbar__nav::-webkit-scrollbar {
-    display: none;
-  }
-
-  .topbar__nav .nav-link {
-    flex: 0 0 auto;
-    white-space: nowrap;
-    padding: 7px 10px;
-    font-size: 12px;
-  }
+.topbar__menu-section + .topbar__menu-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(122, 162, 255, 0.12);
 }
 
-@media (max-width: 420px) {
-  .topbar {
-    gap: 6px;
-  }
+.topbar__menu-title {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 
-  .topbar__nav .nav-link {
-    padding: 6px 9px;
+.topbar__menu-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  padding: 12px 13px;
+  font-size: 14px;
+  border-radius: 12px;
+  border-color: rgba(122, 162, 255, 0.14);
+  background: rgba(122, 162, 255, 0.04);
+  white-space: normal;
+}
+
+.topbar__menu-link::after {
+  content: "›";
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.topbar__menu-link[data-active="true"]::after {
+  color: var(--accent-2);
+}
+
+.topbar__menu-link.nav-link--featured {
+  background: rgba(132, 240, 255, 0.10);
+  border-color: rgba(132, 240, 255, 0.22);
+}
+
+@media (max-width: 520px) {
+  .topbar__menu-button {
+    padding: 6px 10px;
     font-size: 11px;
+  }
+
+  .topbar__menu-head strong {
+    font-size: 14px;
+  }
+
+  .topbar__menu-link {
+    padding: 11px 12px;
+    font-size: 13px;
+  }
+
+  .home-page .hero .actions {
+    grid-template-columns: 1fr;
   }
 }
