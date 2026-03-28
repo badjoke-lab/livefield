@@ -9,7 +9,7 @@ export function renderAddRivalSection(
   escapeHtml: EscapeHtml
 ): string {
   return `
-    <div class="rivalry-secondary">
+    <div class="rivalry-secondary rivalry-secondary--add-rival">
       <strong>Add rival</strong>
       <div class="focus-chip-row">
         ${payload.lines
@@ -31,7 +31,7 @@ export function renderFocusStripSection(
   escapeHtml: EscapeHtml
 ): string {
   return `
-    <section class="card">
+    <section class="card battle-focus-strip-card">
       <h2>Focus strip</h2>
       <div class="focus-chip-row">
         ${payload.focusStrip
