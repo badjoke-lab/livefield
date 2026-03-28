@@ -25,18 +25,23 @@ function renderLink(item: NavItem, active: string, options?: { menu?: boolean })
   return `<a${menuAttr} class="${classes.join(" ")}" data-active="${item.key === active}" href="${item.href}">${item.label}</a>`
 }
 
-function setMenuState(topbar: HTMLElement, open: boolean): void {
-  const button = topbar.querySelector<HTMLButtonElement>('[data-topbar-menu-open]')
-  const panel = topbar.querySelector<HTMLElement>('[data-topbar-menu-panel]')
-  if (!button || !panel) return
+function setMenuState(shell: HTMLElement, open: boolean): void {
+  const button = shell.querySelector<HTMLButtonElement>('[data-topbar-menu-open]')
+  const panel = shell.querySelector<HTMLElement>('[data-topbar-menu-panel]')
+  const overlay = shell.querySelector<HTMLElement>('[data-topbar-menu-overlay]')
+  if (!button || !panel || !overlay) return
 
-  topbar.classList.toggle("topbar--menu-open", open)
+  shell.classList.toggle("topbar-shell--menu-open", open)
   button.setAttribute("aria-expanded", open ? "true" : "false")
   panel.setAttribute("aria-hidden", open ? "false" : "true")
+  overlay.setAttribute("aria-hidden", open ? "false" : "true")
   document.body.classList.toggle("topbar-menu-lock", open)
 
   if (open) {
-    panel.querySelector<HTMLButtonElement>('[data-topbar-menu-close]')?.focus()
+    ;(
+      panel.querySelector<HTMLElement>('[data-topbar-menu-link="true"][data-active="true"]') ??
+      panel.querySelector<HTMLElement>('[data-topbar-menu-close]')
+    )?.focus()
   } else {
     button.focus()
   }
@@ -52,25 +57,26 @@ function initializeHeaderMenu(): void {
     const target = event.target
     if (!(target instanceof Element)) return
 
-    const topbar = target.closest<HTMLElement>(".topbar")
-    if (!topbar) return
-
     if (target.closest('[data-topbar-menu-open]')) {
-      setMenuState(topbar, !topbar.classList.contains("topbar--menu-open"))
+      const shell = target.closest<HTMLElement>(".topbar-shell")
+      if (!shell) return
+      setMenuState(shell, !shell.classList.contains("topbar-shell--menu-open"))
       return
     }
 
     if (target.closest('[data-topbar-menu-close], [data-topbar-menu-overlay], [data-topbar-menu-link="true"]')) {
-      setMenuState(topbar, false)
+      const shell = target.closest<HTMLElement>(".topbar-shell")
+      if (!shell) return
+      setMenuState(shell, false)
     }
   })
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return
-    const openTopbar = document.querySelector<HTMLElement>(".topbar.topbar--menu-open")
-    if (!openTopbar) return
+    const shell = document.querySelector<HTMLElement>(".topbar-shell.topbar-shell--menu-open")
+    if (!shell) return
     event.preventDefault()
-    setMenuState(openTopbar, false)
+    setMenuState(shell, false)
   })
 }
 
@@ -81,23 +87,32 @@ export function renderHeader(active: string): string {
   const secondaryItems = items.filter((item) => item.mobileGroup === "secondary")
 
   return `
-    <header class="topbar">
-      <div class="topbar__brand" aria-label="Livefield">
-        <img class="topbar__logo" src="/icons/lvf-mark.svg" alt="" width="18" height="18" decoding="async" />
-        <span>Livefield</span>
-      </div>
+    <div class="topbar-shell">
+      <header class="topbar">
+        <div class="topbar__brand" aria-label="Livefield">
+          <span>Livefield</span>
+        </div>
 
-      <button type="button" class="topbar__menu-button" data-topbar-menu-open aria-expanded="false" aria-controls="topbar-mobile-drawer">Menu</button>
+        <nav class="topbar__nav" aria-label="Primary">
+          ${items.map((item) => renderLink(item, active)).join("")}
+        </nav>
 
-      <nav class="topbar__nav" aria-label="Primary">
-        ${items.map((item) => renderLink(item, active)).join("")}
-      </nav>
+        <button type="button" class="topbar__menu-button" data-topbar-menu-open aria-expanded="false" aria-controls="topbar-mobile-drawer">
+          Menu
+        </button>
+      </header>
 
       <div class="topbar__menu-overlay" data-topbar-menu-overlay aria-hidden="true"></div>
 
-      <aside id="topbar-mobile-drawer" class="topbar__menu-panel" data-topbar-menu-panel aria-hidden="true" aria-label="Mobile menu">
+      <aside
+        id="topbar-mobile-drawer"
+        class="topbar__menu-panel"
+        data-topbar-menu-panel
+        aria-hidden="true"
+        aria-label="Mobile menu"
+      >
         <div class="topbar__menu-head">
-          <strong>Menu</strong>
+          <strong>Livefield</strong>
           <button type="button" class="topbar__menu-close" data-topbar-menu-close aria-label="Close menu">Close</button>
         </div>
 
@@ -111,6 +126,6 @@ export function renderHeader(active: string): string {
           ${secondaryItems.map((item) => renderLink(item, active, { menu: true })).join("")}
         </div>
       </aside>
-    </header>
+    </div>
   `
 }

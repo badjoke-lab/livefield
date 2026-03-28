@@ -4,7 +4,7 @@ import { renderHero } from "../../shared/app-shell/hero"
 import { renderStatusNote } from "../../shared/app-shell/status-note"
 
 export function renderHomePage(root: HTMLElement): void {
-  root.className = "site-shell"
+  root.className = "site-shell home-page"
   root.innerHTML = `
     ${renderHeader("home")}
     ${renderHero({
