@@ -151,12 +151,12 @@
 .footer-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 14px;
-  padding-top: 6px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.5;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 4px;
+  color: color-mix(in oklab, var(--muted) 88%, #9fb2d6 12%);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .code-note {
@@ -244,11 +244,11 @@ button.action {
   }
 
   .footer-links {
-    margin-top: 10px;
-    gap: 7px;
-    padding-top: 4px;
-    font-size: 12px;
-    line-height: 1.4;
+    margin-top: 8px;
+    gap: 6px;
+    padding-top: 2px;
+    font-size: 11px;
+    line-height: 1.35;
   }
 }
 
@@ -289,7 +289,9 @@ button.action {
 }
 
 
-/* mobile-header-density-fix */
+
+
+/* mobile-header-redo */
 .topbar {
   gap: 12px;
 }
@@ -302,52 +304,56 @@ button.action {
 .topbar__nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
 }
 
+.topbar__nav .nav-link {
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.topbar__more-trigger {
+  border: 1px solid rgba(122, 162, 255, 0.18);
+  background: rgba(122, 162, 255, 0.08);
+  border-radius: 999px;
+  padding: 8px 11px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.topbar__more[open] .topbar__more-trigger {
+  background: rgba(122, 162, 255, 0.16);
+  border-color: rgba(122, 162, 255, 0.3);
+}
+
+.topbar__more-menu .nav-link {
+  display: block;
+  text-align: left;
+}
+
 @media (max-width: 760px) {
-  .topbar {
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .topbar__brand {
-    font-size: 14px;
-    line-height: 1.1;
-    padding-top: 2px;
-  }
-
-  .topbar__nav {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-    gap: 6px;
-  }
-
-  .topbar__nav::-webkit-scrollbar {
-    display: none;
-  }
-
   .topbar__nav .nav-link {
-    flex: 0 0 auto;
-    white-space: nowrap;
-    padding: 6px 10px;
+    padding: 7px 10px;
     font-size: 11px;
-    border-radius: 999px;
+  }
+
+  .topbar__more-trigger {
+    padding: 7px 10px;
+    font-size: 11px;
   }
 }
 
 @media (max-width: 420px) {
-  .topbar {
-    gap: 6px;
+  .topbar__nav .nav-link {
+    padding: 6px 9px;
+    font-size: 10px;
   }
 
-  .topbar__nav .nav-link {
-    padding: 6px 8px;
-    font-size: 11px;
+  .topbar__more-trigger {
+    padding: 6px 9px;
+    font-size: 10px;
   }
 }

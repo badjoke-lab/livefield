@@ -139,7 +139,7 @@ function renderBattleViewportLabels(
   highlightedIds: Set<string>,
   sparseMode: boolean
 ): string {
-  const lines = payload.lines.slice(0, sparseMode ? 3 : 4)
+  const lines = payload.lines.slice(0, sparseMode ? 2 : 3)
   if (!lines.length) return ""
   const maxValue = Math.max(...lines.flatMap((line) => line.points), 1)
   const minValue = Math.min(...lines.flatMap((line) => line.points), 0)
@@ -153,7 +153,8 @@ function renderBattleViewportLabels(
       const clampedTop = Math.max(previousTop + 8, Math.min(84, rawTop))
       previousTop = clampedTop
       const opacity = highlightedIds.has(line.streamerId) ? 0.95 : 0.55
-      return `<div class="battle-line-label" style="left:82%; top:${clampedTop}%; color:${line.color}; opacity:${opacity}">${escapeHtml(line.name)}</div>`
+      const compactName = line.name.length > 14 ? `${line.name.slice(0, 13)}…` : line.name
+      return `<div class="battle-line-label" style="left:80%; top:${clampedTop}%; color:${line.color}; opacity:${opacity}">${escapeHtml(compactName)}</div>`
     })
     .join("")
 }
