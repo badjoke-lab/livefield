@@ -93,6 +93,11 @@
     cursor: pointer;
   }
 
+  .topbar__menu-overlay,
+  .topbar__menu-panel {
+    display: block;
+  }
+
   .topbar__menu-overlay {
     position: fixed;
     inset: 0;
