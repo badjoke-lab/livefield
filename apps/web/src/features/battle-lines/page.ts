@@ -288,22 +288,30 @@ function renderContentWithMode(
 
     <section class="page-section battle-lines-utility">
       <div class="battle-lines-utility__grid">
-        ${renderFocusStripSection(payload, uiState, escapeHtml)}
-        ${renderSecondaryBattlesSection(payload, uiState, {
-          escapeHtml,
-          formatGap,
-          candidateTagLabel
-        })}
-        ${renderReversalStripSection(payload, {
-          escapeHtml,
-          formatGap,
-          candidateTagLabel
-        })}
-        ${renderAddRivalUtilitySection(payload, uiState, {
-          escapeHtml,
-          formatGap,
-          candidateTagLabel
-        })}
+        <section class="card battle-detail-card battle-detail-card--collapsible battle-utility-disclosure" data-battle-disclosure>
+          <button type="button" class="battle-detail-toggle" data-battle-disclosure-toggle aria-expanded="true" aria-controls="battle-tools-panel">
+            <span>More battle tools</span>
+            <span class="battle-detail-toggle__icon" aria-hidden="true">▾</span>
+          </button>
+          <div class="battle-detail-body battle-utility-stack" id="battle-tools-panel" data-battle-disclosure-panel>
+            ${renderFocusStripSection(payload, uiState, escapeHtml)}
+            ${renderSecondaryBattlesSection(payload, uiState, {
+              escapeHtml,
+              formatGap,
+              candidateTagLabel
+            })}
+            ${renderReversalStripSection(payload, {
+              escapeHtml,
+              formatGap,
+              candidateTagLabel
+            })}
+            ${renderAddRivalUtilitySection(payload, uiState, {
+              escapeHtml,
+              formatGap,
+              candidateTagLabel
+            })}
+          </div>
+        </section>
         ${renderBattleSummaryStrip(payload, escapeHtml)}
         ${renderBattleUtilityDetailSections(payload, battleFeed, {
           escapeHtml,
@@ -399,11 +407,15 @@ function initializeBattleDetailDisclosures(target: HTMLElement): void {
       section.dataset.expanded = expanded ? "true" : "false"
     }
 
-    setExpanded(false)
+    setExpanded(!isMobile)
     toggle.onclick = () => {
       const expanded = toggle.getAttribute("aria-expanded") === "true"
       setExpanded(!expanded)
     }
+  })
+
+  target.querySelectorAll<HTMLDetailsElement>("[data-battle-inline-more]").forEach((details) => {
+    details.open = !isMobile
   })
 }
 

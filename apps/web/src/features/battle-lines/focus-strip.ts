@@ -31,8 +31,8 @@ export function renderFocusStripSection(
   escapeHtml: EscapeHtml
 ): string {
   return `
-    <section class="card battle-focus-strip-card">
-      <h2>Focus strip</h2>
+    <section class="battle-focus-strip-card battle-utility-item">
+      <h3>Focus strip</h3>
       <div class="focus-chip-row">
         ${payload.focusStrip
           .map((item) => {
