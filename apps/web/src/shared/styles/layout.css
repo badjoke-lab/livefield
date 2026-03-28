@@ -46,7 +46,6 @@
 }
 
 .topbar__menu-button,
-.topbar__menu-toggle,
 .topbar__menu-overlay,
 .topbar__menu-panel {
   display: none;
@@ -94,12 +93,6 @@
     cursor: pointer;
   }
 
-  .topbar__menu-toggle {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-
   .topbar__menu-overlay {
     position: fixed;
     inset: 0;
@@ -123,12 +116,12 @@
     overflow-y: auto;
   }
 
-  .topbar__menu-toggle:checked ~ .topbar__menu-overlay {
+  .topbar.topbar--menu-open .topbar__menu-overlay {
     opacity: 1;
     pointer-events: auto;
   }
 
-  .topbar__menu-toggle:checked ~ .topbar__menu-panel {
+  .topbar.topbar--menu-open .topbar__menu-panel {
     transform: translateX(0);
     pointer-events: auto;
   }
