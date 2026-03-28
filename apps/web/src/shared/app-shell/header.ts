@@ -19,8 +19,11 @@ const items: NavItem[] = [
 export function renderHeader(active: string): string {
   return `
     <header class="topbar">
-      <div class="topbar__brand">Livefield</div>
-      <nav class="topbar__nav">
+      <div class="topbar__brand" aria-label="Livefield">
+        <img class="topbar__logo" src="/icons/lvf-mark.svg" alt="" width="20" height="20" decoding="async" />
+        <span>Livefield</span>
+      </div>
+      <nav class="topbar__nav" aria-label="Primary">
         ${items
           .map((item) => {
             const classes = ["nav-link"]

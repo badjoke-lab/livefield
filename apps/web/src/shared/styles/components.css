@@ -152,9 +152,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 16px;
-  padding-top: 8px;
+  margin-top: 14px;
+  padding-top: 6px;
   color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .code-note {
@@ -242,9 +244,11 @@ button.action {
   }
 
   .footer-links {
-    margin-top: 12px;
-    gap: 8px;
-    font-size: 13px;
+    margin-top: 10px;
+    gap: 7px;
+    padding-top: 4px;
+    font-size: 12px;
+    line-height: 1.4;
   }
 }
 
@@ -331,8 +335,9 @@ button.action {
   .topbar__nav .nav-link {
     flex: 0 0 auto;
     white-space: nowrap;
-    padding: 7px 10px;
-    font-size: 12px;
+    padding: 6px 10px;
+    font-size: 11px;
+    border-radius: 999px;
   }
 }
 
@@ -342,7 +347,7 @@ button.action {
   }
 
   .topbar__nav .nav-link {
-    padding: 6px 9px;
+    padding: 6px 8px;
     font-size: 11px;
   }
 }
