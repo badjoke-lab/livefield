@@ -30,11 +30,10 @@ function emptyReasonText(payload: BattleLinesPayload): string {
   return "This date does not currently have enough stored rivalry data for the selected controls."
 }
 
-export function renderBattleDetailSections(
+export function renderBattlePrimaryDetailSections(
   payload: BattleLinesPayload,
   uiState: UiState,
   activePrimary: BattleCandidate | null,
-  battleFeed: string[],
   helpers: DetailHelpers
 ): string {
   const { escapeHtml, candidateTagLabel } = helpers
@@ -87,7 +86,19 @@ export function renderBattleDetailSections(
           <div class="kv-row"><span>Gap change</span><strong>${latestReversal ? `${numberFmt.format(latestReversal.gapBefore)} → ${numberFmt.format(latestReversal.gapAfter)}` : "N/A"}</strong></div>
         </div>
       </section>
+    </div>
+  `
+}
 
+export function renderBattleUtilityDetailSections(
+  payload: BattleLinesPayload,
+  battleFeed: string[],
+  helpers: DetailHelpers
+): string {
+  const { escapeHtml } = helpers
+
+  return `
+    <div class="battle-detail-sections battle-detail-sections--utility">
       <section class="card battle-detail-card battle-detail-card--feed battle-detail-card--collapsible" data-battle-disclosure>
         <button type="button" class="battle-detail-toggle" data-battle-disclosure-toggle aria-expanded="true" aria-controls="battle-feed-panel">
           <span>Battle feed</span>

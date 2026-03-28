@@ -12,7 +12,8 @@ import type {
 } from "../../../../../packages/shared/src/types/battle-lines"
 import { BATTLE_LINES_CONTROLS_ID, renderBattleLinesControls } from "./controls"
 import {
-  renderBattleDetailSections,
+  renderBattlePrimaryDetailSections,
+  renderBattleUtilityDetailSections,
   renderBattleEmptyDetailSection
 } from "./detail-panel"
 import { renderFocusStripSection } from "./focus-strip"
@@ -31,9 +32,12 @@ import {
   type ChartViewportMode
 } from "../../shared/runtime/observed-window"
 import {
+  renderAddRivalUtilitySection,
   renderBattleEmptySummaryStrip,
   renderBattleSummaryStrip,
-  renderRivalryRadarSection
+  renderReversalStripSection,
+  renderRivalryRadarSection,
+  renderSecondaryBattlesSection
 } from "./summary"
 import { mountBattleLinesRenderer } from "./renderer"
 
@@ -263,23 +267,49 @@ function renderContentWithMode(
   const battleFeed = buildBattleFeed(payload, activePrimary)
 
   return `
-    ${renderRivalryRadarSection(payload, uiState, activePrimary, {
-      escapeHtml,
-      formatGap,
-      candidateTagLabel
-    })}
+    <section class="page-section battle-lines-primary-flow">
+      <div class="battle-lines-chart-block">
+        ${renderChart(payload, chartPayload, uiState, activePrimary, viewportMode, observedSinceLabel, sparseMode)}
+      </div>
 
-    ${renderBattleSummaryStrip(payload, escapeHtml)}
+      ${renderRivalryRadarSection(payload, uiState, activePrimary, {
+        escapeHtml,
+        formatGap,
+        candidateTagLabel
+      })}
 
-    <section class="grid-2 page-section battle-lines-layout">
-      ${renderChart(payload, chartPayload, uiState, activePrimary, viewportMode, observedSinceLabel, sparseMode)}
-      <section class="battle-side">
-        ${renderFocusStripSection(payload, uiState, escapeHtml)}
-        ${renderBattleDetailSections(payload, uiState, activePrimary, battleFeed, {
+      <section class="battle-side battle-side--primary battle-lines-primary-details">
+        ${renderBattlePrimaryDetailSections(payload, uiState, activePrimary, {
           escapeHtml,
           candidateTagLabel
         })}
       </section>
+    </section>
+
+    <section class="page-section battle-lines-utility">
+      <div class="battle-lines-utility__grid">
+        ${renderFocusStripSection(payload, uiState, escapeHtml)}
+        ${renderSecondaryBattlesSection(payload, uiState, {
+          escapeHtml,
+          formatGap,
+          candidateTagLabel
+        })}
+        ${renderReversalStripSection(payload, {
+          escapeHtml,
+          formatGap,
+          candidateTagLabel
+        })}
+        ${renderAddRivalUtilitySection(payload, uiState, {
+          escapeHtml,
+          formatGap,
+          candidateTagLabel
+        })}
+        ${renderBattleSummaryStrip(payload, escapeHtml)}
+        ${renderBattleUtilityDetailSections(payload, battleFeed, {
+          escapeHtml,
+          candidateTagLabel
+        })}
+      </div>
     </section>
   `
 }
