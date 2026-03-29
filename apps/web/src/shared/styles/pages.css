@@ -3438,7 +3438,7 @@
 .battle-lines-page .battle-lines-control--bucket { grid-area: bucket; min-inline-size: 108px; }
 .battle-lines-page .battle-lines-control--refresh { grid-area: refresh; min-inline-size: 120px; }
 
-@media (max-width: 1359px) and (min-width: 1024px) {
+@media (max-width: 1199px) and (min-width: 960px) {
   .battle-lines-page .battle-lines-controls {
     grid-template-areas:
       "today date top"
@@ -3459,7 +3459,7 @@
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 959px) {
   .battle-lines-page .battle-lines-controls {
     grid-template-areas:
       "today date"
@@ -3500,7 +3500,7 @@
 }
 
 /* battle-lines responsive header + hero compact mode */
-@media (max-width: 1023px) {
+@media (max-width: 1199px) {
   .battle-lines-page .topbar {
     gap: 10px;
     padding: 10px 12px;
@@ -3519,6 +3519,44 @@
   .battle-lines-page .topbar__menu-overlay,
   .battle-lines-page .topbar__menu-panel {
     display: block;
+  }
+
+  .battle-lines-page .topbar__menu-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 44;
+    background: rgba(3, 8, 16, 0.64);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+  }
+
+  .battle-lines-page .topbar__menu-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    width: min(320px, 88vw);
+    height: 100dvh;
+    background: rgba(7, 12, 23, 0.99);
+    border-left: 1px solid rgba(122, 162, 255, 0.2);
+    box-shadow: -20px 0 40px rgba(0, 0, 0, 0.45);
+    transform: translateX(100%);
+    transition: transform 180ms ease;
+    overflow-y: auto;
+    pointer-events: none;
+    padding: 16px 14px 20px;
+  }
+
+  .battle-lines-page .topbar-shell--menu-open .topbar__menu-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .battle-lines-page .topbar-shell--menu-open .topbar__menu-panel {
+    transform: translateX(0);
+    pointer-events: auto;
   }
 
   .battle-lines-page .hero {
@@ -3552,7 +3590,7 @@
   }
 }
 
-@media (max-width: 719px) {
+@media (max-width: 959px) {
   .battle-lines-page .hero {
     padding: 8px 10px;
     margin-bottom: 4px;
@@ -3568,5 +3606,19 @@
 
   .battle-lines-page .battle-lines-controls {
     gap: 6px;
+  }
+}
+
+@media (max-width: 719px) {
+  .battle-lines-page .hero {
+    padding: 7px 9px;
+  }
+
+  .battle-lines-page .hero h1 {
+    font-size: clamp(20px, 6vw, 25px);
+  }
+
+  .battle-lines-page .battle-lines-controls-wrap {
+    margin: 5px 0 3px;
   }
 }

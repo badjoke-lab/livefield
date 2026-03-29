@@ -47,6 +47,15 @@ function setMenuState(shell: HTMLElement, open: boolean): void {
   }
 }
 
+function shouldUseCompactMenu(): boolean {
+  if (typeof window === "undefined") return false
+  return window.matchMedia("(max-width: 1199px)").matches
+}
+
+function closeAllHeaderMenus(): void {
+  document.querySelectorAll<HTMLElement>(".topbar-shell").forEach((shell) => setMenuState(shell, false))
+}
+
 function initializeHeaderMenu(): void {
   if (typeof window === "undefined") return
   const marker = "__livefieldHeaderMenuBound"
@@ -60,6 +69,10 @@ function initializeHeaderMenu(): void {
     if (target.closest('[data-topbar-menu-open]')) {
       const shell = target.closest<HTMLElement>(".topbar-shell")
       if (!shell) return
+      if (!shouldUseCompactMenu()) {
+        setMenuState(shell, false)
+        return
+      }
       setMenuState(shell, !shell.classList.contains("topbar-shell--menu-open"))
       return
     }
@@ -78,6 +91,14 @@ function initializeHeaderMenu(): void {
     event.preventDefault()
     setMenuState(shell, false)
   })
+
+  window.addEventListener("resize", () => {
+    if (!shouldUseCompactMenu()) {
+      closeAllHeaderMenus()
+    }
+  })
+
+  closeAllHeaderMenus()
 }
 
 initializeHeaderMenu()
