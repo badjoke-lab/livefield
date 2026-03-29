@@ -3498,3 +3498,75 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
+
+/* battle-lines responsive header + hero compact mode */
+@media (max-width: 1023px) {
+  .battle-lines-page .topbar {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .battle-lines-page .topbar__nav {
+    display: none;
+  }
+
+  .battle-lines-page .topbar__menu-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .battle-lines-page .topbar__menu-overlay,
+  .battle-lines-page .topbar__menu-panel {
+    display: block;
+  }
+
+  .battle-lines-page .hero {
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .battle-lines-page .hero h1 {
+    margin-bottom: 6px;
+    font-size: clamp(24px, 4vw, 30px);
+    line-height: 1.08;
+  }
+
+  .battle-lines-page .hero p,
+  .battle-lines-page .hero .code-note {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .battle-lines-page .hero p {
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+
+  .battle-lines-page .hero .actions {
+    margin-top: 6px;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 719px) {
+  .battle-lines-page .hero {
+    padding: 8px 10px;
+    margin-bottom: 4px;
+  }
+
+  .battle-lines-page .hero h1 {
+    font-size: clamp(21px, 6.2vw, 27px);
+  }
+
+  .battle-lines-page .battle-lines-controls-wrap {
+    margin: 6px 0 4px;
+  }
+
+  .battle-lines-page .battle-lines-controls {
+    gap: 6px;
+  }
+}
