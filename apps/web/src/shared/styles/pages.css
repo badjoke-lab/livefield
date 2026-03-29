@@ -1848,20 +1848,8 @@
   display: grid;
   gap: 12px;
   align-items: end;
-}
-
-.controls--battle-lines .controls-group {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
-
-.controls--battle-lines .controls-group--primary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.controls--battle-lines .controls-group--secondary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-areas: "today date top metric bucket refresh";
 }
 
 .controls--battle-lines select,
@@ -1870,6 +1858,18 @@
   width: 100%;
   min-width: 0;
 }
+
+.controls--battle-lines .battle-lines-control--today { grid-area: today; }
+
+.controls--battle-lines .battle-lines-control--date { grid-area: date; }
+
+.controls--battle-lines .battle-lines-control--top { grid-area: top; }
+
+.controls--battle-lines .battle-lines-control--metric { grid-area: metric; }
+
+.controls--battle-lines .battle-lines-control--bucket { grid-area: bucket; }
+
+.controls--battle-lines .battle-lines-control--refresh { grid-area: refresh; }
 
 .controls--battle-lines select,
 .controls--battle-lines input[type="date"] {
@@ -1889,6 +1889,36 @@
 .controls--battle-lines .action {
   min-height: 40px;
   border-radius: 999px;
+}
+
+@media (max-width: 1279px) {
+  .controls--battle-lines {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "today date top"
+      "metric bucket refresh";
+  }
+}
+
+@media (max-width: 899px) {
+  .controls--battle-lines {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "today date"
+      "top metric"
+      "bucket refresh";
+  }
+}
+
+@media (max-width: 699px) {
+  .controls--battle-lines {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "today date"
+      "top top"
+      "metric bucket"
+      "refresh refresh";
+  }
 }
 
 .battle-lines-layout {
@@ -1991,11 +2021,6 @@
 }
 
 @media (max-width: 768px) {
-  .controls--battle-lines .controls-group--primary,
-  .controls--battle-lines .controls-group--secondary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .battle-lines-layout {
     grid-template-columns: 1fr;
   }
@@ -2042,11 +2067,6 @@
 }
 
 @media (max-width: 560px) {
-  .controls--battle-lines .controls-group--primary,
-  .controls--battle-lines .controls-group--secondary {
-    grid-template-columns: 1fr;
-  }
-
   .battle-mock-card--battle-lines .battle-mock-card__head,
   .rivalry-radar__head {
     flex-direction: column;
@@ -2643,11 +2663,6 @@
 }
 
 @media (max-width: 560px) {
-  .controls--battle-lines .controls-group--primary,
-  .controls--battle-lines .controls-group--secondary {
-    grid-template-columns: 1fr;
-  }
-
   .summary-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
