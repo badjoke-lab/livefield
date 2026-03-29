@@ -3637,3 +3637,446 @@
     margin: 5px 0 3px;
   }
 }
+
+
+/* battle-lines-controls-main-fix:start */
+.battle-lines-controls {
+  display: grid;
+  align-items: stretch;
+  gap: 12px;
+  margin: 10px 0 14px;
+  grid-template-columns:
+    minmax(0, 1.05fr)
+    minmax(0, 1.05fr)
+    minmax(0, 0.95fr)
+    minmax(168px, 0.82fr)
+    minmax(132px, 0.62fr)
+    minmax(150px, 0.72fr);
+  grid-template-areas: "today date top metric bucket refresh";
+}
+
+.battle-lines-controls .battle-lines-control {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 46px;
+}
+
+.battle-lines-controls .battle-lines-control--today { grid-area: today; }
+.battle-lines-controls .battle-lines-control--date { grid-area: date; }
+.battle-lines-controls .battle-lines-control--top { grid-area: top; }
+.battle-lines-controls .battle-lines-control--metric { grid-area: metric; }
+.battle-lines-controls .battle-lines-control--bucket { grid-area: bucket; }
+.battle-lines-controls .battle-lines-control--refresh { grid-area: refresh; }
+
+.battle-lines-controls .battle-lines-control--metric {
+  min-inline-size: 168px;
+}
+
+.battle-lines-controls .battle-lines-control--bucket {
+  min-inline-size: 132px;
+}
+
+.battle-lines-controls .battle-lines-control--refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 900 - 1279 : 3列 x 2段 */
+@media (max-width: 1279px) and (min-width: 900px) {
+  .battle-lines-controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "today date top"
+      "metric bucket refresh";
+  }
+
+  .battle-lines-controls .battle-lines-control--metric,
+  .battle-lines-controls .battle-lines-control--bucket {
+    min-inline-size: 0;
+  }
+}
+
+/* 700 - 899 : 2列 x 3段 */
+@media (max-width: 899px) and (min-width: 700px) {
+  .battle-lines-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "today date"
+      "top metric"
+      "bucket refresh";
+  }
+
+  .battle-lines-controls .battle-lines-control--metric,
+  .battle-lines-controls .battle-lines-control--bucket {
+    min-inline-size: 0;
+  }
+}
+
+/* < 700 : ここで初めて Top 5 と Refresh の全幅化を許可 */
+@media (max-width: 699px) {
+  .battle-lines-controls {
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "today date"
+      "top top"
+      "metric bucket"
+      "refresh refresh";
+  }
+
+  .battle-lines-controls .battle-lines-control--metric,
+  .battle-lines-controls .battle-lines-control--bucket {
+    min-inline-size: 0;
+  }
+
+  .battle-lines-controls .battle-lines-control {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 519px) {
+  .battle-lines-controls {
+    gap: 8px;
+    margin: 8px 0 12px;
+  }
+
+  .battle-lines-controls .battle-lines-control {
+    min-height: 42px;
+  }
+}
+/* battle-lines-controls-main-fix:end */
+
+
+/* battle-lines-controls-hotfix-v2:start */
+.controls.controls--battle-lines.battle-lines-controls {
+  display: grid !important;
+  align-items: stretch !important;
+  gap: 12px !important;
+  margin: 10px 0 14px !important;
+  grid-template-columns:
+    minmax(0, 1.05fr)
+    minmax(0, 1.05fr)
+    minmax(0, 0.95fr)
+    minmax(168px, 0.82fr)
+    minmax(132px, 0.62fr)
+    minmax(150px, 0.72fr) !important;
+  grid-template-areas: "today date top metric bucket refresh" !important;
+}
+
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+  min-width: 0 !important;
+  width: 100% !important;
+  min-height: 46px !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
+
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--today   { grid-area: today !important; }
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--date    { grid-area: date !important; }
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--top     { grid-area: top !important; }
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric  { grid-area: metric !important; }
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket  { grid-area: bucket !important; }
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh { grid-area: refresh !important; }
+
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric {
+  min-inline-size: 168px !important;
+}
+
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+  min-inline-size: 132px !important;
+}
+
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* 900 - 1279 : 3列 x 2段 */
+@media (max-width: 1279px) and (min-width: 900px) {
+  .controls.controls--battle-lines.battle-lines-controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-areas:
+      "today date top"
+      "metric bucket refresh" !important;
+  }
+
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+    min-inline-size: 0 !important;
+  }
+}
+
+/* 700 - 899 : 2列 x 3段 */
+@media (max-width: 899px) and (min-width: 700px) {
+  .controls.controls--battle-lines.battle-lines-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-areas:
+      "today date"
+      "top metric"
+      "bucket refresh" !important;
+  }
+
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+    min-inline-size: 0 !important;
+  }
+}
+
+/* < 700 : ここで初めて Top 5 と Refresh の全幅化 */
+@media (max-width: 699px) {
+  .controls.controls--battle-lines.battle-lines-controls {
+    gap: 10px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-areas:
+      "today date"
+      "top top"
+      "metric bucket"
+      "refresh refresh" !important;
+  }
+
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+    min-inline-size: 0 !important;
+  }
+
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+    min-height: 44px !important;
+  }
+}
+
+@media (max-width: 519px) {
+  .controls.controls--battle-lines.battle-lines-controls {
+    gap: 8px !important;
+    margin: 8px 0 12px !important;
+  }
+
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+    min-height: 42px !important;
+  }
+}
+/* battle-lines-controls-hotfix-v2:end */
+
+
+/* battle-lines-controls-final-override:start */
+.controls.controls--battle-lines.battle-lines-controls {
+  display: grid;
+  align-items: stretch;
+  gap: 8px;
+  margin: 8px 0 12px;
+  grid-template-columns:
+    minmax(128px, 1.05fr)
+    minmax(168px, 1.30fr)
+    minmax(132px, 1.05fr)
+    minmax(132px, 1.05fr)
+    minmax(108px, 0.85fr)
+    minmax(120px, 0.95fr);
+  grid-template-areas: "today date top metric bucket refresh";
+}
+
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+  min-width: 0;
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+}
+
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--today   { grid-area: today; }
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--date    { grid-area: date; }
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--top     { grid-area: top; }
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric  { grid-area: metric; }
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket  { grid-area: bucket; }
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh { grid-area: refresh; }
+
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric {
+  min-inline-size: 132px;
+}
+
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+  min-inline-size: 108px;
+}
+
+.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 900 - 1279 : 3列 × 2段 */
+@media (max-width: 1279px) and (min-width: 900px) {
+  .controls.controls--battle-lines.battle-lines-controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "today date top"
+      "metric bucket refresh";
+  }
+
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+    min-inline-size: 0;
+  }
+}
+
+/* 700 - 899 : 2列 × 3段 */
+@media (max-width: 899px) and (min-width: 700px) {
+  .controls.controls--battle-lines.battle-lines-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "today date"
+      "top metric"
+      "bucket refresh";
+  }
+
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+    min-inline-size: 0;
+  }
+}
+
+/* < 700 : ここで初めて全幅化 */
+@media (max-width: 699px) {
+  .controls.controls--battle-lines.battle-lines-controls {
+    gap: 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "today date"
+      "top top"
+      "metric bucket"
+      "refresh refresh";
+  }
+
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+    min-height: 40px;
+  }
+
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+    min-inline-size: 0;
+  }
+}
+
+@media (max-width: 519px) {
+  .controls.controls--battle-lines.battle-lines-controls {
+    gap: 5px;
+    margin: 6px 0 10px;
+  }
+
+  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+    min-height: 38px;
+  }
+}
+/* battle-lines-controls-final-override:end */
+
+
+/* battle-lines-controls-prod-hotfix:start */
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
+  display: grid !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+  margin: 8px 0 12px !important;
+  grid-template-columns:
+    minmax(128px, 1.05fr)
+    minmax(168px, 1.30fr)
+    minmax(132px, 1.05fr)
+    minmax(132px, 1.05fr)
+    minmax(108px, 0.85fr)
+    minmax(120px, 0.95fr) !important;
+  grid-template-areas: "today date top metric bucket refresh" !important;
+}
+
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+  min-width: 0 !important;
+  width: 100% !important;
+  min-height: 42px !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
+
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--today   { grid-area: today !important; }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--date    { grid-area: date !important; }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--top     { grid-area: top !important; }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric  { grid-area: metric !important; }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket  { grid-area: bucket !important; }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh { grid-area: refresh !important; }
+
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric {
+  min-inline-size: 132px !important;
+}
+
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+  min-inline-size: 108px !important;
+}
+
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* 900 - 1279 : 3列×2段 */
+@media (max-width: 1279px) and (min-width: 900px) {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-areas:
+      "today date top"
+      "metric bucket refresh" !important;
+  }
+
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+    min-inline-size: 0 !important;
+  }
+}
+
+/* 700 - 899 : 2列×3段 */
+@media (max-width: 899px) and (min-width: 700px) {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-areas:
+      "today date"
+      "top metric"
+      "bucket refresh" !important;
+  }
+
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+    min-inline-size: 0 !important;
+  }
+}
+
+/* < 700 : ここで初めて全幅化 */
+@media (max-width: 699px) {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
+    gap: 6px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-areas:
+      "today date"
+      "top top"
+      "metric bucket"
+      "refresh refresh" !important;
+  }
+
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+    min-height: 40px !important;
+  }
+
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+    min-inline-size: 0 !important;
+  }
+}
+
+@media (max-width: 519px) {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
+    gap: 5px !important;
+    margin: 6px 0 10px !important;
+  }
+
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+    min-height: 38px !important;
+  }
+}
+/* battle-lines-controls-prod-hotfix:end */
+
