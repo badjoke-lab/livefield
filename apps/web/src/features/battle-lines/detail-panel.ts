@@ -48,7 +48,7 @@ export function renderBattlePrimaryDetailSections(
   const hoverFallback = findHoveredLine(payload)
 
   return `
-    <div class="battle-detail-sections">
+    <div class="battle-support-detail-stack">
       <section class="card battle-detail-card">
         <h2>Selected stream</h2>
         <div class="kv">
