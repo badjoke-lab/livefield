@@ -435,7 +435,9 @@ export function renderBattleLinesPage(root: HTMLElement): void {
       ]
     })}
 
-    ${renderBattleLinesControls()}
+    <section class="battle-lines-controls-wrap">
+      ${renderBattleLinesControls()}
+    </section>
 
     <div id="battle-lines-content" class="battle-lines-content"></div>
 

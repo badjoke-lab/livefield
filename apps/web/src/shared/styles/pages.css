@@ -3408,33 +3408,43 @@
   }
 }
 
-.battle-lines-page .controls--battle-lines {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: stretch;
+.battle-lines-page .battle-lines-controls-wrap {
+  margin: 10px 0 6px;
 }
 
-.battle-lines-page .controls--battle-lines .controls-group {
+.battle-lines-page .battle-lines-controls {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(120px, 1fr);
   gap: 8px;
-  align-items: center;
+  align-items: stretch;
+  grid-template-areas: "today date top metric bucket refresh";
+  grid-template-columns:
+    minmax(128px, 1.05fr)
+    minmax(168px, 1.3fr)
+    minmax(132px, 1.05fr)
+    minmax(132px, 1.05fr)
+    minmax(108px, 0.85fr)
+    minmax(120px, 0.95fr);
 }
 
-.battle-lines-page .controls--battle-lines .controls-group--primary {
-  grid-auto-columns: minmax(130px, 1fr);
+.battle-lines-page .battle-lines-control {
+  min-inline-size: 0;
+  block-size: 42px;
 }
 
-.battle-lines-page .controls--battle-lines .battle-controls-rail {
-  grid-auto-columns: minmax(116px, 1fr);
-}
+.battle-lines-page .battle-lines-control--today { grid-area: today; min-inline-size: 124px; }
+.battle-lines-page .battle-lines-control--date { grid-area: date; min-inline-size: 164px; }
+.battle-lines-page .battle-lines-control--top { grid-area: top; min-inline-size: 132px; }
+.battle-lines-page .battle-lines-control--metric { grid-area: metric; min-inline-size: 132px; }
+.battle-lines-page .battle-lines-control--bucket { grid-area: bucket; min-inline-size: 108px; }
+.battle-lines-page .battle-lines-control--refresh { grid-area: refresh; min-inline-size: 120px; }
 
-.battle-lines-page .controls--battle-lines .battle-control--metric,
-.battle-lines-page .controls--battle-lines .battle-control--bucket,
-.battle-lines-page .controls--battle-lines .battle-control--refresh {
-  min-width: 120px;
+@media (max-width: 1359px) and (min-width: 1024px) {
+  .battle-lines-page .battle-lines-controls {
+    grid-template-areas:
+      "today date top"
+      "metric bucket refresh";
+    grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.2fr) minmax(132px, 1fr);
+  }
 }
 
 .battle-lines-page .battle-lines-support-column {
@@ -3450,12 +3460,18 @@
 }
 
 @media (max-width: 1023px) {
-  .battle-lines-page .controls--battle-lines {
-    grid-template-columns: 1fr;
+  .battle-lines-page .battle-lines-controls {
+    grid-template-areas:
+      "today date"
+      "top top"
+      "metric bucket"
+      "refresh refresh";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 7px;
   }
 
-  .battle-lines-page .controls--battle-lines .controls-group {
-    grid-auto-columns: minmax(0, 1fr);
+  .battle-lines-page .battle-lines-control {
+    block-size: 40px;
   }
 
   .battle-lines-page .battle-lines-support-column {
@@ -3464,20 +3480,21 @@
 }
 
 @media (max-width: 767px) {
-  .battle-lines-page .controls--battle-lines .controls-group {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-flow: row;
-    grid-auto-columns: unset;
+  .battle-lines-page .battle-lines-controls-wrap {
+    margin: 8px 0 4px;
   }
 
-  .battle-lines-page .controls--battle-lines .battle-controls-rail {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .battle-lines-page .battle-lines-controls {
+    gap: 6px;
+  }
+
+  .battle-lines-page .battle-lines-control {
+    block-size: 38px;
   }
 }
 
 @media (max-width: 520px) {
-  .battle-lines-page .controls--battle-lines .controls-group--primary,
-  .battle-lines-page .controls--battle-lines .battle-controls-rail {
-    grid-template-columns: 1fr;
+  .battle-lines-page .battle-lines-controls {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
