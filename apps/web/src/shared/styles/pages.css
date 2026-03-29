@@ -3407,3 +3407,77 @@
     display: none;
   }
 }
+
+.battle-lines-page .controls--battle-lines {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.battle-lines-page .controls--battle-lines .controls-group {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(120px, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.battle-lines-page .controls--battle-lines .controls-group--primary {
+  grid-auto-columns: minmax(130px, 1fr);
+}
+
+.battle-lines-page .controls--battle-lines .battle-controls-rail {
+  grid-auto-columns: minmax(116px, 1fr);
+}
+
+.battle-lines-page .controls--battle-lines .battle-control--metric,
+.battle-lines-page .controls--battle-lines .battle-control--bucket,
+.battle-lines-page .controls--battle-lines .battle-control--refresh {
+  min-width: 120px;
+}
+
+.battle-lines-page .battle-lines-support-column {
+  min-width: 320px;
+  align-content: start;
+}
+
+.battle-lines-page .battle-support-detail-stack .battle-detail-card,
+.battle-lines-page .battle-lines-support-column .battle-utility-item,
+.battle-lines-page .battle-lines-support-column .battle-detail-card--data-state {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1023px) {
+  .battle-lines-page .controls--battle-lines {
+    grid-template-columns: 1fr;
+  }
+
+  .battle-lines-page .controls--battle-lines .controls-group {
+    grid-auto-columns: minmax(0, 1fr);
+  }
+
+  .battle-lines-page .battle-lines-support-column {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .battle-lines-page .controls--battle-lines .controls-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row;
+    grid-auto-columns: unset;
+  }
+
+  .battle-lines-page .controls--battle-lines .battle-controls-rail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .battle-lines-page .controls--battle-lines .controls-group--primary,
+  .battle-lines-page .controls--battle-lines .battle-controls-rail {
+    grid-template-columns: 1fr;
+  }
+}
