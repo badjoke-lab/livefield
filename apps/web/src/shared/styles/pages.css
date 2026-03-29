@@ -3259,3 +3259,366 @@
     min-height: 0;
   }
 }
+
+/* battle-lines chart-first layout reset */
+.battle-lines-page .summary-strip--battle-lines {
+  margin: 14px 0 0;
+}
+
+.battle-lines-page .summary-compact--battle-lines {
+  display: none;
+}
+
+.battle-lines-page .battle-lines-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(340px, 0.78fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.battle-lines-page .battle-lines-main-column,
+.battle-lines-page .battle-lines-support-column {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.battle-lines-page .battle-primary-card .rivalry-primary strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.battle-lines-page .battle-primary-card .rivalry-primary h3 {
+  margin: 0 0 6px;
+}
+
+.battle-lines-page .battle-primary-card .rivalry-primary p {
+  margin: 0 0 4px;
+}
+
+.battle-lines-page .battle-mock-stage--battle-lines {
+  min-height: 360px;
+}
+
+.battle-lines-page .battle-lines-support-column .battle-support-detail-stack {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.battle-lines-page .battle-detail-card--feed .kv-row strong {
+  text-align: left;
+}
+
+.battle-lines-page .battle-detail-card--data-state .kv-row strong {
+  text-transform: capitalize;
+}
+
+@media (max-width: 1279px) {
+  .battle-lines-page .battle-lines-main-grid {
+    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
+  }
+}
+
+@media (max-width: 1023px) {
+  .battle-lines-page .battle-lines-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .battle-lines-page .battle-lines-support-column {
+    order: 2;
+  }
+}
+
+@media (max-width: 900px) {
+  .battle-lines-page .summary-strip--battle-lines {
+    display: none;
+  }
+
+  .battle-lines-page .summary-compact--battle-lines {
+    display: block;
+    margin: 12px 0 0;
+  }
+
+  .battle-lines-page .summary-compact__details {
+    background: rgba(17, 24, 43, 0.88);
+    border: 1px solid rgba(122, 162, 255, 0.14);
+    border-radius: 14px;
+    padding: 10px 12px;
+  }
+
+  .battle-lines-page .summary-compact__details summary {
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  .battle-lines-page .summary-compact__list {
+    margin-top: 8px;
+    color: var(--muted);
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  .battle-lines-page .summary-compact__list p {
+    margin: 0;
+  }
+
+  .battle-lines-page .battle-mock-stage--battle-lines {
+    min-height: 320px;
+  }
+}
+
+@media (max-width: 767px) {
+  .battle-lines-page .battle-support-detail-stack .battle-detail-card:nth-child(n+2) {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .battle-lines-page .battle-lines-main-column,
+  .battle-lines-page .battle-lines-support-column {
+    gap: 10px;
+  }
+
+  .battle-lines-page .battle-primary-card {
+    padding: 12px;
+  }
+
+  .battle-lines-page .battle-primary-card .rivalry-primary p:nth-of-type(n+2) {
+    display: none;
+  }
+
+  .battle-lines-page .battle-mock-stage--battle-lines {
+    min-height: 300px;
+  }
+
+  .battle-lines-page .battle-detail-card--feed .kv-row:nth-child(n+6) {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .battle-lines-page .battle-mock-stage--battle-lines {
+    min-height: 270px;
+  }
+
+  .battle-lines-page .battle-line-label {
+    display: none;
+  }
+}
+
+.battle-lines-page .battle-lines-controls-wrap {
+  margin: 10px 0 6px;
+}
+
+.battle-lines-page .battle-lines-controls {
+  display: grid;
+  gap: 8px;
+  align-items: stretch;
+  grid-template-areas: "today date top metric bucket refresh";
+  grid-template-columns:
+    minmax(128px, 1.05fr)
+    minmax(168px, 1.3fr)
+    minmax(132px, 1.05fr)
+    minmax(132px, 1.05fr)
+    minmax(108px, 0.85fr)
+    minmax(120px, 0.95fr);
+}
+
+.battle-lines-page .battle-lines-control {
+  min-inline-size: 0;
+  block-size: 42px;
+}
+
+.battle-lines-page .battle-lines-control--today { grid-area: today; min-inline-size: 124px; }
+.battle-lines-page .battle-lines-control--date { grid-area: date; min-inline-size: 164px; }
+.battle-lines-page .battle-lines-control--top { grid-area: top; min-inline-size: 132px; }
+.battle-lines-page .battle-lines-control--metric { grid-area: metric; min-inline-size: 132px; }
+.battle-lines-page .battle-lines-control--bucket { grid-area: bucket; min-inline-size: 108px; }
+.battle-lines-page .battle-lines-control--refresh { grid-area: refresh; min-inline-size: 120px; }
+
+@media (max-width: 1199px) and (min-width: 960px) {
+  .battle-lines-page .battle-lines-controls {
+    grid-template-areas:
+      "today date top"
+      "metric bucket refresh";
+    grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.2fr) minmax(132px, 1fr);
+  }
+}
+
+.battle-lines-page .battle-lines-support-column {
+  min-width: 320px;
+  align-content: start;
+}
+
+.battle-lines-page .battle-support-detail-stack .battle-detail-card,
+.battle-lines-page .battle-lines-support-column .battle-utility-item,
+.battle-lines-page .battle-lines-support-column .battle-detail-card--data-state {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 959px) {
+  .battle-lines-page .battle-lines-controls {
+    grid-template-areas:
+      "today date"
+      "top top"
+      "metric bucket"
+      "refresh refresh";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  .battle-lines-page .battle-lines-control {
+    block-size: 40px;
+  }
+
+  .battle-lines-page .battle-lines-support-column {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .battle-lines-page .battle-lines-controls-wrap {
+    margin: 8px 0 4px;
+  }
+
+  .battle-lines-page .battle-lines-controls {
+    gap: 6px;
+  }
+
+  .battle-lines-page .battle-lines-control {
+    block-size: 38px;
+  }
+}
+
+@media (max-width: 520px) {
+  .battle-lines-page .battle-lines-controls {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* battle-lines responsive header + hero compact mode */
+@media (max-width: 1199px) {
+  .battle-lines-page .topbar {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .battle-lines-page .topbar__nav {
+    display: none;
+  }
+
+  .battle-lines-page .topbar__menu-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .battle-lines-page .topbar__menu-overlay,
+  .battle-lines-page .topbar__menu-panel {
+    display: block;
+  }
+
+  .battle-lines-page .topbar__menu-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 44;
+    background: rgba(3, 8, 16, 0.64);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+  }
+
+  .battle-lines-page .topbar__menu-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    width: min(320px, 88vw);
+    height: 100dvh;
+    background: rgba(7, 12, 23, 0.99);
+    border-left: 1px solid rgba(122, 162, 255, 0.2);
+    box-shadow: -20px 0 40px rgba(0, 0, 0, 0.45);
+    transform: translateX(100%);
+    transition: transform 180ms ease;
+    overflow-y: auto;
+    pointer-events: none;
+    padding: 16px 14px 20px;
+  }
+
+  .battle-lines-page .topbar-shell--menu-open .topbar__menu-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .battle-lines-page .topbar-shell--menu-open .topbar__menu-panel {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+
+  .battle-lines-page .hero {
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .battle-lines-page .hero h1 {
+    margin-bottom: 6px;
+    font-size: clamp(24px, 4vw, 30px);
+    line-height: 1.08;
+  }
+
+  .battle-lines-page .hero p,
+  .battle-lines-page .hero .code-note {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .battle-lines-page .hero p {
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+
+  .battle-lines-page .hero .actions {
+    margin-top: 6px;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 959px) {
+  .battle-lines-page .hero {
+    padding: 8px 10px;
+    margin-bottom: 4px;
+  }
+
+  .battle-lines-page .hero h1 {
+    font-size: clamp(21px, 6.2vw, 27px);
+  }
+
+  .battle-lines-page .battle-lines-controls-wrap {
+    margin: 6px 0 4px;
+  }
+
+  .battle-lines-page .battle-lines-controls {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 719px) {
+  .battle-lines-page .hero {
+    padding: 7px 9px;
+  }
+
+  .battle-lines-page .hero h1 {
+    font-size: clamp(20px, 6vw, 25px);
+  }
+
+  .battle-lines-page .battle-lines-controls-wrap {
+    margin: 5px 0 3px;
+  }
+}

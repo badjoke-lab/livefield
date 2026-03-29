@@ -148,6 +148,21 @@ export function renderBattleSummaryStrip(payload: BattleLinesPayload, escapeHtml
   `
 }
 
+export function renderBattleSummaryCompact(payload: BattleLinesPayload, escapeHtml: EscapeHtml): string {
+  return `
+    <section class="summary-compact summary-compact--battle-lines page-section">
+      <details class="summary-compact__details">
+        <summary>Battle summary · ${escapeHtml(payload.summary.liveBattleNow)}</summary>
+        <div class="summary-compact__list">
+          <p><strong>Latest reversal:</strong> ${escapeHtml(payload.summary.latestReversal)}</p>
+          <p><strong>Fastest challenger:</strong> ${escapeHtml(payload.summary.fastestChallenger)}</p>
+          <p><strong>Most heated battle:</strong> ${escapeHtml(payload.summary.mostHeatedBattle)}</p>
+        </div>
+      </details>
+    </section>
+  `
+}
+
 export function renderBattleEmptySummaryStrip(payload: BattleLinesPayload, escapeHtml: EscapeHtml): string {
   return `
     <section class="summary-strip page-section summary-strip--battle-empty">

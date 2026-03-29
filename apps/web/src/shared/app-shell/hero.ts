@@ -12,7 +12,7 @@ export function renderHero(input: HeroInput): string {
       <div class="hero__eyebrow">${input.eyebrow}</div>
       <h1>${input.title}</h1>
       <p>${input.subtitle}</p>
-      ${input.note ? `<p class="code-note" style="margin-top:10px">${input.note}</p>` : ""}
+      ${input.note ? `<p class="code-note hero__note">${input.note}</p>` : ""}
       ${
         input.actions?.length
           ? `<div class="actions">${input.actions

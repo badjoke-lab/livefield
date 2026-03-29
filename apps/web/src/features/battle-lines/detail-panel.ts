@@ -48,7 +48,7 @@ export function renderBattlePrimaryDetailSections(
   const hoverFallback = findHoveredLine(payload)
 
   return `
-    <div class="battle-detail-sections">
+    <div class="battle-support-detail-stack">
       <section class="card battle-detail-card">
         <h2>Selected stream</h2>
         <div class="kv">
@@ -90,38 +90,36 @@ export function renderBattlePrimaryDetailSections(
   `
 }
 
-export function renderBattleUtilityDetailSections(
-  payload: BattleLinesPayload,
-  battleFeed: string[],
-  helpers: DetailHelpers
-): string {
-  const { escapeHtml } = helpers
-
+export function renderBattleFeedSection(battleFeed: string[], escapeHtml: EscapeHtml): string {
   return `
-    <div class="battle-detail-sections battle-detail-sections--utility">
-      <section class="card battle-detail-card battle-detail-card--feed battle-detail-card--collapsible" data-battle-disclosure>
-        <button type="button" class="battle-detail-toggle" data-battle-disclosure-toggle aria-expanded="true" aria-controls="battle-feed-panel">
-          <span>Battle feed</span>
-          <span class="battle-detail-toggle__icon" aria-hidden="true">▾</span>
-        </button>
-        <div class="kv battle-feed-list battle-detail-body" id="battle-feed-panel" data-battle-disclosure-panel>
-          ${battleFeed.map((line) => `<div class="kv-row"><span>Feed</span><strong>${escapeHtml(line)}</strong></div>`).join("")}
-        </div>
-      </section>
+    <section class="card battle-detail-card battle-detail-card--feed battle-detail-card--collapsible" data-battle-disclosure>
+      <button type="button" class="battle-detail-toggle" data-battle-disclosure-toggle aria-expanded="true" aria-controls="battle-feed-panel">
+        <span>Battle feed</span>
+        <span class="battle-detail-toggle__icon" aria-hidden="true">▾</span>
+      </button>
+      <div class="kv battle-feed-list battle-detail-body" id="battle-feed-panel" data-battle-disclosure-panel>
+        ${battleFeed.map((line) => `<div class="kv-row"><span>Feed</span><strong>${escapeHtml(line)}</strong></div>`).join("")}
+      </div>
+    </section>
+  `
+}
 
-      <section class="card battle-detail-card battle-detail-card--collapsible" data-battle-disclosure>
-        <button type="button" class="battle-detail-toggle" data-battle-disclosure-toggle aria-expanded="true" aria-controls="battle-data-state-panel">
-          <span>Data state</span>
-          <span class="battle-detail-toggle__icon" aria-hidden="true">▾</span>
-        </button>
-        <div class="kv battle-detail-body" id="battle-data-state-panel" data-battle-disclosure-panel>
-          <div class="kv-row"><span>Source</span><strong>${payload.source}</strong></div>
-          <div class="kv-row"><span>Status</span><strong>${payload.state}</strong></div>
-          <div class="kv-row"><span>Top</span><strong>${payload.filters.top}</strong></div>
-          <div class="kv-row"><span>Updated at</span><strong>${escapeHtml(payload.updatedAt.slice(11, 19))} UTC</strong></div>
-        </div>
-      </section>
-    </div>
+export function renderBattleDataStateSection(payload: BattleLinesPayload, escapeHtml: EscapeHtml): string {
+  return `
+    <section class="card battle-detail-card battle-detail-card--collapsible battle-detail-card--data-state" data-battle-disclosure>
+      <button type="button" class="battle-detail-toggle" data-battle-disclosure-toggle aria-expanded="true" aria-controls="battle-data-state-panel">
+        <span>Data state</span>
+        <span class="battle-detail-toggle__icon" aria-hidden="true">▾</span>
+      </button>
+      <div class="kv battle-detail-body" id="battle-data-state-panel" data-battle-disclosure-panel>
+        <div class="kv-row"><span>Source</span><strong>${payload.source}</strong></div>
+        <div class="kv-row"><span>Status</span><strong>${payload.state}</strong></div>
+        <div class="kv-row"><span>Top</span><strong>${payload.filters.top}</strong></div>
+        <div class="kv-row"><span>Metric</span><strong>${payload.filters.metric}</strong></div>
+        <div class="kv-row"><span>Bucket</span><strong>${payload.filters.bucketMinutes}m</strong></div>
+        <div class="kv-row"><span>Updated at</span><strong>${escapeHtml(payload.updatedAt.slice(11, 19))} UTC</strong></div>
+      </div>
+    </section>
   `
 }
 

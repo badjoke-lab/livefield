@@ -13,7 +13,8 @@ import type {
 import { BATTLE_LINES_CONTROLS_ID, renderBattleLinesControls } from "./controls"
 import {
   renderBattlePrimaryDetailSections,
-  renderBattleUtilityDetailSections,
+  renderBattleDataStateSection,
+  renderBattleFeedSection,
   renderBattleEmptyDetailSection
 } from "./detail-panel"
 import { renderFocusStripSection } from "./focus-strip"
@@ -34,9 +35,10 @@ import {
 import {
   renderAddRivalUtilitySection,
   renderBattleEmptySummaryStrip,
+  renderBattleSummaryCompact,
   renderBattleSummaryStrip,
   renderReversalStripSection,
-  renderRivalryRadarSection,
+  renderPrimaryBattleSummary,
   renderSecondaryBattlesSection
 } from "./summary"
 import { mountBattleLinesRenderer } from "./renderer"
@@ -268,57 +270,52 @@ function renderContentWithMode(
   const battleFeed = buildBattleFeed(payload, activePrimary)
 
   return `
-    <section class="page-section battle-lines-primary-flow">
-      <div class="battle-lines-chart-block">
+    ${renderBattleSummaryStrip(payload, escapeHtml)}
+    ${renderBattleSummaryCompact(payload, escapeHtml)}
+
+    <section class="page-section battle-lines-main-grid">
+      <section class="battle-lines-main-column">
+        <section class="card battle-primary-card battle-utility-item">
+          ${renderPrimaryBattleSummary(payload, activePrimary, {
+            escapeHtml,
+            formatGap,
+            candidateTagLabel
+          })}
+        </section>
+
         ${renderChart(payload, chartPayload, uiState, activePrimary, viewportMode, observedSinceLabel, sparseMode)}
-      </div>
 
-      ${renderRivalryRadarSection(payload, uiState, activePrimary, {
-        escapeHtml,
-        formatGap,
-        candidateTagLabel
-      })}
+        ${renderReversalStripSection(payload, {
+          escapeHtml,
+          formatGap,
+          candidateTagLabel
+        })}
 
-      <section class="battle-side battle-side--primary battle-lines-primary-details">
+        ${renderSecondaryBattlesSection(payload, uiState, {
+          escapeHtml,
+          formatGap,
+          candidateTagLabel
+        })}
+
+        ${renderBattleFeedSection(battleFeed, escapeHtml)}
+      </section>
+
+      <aside class="battle-side battle-side--primary battle-lines-support-column">
         ${renderBattlePrimaryDetailSections(payload, uiState, activePrimary, {
           escapeHtml,
           candidateTagLabel
         })}
-      </section>
-    </section>
 
-    <section class="page-section battle-lines-utility">
-      <div class="battle-lines-utility__grid">
-        <section class="card battle-detail-card battle-detail-card--collapsible battle-utility-disclosure" data-battle-disclosure>
-          <button type="button" class="battle-detail-toggle" data-battle-disclosure-toggle aria-expanded="true" aria-controls="battle-tools-panel">
-            <span>More battle tools</span>
-            <span class="battle-detail-toggle__icon" aria-hidden="true">▾</span>
-          </button>
-          <div class="battle-detail-body battle-utility-stack" id="battle-tools-panel" data-battle-disclosure-panel>
-            ${renderFocusStripSection(payload, uiState, escapeHtml)}
-            ${renderSecondaryBattlesSection(payload, uiState, {
-              escapeHtml,
-              formatGap,
-              candidateTagLabel
-            })}
-            ${renderReversalStripSection(payload, {
-              escapeHtml,
-              formatGap,
-              candidateTagLabel
-            })}
-            ${renderAddRivalUtilitySection(payload, uiState, {
-              escapeHtml,
-              formatGap,
-              candidateTagLabel
-            })}
-          </div>
-        </section>
-        ${renderBattleSummaryStrip(payload, escapeHtml)}
-        ${renderBattleUtilityDetailSections(payload, battleFeed, {
+        ${renderFocusStripSection(payload, uiState, escapeHtml)}
+
+        ${renderAddRivalUtilitySection(payload, uiState, {
           escapeHtml,
+          formatGap,
           candidateTagLabel
         })}
-      </div>
+
+        ${renderBattleDataStateSection(payload, escapeHtml)}
+      </aside>
     </section>
   `
 }
@@ -438,7 +435,9 @@ export function renderBattleLinesPage(root: HTMLElement): void {
       ]
     })}
 
-    ${renderBattleLinesControls()}
+    <section class="battle-lines-controls-wrap">
+      ${renderBattleLinesControls()}
+    </section>
 
     <div id="battle-lines-content" class="battle-lines-content"></div>
 
