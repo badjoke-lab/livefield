@@ -1844,52 +1844,6 @@
 }
 
 /* battle-lines mobile polish */
-.controls--battle-lines {
-  display: grid;
-  gap: 12px;
-  align-items: end;
-}
-
-.controls--battle-lines .controls-group {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
-
-.controls--battle-lines .controls-group--primary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.controls--battle-lines .controls-group--secondary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.controls--battle-lines select,
-.controls--battle-lines input[type="date"],
-.controls--battle-lines button {
-  width: 100%;
-  min-width: 0;
-}
-
-.controls--battle-lines select,
-.controls--battle-lines input[type="date"] {
-  appearance: none;
-  border-radius: 999px;
-  border: 1px solid rgba(122, 162, 255, 0.2);
-  background: rgba(122, 162, 255, 0.07);
-  color: var(--text);
-  min-height: 40px;
-  padding: 0 14px;
-}
-
-.controls--battle-lines input[type="date"]::-webkit-calendar-picker-indicator {
-  opacity: 0.8;
-}
-
-.controls--battle-lines .action {
-  min-height: 40px;
-  border-radius: 999px;
-}
 
 .battle-lines-layout {
   align-items: start;
@@ -1991,11 +1945,6 @@
 }
 
 @media (max-width: 768px) {
-  .controls--battle-lines .controls-group--primary,
-  .controls--battle-lines .controls-group--secondary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .battle-lines-layout {
     grid-template-columns: 1fr;
   }
@@ -2042,11 +1991,6 @@
 }
 
 @media (max-width: 560px) {
-  .controls--battle-lines .controls-group--primary,
-  .controls--battle-lines .controls-group--secondary {
-    grid-template-columns: 1fr;
-  }
-
   .battle-mock-card--battle-lines .battle-mock-card__head,
   .rivalry-radar__head {
     flex-direction: column;
@@ -2427,36 +2371,10 @@
   opacity: 0.84;
 }
 
-.controls--battle-lines {
-  gap: 8px;
-  margin: 8px 0 12px;
-}
 
-.controls--battle-lines .controls-group {
-  gap: 8px;
-}
 
-.controls--battle-lines select {
-  padding-right: 36px;
-  background-image:
-    linear-gradient(45deg, transparent 50%, rgba(223, 232, 245, 0.88) 50%),
-    linear-gradient(135deg, rgba(223, 232, 245, 0.88) 50%, transparent 50%);
-  background-position:
-    calc(100% - 18px) calc(50% - 2px),
-    calc(100% - 12px) calc(50% - 2px);
-  background-size: 6px 6px, 6px 6px;
-  background-repeat: no-repeat;
-}
 
-.controls--battle-lines input[type="date"] {
-  padding-right: 14px;
-}
 
-.controls--battle-lines select,
-.controls--battle-lines input[type="date"],
-.controls--battle-lines .action {
-  min-height: 38px;
-}
 
 .rivalry-radar {
   gap: 10px;
@@ -2643,11 +2561,6 @@
 }
 
 @media (max-width: 560px) {
-  .controls--battle-lines .controls-group--primary,
-  .controls--battle-lines .controls-group--secondary {
-    grid-template-columns: 1fr;
-  }
-
   .summary-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2759,23 +2672,8 @@
     font-size: 11px;
   }
 
-  .battle-lines-page .controls--battle-lines {
-    margin: 2px 0 6px;
-    gap: 5px;
-  }
 
-  .battle-lines-page .controls--battle-lines .controls-group {
-    gap: 5px;
-  }
 
-  .battle-lines-page .controls--battle-lines select,
-  .battle-lines-page .controls--battle-lines input[type="date"],
-  .battle-lines-page .controls--battle-lines .action {
-    min-height: 32px;
-    font-size: 12px;
-    padding-top: 6px;
-    padding-bottom: 6px;
-  }
 
   .battle-lines-page .summary-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3408,44 +3306,8 @@
   }
 }
 
-.battle-lines-page .battle-lines-controls-wrap {
-  margin: 10px 0 6px;
-}
 
-.battle-lines-page .battle-lines-controls {
-  display: grid;
-  gap: 8px;
-  align-items: stretch;
-  grid-template-areas: "today date top metric bucket refresh";
-  grid-template-columns:
-    minmax(128px, 1.05fr)
-    minmax(168px, 1.3fr)
-    minmax(132px, 1.05fr)
-    minmax(132px, 1.05fr)
-    minmax(108px, 0.85fr)
-    minmax(120px, 0.95fr);
-}
 
-.battle-lines-page .battle-lines-control {
-  min-inline-size: 0;
-  block-size: 42px;
-}
-
-.battle-lines-page .battle-lines-control--today { grid-area: today; min-inline-size: 124px; }
-.battle-lines-page .battle-lines-control--date { grid-area: date; min-inline-size: 164px; }
-.battle-lines-page .battle-lines-control--top { grid-area: top; min-inline-size: 132px; }
-.battle-lines-page .battle-lines-control--metric { grid-area: metric; min-inline-size: 132px; }
-.battle-lines-page .battle-lines-control--bucket { grid-area: bucket; min-inline-size: 108px; }
-.battle-lines-page .battle-lines-control--refresh { grid-area: refresh; min-inline-size: 120px; }
-
-@media (max-width: 1199px) and (min-width: 960px) {
-  .battle-lines-page .battle-lines-controls {
-    grid-template-areas:
-      "today date top"
-      "metric bucket refresh";
-    grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.2fr) minmax(132px, 1fr);
-  }
-}
 
 .battle-lines-page .battle-lines-support-column {
   min-width: 320px;
@@ -3459,45 +3321,8 @@
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 959px) {
-  .battle-lines-page .battle-lines-controls {
-    grid-template-areas:
-      "today date"
-      "top top"
-      "metric bucket"
-      "refresh refresh";
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 7px;
-  }
 
-  .battle-lines-page .battle-lines-control {
-    block-size: 40px;
-  }
 
-  .battle-lines-page .battle-lines-support-column {
-    min-width: 0;
-  }
-}
-
-@media (max-width: 767px) {
-  .battle-lines-page .battle-lines-controls-wrap {
-    margin: 8px 0 4px;
-  }
-
-  .battle-lines-page .battle-lines-controls {
-    gap: 6px;
-  }
-
-  .battle-lines-page .battle-lines-control {
-    block-size: 38px;
-  }
-}
-
-@media (max-width: 520px) {
-  .battle-lines-page .battle-lines-controls {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-}
 
 /* battle-lines responsive header + hero compact mode */
 @media (max-width: 1199px) {
@@ -3600,13 +3425,6 @@
     font-size: clamp(21px, 6.2vw, 27px);
   }
 
-  .battle-lines-page .battle-lines-controls-wrap {
-    margin: 6px 0 4px;
-  }
-
-  .battle-lines-page .battle-lines-controls {
-    gap: 6px;
-  }
 }
 
 @media (max-width: 719px) {
@@ -3618,239 +3436,18 @@
     font-size: clamp(20px, 6vw, 25px);
   }
 
-  .battle-lines-page .battle-lines-controls-wrap {
-    margin: 5px 0 3px;
-  }
 }
 
-
-/* battle-lines-controls-main-fix:start */
-.battle-lines-controls {
-  display: grid;
-  align-items: stretch;
-  gap: 12px;
-  margin: 10px 0 14px;
-  grid-template-columns:
-    minmax(0, 1.05fr)
-    minmax(0, 1.05fr)
-    minmax(0, 0.95fr)
-    minmax(168px, 0.82fr)
-    minmax(132px, 0.62fr)
-    minmax(150px, 0.72fr);
-  grid-template-areas: "today date top metric bucket refresh";
+/* battle-lines-controls-canonical */
+.battle-lines-page .battle-lines-controls-wrap {
+  margin: 8px 0 12px;
 }
 
-.battle-lines-controls .battle-lines-control {
-  min-width: 0;
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 46px;
-}
-
-.battle-lines-controls .battle-lines-control--today { grid-area: today; }
-.battle-lines-controls .battle-lines-control--date { grid-area: date; }
-.battle-lines-controls .battle-lines-control--top { grid-area: top; }
-.battle-lines-controls .battle-lines-control--metric { grid-area: metric; }
-.battle-lines-controls .battle-lines-control--bucket { grid-area: bucket; }
-.battle-lines-controls .battle-lines-control--refresh { grid-area: refresh; }
-
-.battle-lines-controls .battle-lines-control--metric {
-  min-inline-size: 168px;
-}
-
-.battle-lines-controls .battle-lines-control--bucket {
-  min-inline-size: 132px;
-}
-
-.battle-lines-controls .battle-lines-control--refresh {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 900 - 1279 : 3列 x 2段 */
-@media (max-width: 1279px) and (min-width: 900px) {
-  .battle-lines-controls {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-areas:
-      "today date top"
-      "metric bucket refresh";
-  }
-
-  .battle-lines-controls .battle-lines-control--metric,
-  .battle-lines-controls .battle-lines-control--bucket {
-    min-inline-size: 0;
-  }
-}
-
-/* 700 - 899 : 2列 x 3段 */
-@media (max-width: 899px) and (min-width: 700px) {
-  .battle-lines-controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-areas:
-      "today date"
-      "top metric"
-      "bucket refresh";
-  }
-
-  .battle-lines-controls .battle-lines-control--metric,
-  .battle-lines-controls .battle-lines-control--bucket {
-    min-inline-size: 0;
-  }
-}
-
-/* < 700 : ここで初めて Top 5 と Refresh の全幅化を許可 */
-@media (max-width: 699px) {
-  .battle-lines-controls {
-    gap: 10px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-areas:
-      "today date"
-      "top top"
-      "metric bucket"
-      "refresh refresh";
-  }
-
-  .battle-lines-controls .battle-lines-control--metric,
-  .battle-lines-controls .battle-lines-control--bucket {
-    min-inline-size: 0;
-  }
-
-  .battle-lines-controls .battle-lines-control {
-    min-height: 44px;
-  }
-}
-
-@media (max-width: 519px) {
-  .battle-lines-controls {
-    gap: 8px;
-    margin: 8px 0 12px;
-  }
-
-  .battle-lines-controls .battle-lines-control {
-    min-height: 42px;
-  }
-}
-/* battle-lines-controls-main-fix:end */
-
-
-/* battle-lines-controls-hotfix-v2:start */
-.controls.controls--battle-lines.battle-lines-controls {
-  display: grid !important;
-  align-items: stretch !important;
-  gap: 12px !important;
-  margin: 10px 0 14px !important;
-  grid-template-columns:
-    minmax(0, 1.05fr)
-    minmax(0, 1.05fr)
-    minmax(0, 0.95fr)
-    minmax(168px, 0.82fr)
-    minmax(132px, 0.62fr)
-    minmax(150px, 0.72fr) !important;
-  grid-template-areas: "today date top metric bucket refresh" !important;
-}
-
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
-  min-width: 0 !important;
-  width: 100% !important;
-  min-height: 46px !important;
-  box-sizing: border-box !important;
-  margin: 0 !important;
-}
-
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--today   { grid-area: today !important; }
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--date    { grid-area: date !important; }
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--top     { grid-area: top !important; }
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric  { grid-area: metric !important; }
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket  { grid-area: bucket !important; }
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh { grid-area: refresh !important; }
-
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric {
-  min-inline-size: 168px !important;
-}
-
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
-  min-inline-size: 132px !important;
-}
-
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-/* 900 - 1279 : 3列 x 2段 */
-@media (max-width: 1279px) and (min-width: 900px) {
-  .controls.controls--battle-lines.battle-lines-controls {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    grid-template-areas:
-      "today date top"
-      "metric bucket refresh" !important;
-  }
-
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
-    min-inline-size: 0 !important;
-  }
-}
-
-/* 700 - 899 : 2列 x 3段 */
-@media (max-width: 899px) and (min-width: 700px) {
-  .controls.controls--battle-lines.battle-lines-controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    grid-template-areas:
-      "today date"
-      "top metric"
-      "bucket refresh" !important;
-  }
-
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
-    min-inline-size: 0 !important;
-  }
-}
-
-/* < 700 : ここで初めて Top 5 と Refresh の全幅化 */
-@media (max-width: 699px) {
-  .controls.controls--battle-lines.battle-lines-controls {
-    gap: 10px !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    grid-template-areas:
-      "today date"
-      "top top"
-      "metric bucket"
-      "refresh refresh" !important;
-  }
-
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
-    min-inline-size: 0 !important;
-  }
-
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
-    min-height: 44px !important;
-  }
-}
-
-@media (max-width: 519px) {
-  .controls.controls--battle-lines.battle-lines-controls {
-    gap: 8px !important;
-    margin: 8px 0 12px !important;
-  }
-
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
-    min-height: 42px !important;
-  }
-}
-/* battle-lines-controls-hotfix-v2:end */
-
-
-/* battle-lines-controls-final-override:start */
-.controls.controls--battle-lines.battle-lines-controls {
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
   display: grid;
   align-items: stretch;
   gap: 8px;
-  margin: 8px 0 12px;
+  margin: 0;
   grid-template-columns:
     minmax(128px, 1.05fr)
     minmax(168px, 1.30fr)
@@ -3861,52 +3458,51 @@
   grid-template-areas: "today date top metric bucket refresh";
 }
 
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
   min-width: 0;
   width: 100%;
   min-height: 42px;
   box-sizing: border-box;
+  margin: 0;
 }
 
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--today   { grid-area: today; }
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--date    { grid-area: date; }
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--top     { grid-area: top; }
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric  { grid-area: metric; }
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket  { grid-area: bucket; }
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh { grid-area: refresh; }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--today   { grid-area: today; }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--date    { grid-area: date; }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--top     { grid-area: top; }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric  { grid-area: metric; }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket  { grid-area: bucket; }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh { grid-area: refresh; }
 
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric {
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric {
   min-inline-size: 132px;
 }
 
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
   min-inline-size: 108px;
 }
 
-.controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh {
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-/* 900 - 1279 : 3列 × 2段 */
 @media (max-width: 1279px) and (min-width: 900px) {
-  .controls.controls--battle-lines.battle-lines-controls {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-areas:
       "today date top"
       "metric bucket refresh";
   }
 
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
     min-inline-size: 0;
   }
 }
 
-/* 700 - 899 : 2列 × 3段 */
 @media (max-width: 899px) and (min-width: 700px) {
-  .controls.controls--battle-lines.battle-lines-controls {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
       "today date"
@@ -3914,15 +3510,18 @@
       "bucket refresh";
   }
 
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
     min-inline-size: 0;
   }
 }
 
-/* < 700 : ここで初めて全幅化 */
 @media (max-width: 699px) {
-  .controls.controls--battle-lines.battle-lines-controls {
+  .battle-lines-page .battle-lines-controls-wrap {
+    margin: 6px 0 10px;
+  }
+
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
     gap: 6px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
@@ -3932,136 +3531,108 @@
       "refresh refresh";
   }
 
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
     min-height: 40px;
   }
 
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
     min-inline-size: 0;
   }
 }
 
 @media (max-width: 519px) {
-  .controls.controls--battle-lines.battle-lines-controls {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
     gap: 5px;
-    margin: 6px 0 10px;
   }
 
-  .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
     min-height: 38px;
   }
 }
-/* battle-lines-controls-final-override:end */
 
 
-/* battle-lines-controls-prod-hotfix:start */
-.battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
-  display: grid !important;
-  align-items: stretch !important;
-  gap: 8px !important;
-  margin: 8px 0 12px !important;
-  grid-template-columns:
-    minmax(128px, 1.05fr)
-    minmax(168px, 1.30fr)
-    minmax(132px, 1.05fr)
-    minmax(132px, 1.05fr)
-    minmax(108px, 0.85fr)
-    minmax(120px, 0.95fr) !important;
-  grid-template-areas: "today date top metric bucket refresh" !important;
-}
-
+/* battle-lines-controls-visual-fix:start */
 .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
-  min-width: 0 !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
   width: 100% !important;
-  min-height: 42px !important;
+  min-width: 0 !important;
   box-sizing: border-box !important;
-  margin: 0 !important;
+  min-height: 42px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(122, 162, 255, 0.18) !important;
+  background: linear-gradient(180deg, rgba(20, 30, 52, 0.96) 0%, rgba(13, 22, 41, 0.98) 100%) !important;
+  color: #eaf1ff !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03) !important;
 }
 
-.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--today   { grid-area: today !important; }
-.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--date    { grid-area: date !important; }
-.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--top     { grid-area: top !important; }
-.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric  { grid-area: metric !important; }
-.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket  { grid-area: bucket !important; }
-.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh { grid-area: refresh !important; }
-
-.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric {
-  min-inline-size: 132px !important;
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > select.battle-lines-control,
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > input[type="date"].battle-lines-control {
+  padding: 0 40px 0 14px !important;
+  font-size: 15px !important;
 }
 
-.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
-  min-inline-size: 108px !important;
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > select.battle-lines-control {
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(223, 232, 245, 0.9) 50%),
+    linear-gradient(135deg, rgba(223, 232, 245, 0.9) 50%, transparent 50%),
+    linear-gradient(180deg, rgba(20, 30, 52, 0.96) 0%, rgba(13, 22, 41, 0.98) 100%) !important;
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 12px) calc(50% - 2px),
+    0 0 !important;
+  background-size: 6px 6px, 6px 6px, 100% 100% !important;
+  background-repeat: no-repeat !important;
+}
+
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > input[type="date"].battle-lines-control::-webkit-calendar-picker-indicator {
+  opacity: 0.9 !important;
+  filter: invert(0.92) sepia(0.08) saturate(0.5) brightness(1.15) !important;
+  cursor: pointer !important;
 }
 
 .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  padding: 0 16px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  text-align: center !important;
 }
 
-/* 900 - 1279 : 3列×2段 */
-@media (max-width: 1279px) and (min-width: 900px) {
-  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    grid-template-areas:
-      "today date top"
-      "metric bucket refresh" !important;
-  }
-
-  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
-  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
-    min-inline-size: 0 !important;
-  }
+.battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control:focus {
+  outline: none !important;
+  border-color: rgba(132, 240, 255, 0.42) !important;
+  box-shadow:
+    0 0 0 1px rgba(132, 240, 255, 0.18),
+    0 0 0 4px rgba(122, 162, 255, 0.08),
+    inset 0 1px 0 rgba(255,255,255,0.03) !important;
 }
 
-/* 700 - 899 : 2列×3段 */
-@media (max-width: 899px) and (min-width: 700px) {
-  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    grid-template-areas:
-      "today date"
-      "top metric"
-      "bucket refresh" !important;
-  }
-
-  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
-  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
-    min-inline-size: 0 !important;
-  }
-}
-
-/* < 700 : ここで初めて全幅化 */
-@media (max-width: 699px) {
-  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
-    gap: 6px !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    grid-template-areas:
-      "today date"
-      "top top"
-      "metric bucket"
-      "refresh refresh" !important;
-  }
-
+@media (max-width: 767px) {
   .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
-    min-height: 40px !important;
+    min-height: 38px !important;
   }
 
-  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--metric,
-  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--bucket {
-    min-inline-size: 0 !important;
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > select.battle-lines-control,
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > input[type="date"].battle-lines-control,
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh {
+    font-size: 14px !important;
   }
 }
 
 @media (max-width: 519px) {
-  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls {
-    gap: 5px !important;
-    margin: 6px 0 10px !important;
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
+    min-height: 36px !important;
   }
 
-  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control {
-    min-height: 38px !important;
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > select.battle-lines-control,
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > input[type="date"].battle-lines-control,
+  .battle-lines-page .controls.controls--battle-lines.battle-lines-controls > .battle-lines-control--refresh {
+    font-size: 13px !important;
   }
 }
-/* battle-lines-controls-prod-hotfix:end */
+/* battle-lines-controls-visual-fix:end */
 
