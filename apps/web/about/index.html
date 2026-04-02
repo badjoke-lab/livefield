@@ -6,43 +6,111 @@
   <title>About | Livefield</title>
   <meta name="description" content="What Livefield is, how to read its charts, and what limitations exist." />
   <link rel="canonical" href="https://livefield.pages.dev/about" />
+  <link rel="stylesheet" href="/assets/hero-XzUJYVcx.css">
 </head>
 <body>
-  <main style="max-width:900px;margin:40px auto;padding:20px;font-family:sans-serif;color:#e5e7eb;background:#020617;line-height:1.6">
 
-    <h1>About Livefield</h1>
+<div class="container">
 
-    <h2>What is Livefield</h2>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-label">ABOUT</div>
+      <h1>About Livefield</h1>
+      <p>
+        Livefield is an unofficial Twitch-focused observation tool built to understand
+        how viewership distributes, shifts, and overlaps in real time.
+      </p>
+    </div>
+  </section>
+
+  <!-- WHAT -->
+  <section class="card">
+    <h2>What this is</h2>
     <p>
-      Livefield is an unofficial Twitch-focused observation tool.
-      It visualizes live activity through three perspectives: current distribution, daily flow, and rivalries between streams.
+      Livefield visualizes Twitch activity through three perspectives:
+      current distribution, daily flow, and rivalries between streams.
     </p>
+  </section>
 
+  <!-- FEATURES -->
+  <section class="card">
     <h2>What you can see</h2>
     <ul>
       <li><b>Heatmap:</b> current viewer distribution across streams</li>
       <li><b>Day Flow:</b> how viewership moves over time</li>
       <li><b>Rivalry Radar:</b> overlap and competition between streams</li>
     </ul>
+  </section>
 
+  <!-- READING -->
+  <section class="card">
     <h2>How to read</h2>
     <ul>
-      <li><b>Viewers are primary:</b> all charts are based on viewer signals</li>
+      <li><b>Viewers are primary:</b> all charts are driven by viewer signals</li>
       <li><b>Activity is secondary:</b> missing chat does not invalidate charts</li>
-      <li><b>Status:</b> live / partial / stale / empty indicate data coverage</li>
+      <li><b>Status:</b> live / partial / stale / empty describe data coverage</li>
     </ul>
+  </section>
 
+  <!-- LIMITATION -->
+  <section class="card">
     <h2>Data limitations</h2>
     <p>
       This project prioritizes transparency over completeness.
-      "Partial" or "stale" does not mean broken — it means the observed data is incomplete.
+      "Partial" or "stale" does not mean broken — it means observed coverage is incomplete.
     </p>
+  </section>
 
+  <!-- SCOPE -->
+  <section class="card">
     <h2>Scope</h2>
     <p>
-      This is a Twitch-only MVP focused on stable observation.
+      This is a Twitch-only MVP focused on stable observation rather than perfect coverage.
     </p>
+  </section>
 
-  </main>
+</div>
+
+<style>
+body {
+  background: #020617;
+  color: #e5e7eb;
+  font-family: system-ui, sans-serif;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 40px auto;
+  padding: 20px;
+}
+
+.hero {
+  margin-bottom: 24px;
+  padding: 24px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+}
+
+.hero-label {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #67e8f9;
+  margin-bottom: 8px;
+}
+
+.card {
+  background: #0f172a;
+  padding: 20px;
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+
+h1 { font-size: 36px; margin-bottom: 12px; }
+h2 { margin-bottom: 12px; }
+ul { padding-left: 20px; }
+li { margin-bottom: 6px; }
+</style>
+
 </body>
 </html>
