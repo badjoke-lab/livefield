@@ -431,7 +431,7 @@ export function renderBattleLinesPage(root: HTMLElement): void {
       note: "Today = live hot path. Yesterday/Date = saved rollup history. Sparse Today may switch to observed-window mode.",
       actions: [
         { href: "/day-flow/", label: "Open Day Flow" },
-        { href: "/method/", label: "Open Method" }
+
       ]
     })}
 

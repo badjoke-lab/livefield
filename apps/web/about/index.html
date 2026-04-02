@@ -1,47 +1,48 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Livefield / About</title>
-    <meta name="description" content="About Livefield, an unofficial Twitch observation site." />
-    <meta name="theme-color" content="#0b0f14" />
-    <meta name="robots" content="index,follow" />
-    <link rel="canonical" href="https://livefield.pages.dev/about/" />
-    <link rel="icon" href="/icons/lvf-mark.svg" type="image/svg+xml" />
-    <link rel="alternate icon" href="/favicon.ico" sizes="any" />
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>About | Livefield</title>
+  <meta name="description" content="What Livefield is, how to read its charts, and what limitations exist." />
+  <link rel="canonical" href="https://livefield.pages.dev/about" />
+</head>
+<body>
+  <main style="max-width:900px;margin:40px auto;padding:20px;font-family:sans-serif;color:#e5e7eb;background:#020617;line-height:1.6">
 
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Livefield" />
-    <meta property="og:title" content="Livefield / About" />
-    <meta property="og:description" content="About Livefield, an unofficial Twitch observation site." />
-    <meta property="og:url" content="https://livefield.pages.dev/about/" />
-    <meta property="og:image" content="https://livefield.pages.dev/og/default.png" />
+    <h1>About Livefield</h1>
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Livefield / About" />
-    <meta name="twitter:description" content="About Livefield, an unofficial Twitch observation site." />
-    <meta name="twitter:image" content="https://livefield.pages.dev/og/default.png" />
+    <h2>What is Livefield</h2>
+    <p>
+      Livefield is an unofficial Twitch-focused observation tool.
+      It visualizes live activity through three perspectives: current distribution, daily flow, and rivalries between streams.
+    </p>
 
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-PDVCZ9Z88B"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-PDVCZ9Z88B');
-    </script>
+    <h2>What you can see</h2>
+    <ul>
+      <li><b>Heatmap:</b> current viewer distribution across streams</li>
+      <li><b>Day Flow:</b> how viewership moves over time</li>
+      <li><b>Rivalry Radar:</b> overlap and competition between streams</li>
+    </ul>
 
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "Livefield",
-      "url": "https://livefield.pages.dev"
-    }
-    </script>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/boot/page-about.ts"></script>
-  </body>
+    <h2>How to read</h2>
+    <ul>
+      <li><b>Viewers are primary:</b> all charts are based on viewer signals</li>
+      <li><b>Activity is secondary:</b> missing chat does not invalidate charts</li>
+      <li><b>Status:</b> live / partial / stale / empty indicate data coverage</li>
+    </ul>
+
+    <h2>Data limitations</h2>
+    <p>
+      This project prioritizes transparency over completeness.
+      "Partial" or "stale" does not mean broken — it means the observed data is incomplete.
+    </p>
+
+    <h2>Scope</h2>
+    <p>
+      This is a Twitch-only MVP focused on stable observation.
+    </p>
+
+  </main>
+</body>
 </html>

@@ -11,7 +11,7 @@ const items: NavItem[] = [
   { href: "/heatmap/", label: "Heatmap", key: "heatmap", mobileGroup: "primary" },
   { href: "/day-flow/", label: "Day Flow", key: "day-flow", mobileGroup: "primary" },
   { href: "/battle-lines/", label: "Rivalry Radar", key: "battle-lines", mobileGroup: "primary" },
-  { href: "/method/", label: "Method", key: "method", mobileGroup: "secondary" },
+
   { href: "/about/", label: "About", key: "about", mobileGroup: "secondary" },
   { href: "/donate/", label: "Donate", key: "donate", featured: true, mobileGroup: "secondary" },
   { href: "/status/", label: "Status", key: "status", mobileGroup: "secondary" }

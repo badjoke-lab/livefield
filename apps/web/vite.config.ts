@@ -11,7 +11,7 @@ export default defineConfig({
         heatmap: resolve(__dirname, "heatmap/index.html"),
         dayFlow: resolve(__dirname, "day-flow/index.html"),
         battleLines: resolve(__dirname, "battle-lines/index.html"),
-        method: resolve(__dirname, "method/index.html"),
+        
         about: resolve(__dirname, "about/index.html"),
         donate: resolve(__dirname, "donate/index.html"),
         status: resolve(__dirname, "status/index.html")

@@ -2,13 +2,13 @@ import { renderHeader } from "../../shared/app-shell/header"
 import { renderFooter } from "../../shared/app-shell/footer"
 import { renderHero } from "../../shared/app-shell/hero"
 
-export function renderMethodPage(root: HTMLElement): void {
+
   root.className = "site-shell"
   root.innerHTML = `
     ${renderHeader("method")}
     ${renderHero({
       eyebrow: "METHOD",
-      title: "Method",
+
       subtitle: "How each page reads data today, what changes on historical dates, and how to interpret sparse windows."
     })}
     <section class="card page-section">

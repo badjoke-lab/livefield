@@ -753,7 +753,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
       note: "Today uses the live hot path; yesterday/date use rollup history. Sparse today may default to observed-window mode.",
       actions: [
         { href: "/heatmap/", label: "Heatmap (support)" },
-        { href: "/method/", label: "Method (support)" }
+
       ]
     })}
 
