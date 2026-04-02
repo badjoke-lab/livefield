@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://livefield.pages.dev/sitemap.xml
