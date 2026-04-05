@@ -31,3 +31,12 @@ This repository currently targets a Twitch-only MVP.
 - Day Flow = Today
 - Rivalry Radar = Compare
 - Donate = Support
+
+## Support Livefield
+
+If Livefield is useful to you, you can support the project here:
+
+- Donate: https://buy.stripe.com/dRm8wIcJ99jGfbJ5kLcIE01
+- Site donate page: https://livefield.pages.dev/donate/
+
+Support helps with uptime, data collection, storage, and future improvements.
