@@ -436,7 +436,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     })
   }
 
-  if (isHistorical) {
+  if (false && isHistorical) {
     try {
       const historical = await fetchHistoricalDayflowRows(db, selectedDate, topN)
       if (!historical.rows.length || historical.bucketSize === null) {
