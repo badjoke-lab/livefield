@@ -28,10 +28,16 @@ export async function getDayFlowPayload(filters: {
   bucket: 5 | 10
   signal?: AbortSignal
 }): Promise<DayFlowPayload> {
-  const response = await fetch(buildQuery(filters), {
+  const request = async (): Promise<Response> => fetch(buildQuery(filters), {
     headers: { accept: "application/json" },
-    signal: filters.signal
+    signal: filters.signal,
+    cache: "no-store"
   })
+
+  let response = await request()
+  if (!response.ok && !filters.signal?.aborted) {
+    response = await request()
+  }
   if (!response.ok) {
     throw new Error(`day-flow api returned ${response.status}`)
   }

@@ -916,6 +916,7 @@ export function renderDayFlowPage(root: HTMLElement): void {
   attachControlListeners("select[name='bucket']")
 
   let timer: number | null = window.setInterval(() => {
+    if (document.hidden) return
     if (viewState.autoUpdateEnabled && ["today", "rolling24h"].includes(parseFilters(form).day)) {
       void remount()
     }
@@ -931,10 +932,18 @@ export function renderDayFlowPage(root: HTMLElement): void {
 
     if (viewState.autoUpdateEnabled && timer === null) {
       timer = window.setInterval(() => {
+        if (document.hidden) return
         if (["today", "rolling24h"].includes(parseFilters(form).day)) {
           void remount()
         }
       }, 60_000)
+    }
+  })
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return
+    if (viewState.autoUpdateEnabled && ["today", "rolling24h"].includes(parseFilters(form).day)) {
+      void remount()
     }
   })
 
