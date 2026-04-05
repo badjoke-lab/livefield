@@ -3,6 +3,7 @@ type NavItem = {
   label: string
   key: string
   featured?: boolean
+  external?: boolean
   mobileGroup: "primary" | "secondary"
 }
 
@@ -14,6 +15,7 @@ const items: NavItem[] = [
 
   { href: "/about/", label: "About", key: "about", mobileGroup: "secondary" },
   { href: "/donate/", label: "Donate", key: "donate", featured: true, mobileGroup: "secondary" },
+  { href: "https://docs.google.com/forms/d/e/1FAIpQLSfaT2qkJ1ZnacV2A8HgxyszfnkJ4yW6_X5pqQamIO8XotwLOA/viewform?usp=publish-editor", label: "Contact", key: "contact", external: true, mobileGroup: "secondary" },
   { href: "/status/", label: "Status", key: "status", mobileGroup: "secondary" }
 ]
 
@@ -22,7 +24,7 @@ function renderLink(item: NavItem, active: string, options?: { menu?: boolean })
   if (item.featured) classes.push("nav-link--featured")
   if (options?.menu) classes.push("topbar__menu-link")
   const menuAttr = options?.menu ? ' data-topbar-menu-link="true"' : ""
-  return `<a${menuAttr} class="${classes.join(" ")}" data-active="${item.key === active}" href="${item.href}">${item.label}</a>`
+  return `<a${menuAttr} class="${classes.join(" ")}" data-active="${item.key === active}" href="${item.href}"${item.external ? ' target="_blank" rel="noreferrer"' : ""}>${item.label}</a>`
 }
 
 function setMenuState(shell: HTMLElement, open: boolean): void {
