@@ -4080,3 +4080,10 @@
 }
 /* battle-lines-controls-prod-hotfix:end */
 
+
+
+@media (min-width: 901px) {
+  .dayflow-open-sheet {
+    display: none;
+  }
+}
