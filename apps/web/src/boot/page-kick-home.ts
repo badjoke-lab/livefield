@@ -1,3 +1,4 @@
+import "../shared/styles/pages.css"
 import { renderKickHomePage } from "../features/kick-home/page"
 
 const root = document.querySelector<HTMLDivElement>("#app")

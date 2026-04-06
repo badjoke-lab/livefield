@@ -1,3 +1,4 @@
+import "../shared/styles/pages.css"
 import { renderKickAboutPage } from "../features/kick-about/page"
 
 const root = document.querySelector<HTMLDivElement>("#app")
