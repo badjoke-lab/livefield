@@ -1,0 +1,11 @@
+{
+  "name": "@livefield/collector-kick",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  }
+}
