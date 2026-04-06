@@ -12,6 +12,22 @@ type CollectorStatusPayload = {
   knownLimitations: string[]
 }
 
+type CollectorHeatmapPayload = {
+  source: "worker"
+  platform: "kick"
+  state: "unconfigured"
+  lastUpdated: null
+  coverage: string
+  note: string
+  nodes: Array<unknown>
+  summary: {
+    activeStreams: number
+    totalViewersObserved: number
+    strongestMomentumStream: string | null
+    highestActivityStream: string | null
+  }
+}
+
 function json(data: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(data, null, 2), {
     headers: {
@@ -43,6 +59,24 @@ function getStatusPayload(): CollectorStatusPayload {
   }
 }
 
+function getHeatmapPayload(): CollectorHeatmapPayload {
+  return {
+    source: "worker",
+    platform: "kick",
+    state: "unconfigured",
+    lastUpdated: null,
+    coverage: "Kick heatmap worker scaffold exists, but real collection is not wired yet.",
+    note: "This worker currently exposes a Heatmap scaffold only. No Kick provider, ranking ingest, or tile payload is connected yet.",
+    nodes: [],
+    summary: {
+      activeStreams: 0,
+      totalViewersObserved: 0,
+      strongestMomentumStream: null,
+      highestActivityStream: null
+    }
+  }
+}
+
 export default {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
@@ -51,11 +85,15 @@ export default {
       return json(getStatusPayload())
     }
 
+    if (url.pathname === "/heatmap") {
+      return json(getHeatmapPayload())
+    }
+
     if (url.pathname === "/" || url.pathname === "") {
       return json({
         ok: true,
         service: "livefield-kick-collector",
-        routes: ["/status"]
+        routes: ["/status", "/heatmap"]
       })
     }
 
@@ -63,7 +101,7 @@ export default {
       {
         ok: false,
         error: "not_found",
-        message: "Use /status for the current collector scaffold response."
+        message: "Use /status or /heatmap for the current collector scaffold responses."
       },
       { status: 404 }
     )
