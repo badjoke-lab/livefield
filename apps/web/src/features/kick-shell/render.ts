@@ -1,9 +1,16 @@
-export type KickShellActiveKey = "home" | "about" | "status"
+export type KickShellActiveKey =
+  | "home"
+  | "about"
+  | "status"
+  | "heatmap"
+  | "day-flow"
+  | "battle-lines"
+  | "donate"
 
 type KickNavItem = {
   href: string
   label: string
-  key: "home" | "about" | "status" | "donate" | "contact"
+  key: KickShellActiveKey | "contact"
   external?: boolean
 }
 
@@ -12,9 +19,12 @@ const CONTACT_URL =
 
 const navItems: KickNavItem[] = [
   { href: "/kick/", label: "Kick Home", key: "home" },
+  { href: "/kick/heatmap/", label: "Heatmap", key: "heatmap" },
+  { href: "/kick/day-flow/", label: "Day Flow", key: "day-flow" },
+  { href: "/kick/battle-lines/", label: "Rivalry Radar", key: "battle-lines" },
   { href: "/kick/about/", label: "About", key: "about" },
   { href: "/kick/status/", label: "Status", key: "status" },
-  { href: "/donate/", label: "Donate", key: "donate" },
+  { href: "/kick/donate/", label: "Donate", key: "donate" },
   { href: CONTACT_URL, label: "Contact", key: "contact", external: true }
 ]
 
@@ -48,9 +58,12 @@ export function renderKickShell(active: KickShellActiveKey, body: string): strin
       <footer class="kick-footer">
         <div class="kick-footer__links">
           <a href="/kick/">Kick Home</a>
+          <a href="/kick/heatmap/">Heatmap</a>
+          <a href="/kick/day-flow/">Day Flow</a>
+          <a href="/kick/battle-lines/">Rivalry Radar</a>
           <a href="/kick/about/">About</a>
           <a href="/kick/status/">Status</a>
-          <a href="/donate/">Donate</a>
+          <a href="/kick/donate/">Donate</a>
           <a href="${CONTACT_URL}" target="_blank" rel="noreferrer">Contact</a>
           <a href="/">Current Twitch site</a>
         </div>
