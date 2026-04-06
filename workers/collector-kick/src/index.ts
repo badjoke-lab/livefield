@@ -28,6 +28,22 @@ type CollectorHeatmapPayload = {
   }
 }
 
+type CollectorDayFlowPayload = {
+  source: "worker"
+  platform: "kick"
+  state: "unconfigured"
+  lastUpdated: null
+  coverage: string
+  note: string
+  points: Array<unknown>
+  summary: {
+    observedBuckets: number
+    totalViewersObserved: number
+    strongestWindow: string | null
+    strongestStreamer: string | null
+  }
+}
+
 function json(data: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(data, null, 2), {
     headers: {
@@ -77,23 +93,37 @@ function getHeatmapPayload(): CollectorHeatmapPayload {
   }
 }
 
+function getDayFlowPayload(): CollectorDayFlowPayload {
+  return {
+    source: "worker",
+    platform: "kick",
+    state: "unconfigured",
+    lastUpdated: null,
+    coverage: "Kick day-flow worker scaffold exists, but real collection is not wired yet.",
+    note: "This worker currently exposes a Day Flow scaffold only. No Kick provider, bucket rollups, or ownership windows are connected yet.",
+    points: [],
+    summary: {
+      observedBuckets: 0,
+      totalViewersObserved: 0,
+      strongestWindow: null,
+      strongestStreamer: null
+    }
+  }
+}
+
 export default {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
 
-    if (url.pathname === "/status") {
-      return json(getStatusPayload())
-    }
-
-    if (url.pathname === "/heatmap") {
-      return json(getHeatmapPayload())
-    }
+    if (url.pathname === "/status") return json(getStatusPayload())
+    if (url.pathname === "/heatmap") return json(getHeatmapPayload())
+    if (url.pathname === "/day-flow") return json(getDayFlowPayload())
 
     if (url.pathname === "/" || url.pathname === "") {
       return json({
         ok: true,
         service: "livefield-kick-collector",
-        routes: ["/status", "/heatmap"]
+        routes: ["/status", "/heatmap", "/day-flow"]
       })
     }
 
@@ -101,7 +131,7 @@ export default {
       {
         ok: false,
         error: "not_found",
-        message: "Use /status or /heatmap for the current collector scaffold responses."
+        message: "Use /status, /heatmap, or /day-flow for the current collector scaffold responses."
       },
       { status: 404 }
     )
