@@ -44,6 +44,22 @@ type CollectorDayFlowPayload = {
   }
 }
 
+type CollectorBattleLinesPayload = {
+  source: "worker"
+  platform: "kick"
+  state: "unconfigured"
+  lastUpdated: null
+  coverage: string
+  note: string
+  pairs: Array<unknown>
+  summary: {
+    observedPairs: number
+    strongestPair: string | null
+    strongestReversalWindow: string | null
+    strongestPressureSide: string | null
+  }
+}
+
 function json(data: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(data, null, 2), {
     headers: {
@@ -111,6 +127,24 @@ function getDayFlowPayload(): CollectorDayFlowPayload {
   }
 }
 
+function getBattleLinesPayload(): CollectorBattleLinesPayload {
+  return {
+    source: "worker",
+    platform: "kick",
+    state: "unconfigured",
+    lastUpdated: null,
+    coverage: "Kick rivalry worker scaffold exists, but real collection is not wired yet.",
+    note: "This worker currently exposes a Rivalry Radar scaffold only. No Kick pair scoring, reversal windows, or pressure metrics are connected yet.",
+    pairs: [],
+    summary: {
+      observedPairs: 0,
+      strongestPair: null,
+      strongestReversalWindow: null,
+      strongestPressureSide: null
+    }
+  }
+}
+
 export default {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
@@ -118,12 +152,13 @@ export default {
     if (url.pathname === "/status") return json(getStatusPayload())
     if (url.pathname === "/heatmap") return json(getHeatmapPayload())
     if (url.pathname === "/day-flow") return json(getDayFlowPayload())
+    if (url.pathname === "/battle-lines") return json(getBattleLinesPayload())
 
     if (url.pathname === "/" || url.pathname === "") {
       return json({
         ok: true,
         service: "livefield-kick-collector",
-        routes: ["/status", "/heatmap", "/day-flow"]
+        routes: ["/status", "/heatmap", "/day-flow", "/battle-lines"]
       })
     }
 
@@ -131,7 +166,7 @@ export default {
       {
         ok: false,
         error: "not_found",
-        message: "Use /status, /heatmap, or /day-flow for the current collector scaffold responses."
+        message: "Use /status, /heatmap, /day-flow, or /battle-lines for the current collector scaffold responses."
       },
       { status: 404 }
     )
