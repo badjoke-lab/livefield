@@ -81,6 +81,29 @@ type CollectorHeatmapPayload = {
   }
 }
 
+type CollectorDayFlowPoint = {
+  ts: string
+  totalViewersObserved: number
+  observedCount: number
+  strongestStreamer: string | null
+}
+
+type CollectorDayFlowPayload = {
+  source: "worker"
+  platform: "kick"
+  state: "unconfigured" | "live" | "partial" | "error"
+  lastUpdated: string | null
+  coverage: string
+  note: string
+  points: CollectorDayFlowPoint[]
+  summary: {
+    observedBuckets: number
+    totalViewersObserved: number
+    strongestWindow: string | null
+    strongestStreamer: string | null
+  }
+}
+
 function json(data: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(data, null, 2), {
     headers: {
@@ -443,12 +466,113 @@ async function getHeatmapPayload(env: Env): Promise<CollectorHeatmapPayload> {
   }
 }
 
+async function getDayFlowPayload(env: Env): Promise<CollectorDayFlowPayload> {
+  const latest = await getLatestRun(env.DB)
+
+  if (!latest) {
+    return {
+      source: "worker",
+      platform: "kick",
+      state: "unconfigured",
+      lastUpdated: null,
+      coverage: "Kick collector worker exists, but no run has completed yet.",
+      note: "No Kick day-flow history is stored yet.",
+      points: [],
+      summary: {
+        observedBuckets: 0,
+        totalViewersObserved: 0,
+        strongestWindow: null,
+        strongestStreamer: null
+      }
+    }
+  }
+
+  const runsResult = await env.DB.prepare(`
+    SELECT
+      id,
+      created_at,
+      observed_count,
+      total_viewers_observed,
+      coverage_note,
+      state
+    FROM kick_runs
+    WHERE state != 'error'
+    ORDER BY id DESC
+    LIMIT 120
+  `).all()
+
+  const runRows = Array.isArray(runsResult.results) ? runsResult.results as Record<string, unknown>[] : []
+
+  const points: CollectorDayFlowPoint[] = []
+
+  for (const row of runRows.reverse()) {
+    const runId = Number(row.id)
+    let strongestStreamer: string | null = null
+
+    if (Number.isFinite(runId)) {
+      const top = await env.DB.prepare(`
+        SELECT slug
+        FROM kick_livestream_snapshots
+        WHERE run_id = ?
+        ORDER BY viewer_count DESC, id ASC
+        LIMIT 1
+      `).bind(runId).first<Record<string, unknown>>()
+
+      strongestStreamer = top && typeof top.slug === "string" ? top.slug : null
+    }
+
+    points.push({
+      ts: typeof row.created_at === "string" ? row.created_at : "",
+      totalViewersObserved: typeof row.total_viewers_observed === "number"
+        ? row.total_viewers_observed
+        : Number(row.total_viewers_observed ?? 0),
+      observedCount: typeof row.observed_count === "number"
+        ? row.observed_count
+        : Number(row.observed_count ?? 0),
+      strongestStreamer
+    })
+  }
+
+  let strongestWindow: string | null = null
+  let strongestStreamer: string | null = null
+  let strongestViewers = -1
+
+  for (const point of points) {
+    if (point.totalViewersObserved > strongestViewers) {
+      strongestViewers = point.totalViewersObserved
+      strongestWindow = point.ts
+      strongestStreamer = point.strongestStreamer
+    }
+  }
+
+  const state = latest.state === "error" ? "error" : latest.state === "partial" ? "partial" : "live"
+
+  return {
+    source: "worker",
+    platform: "kick",
+    state,
+    lastUpdated: typeof latest.created_at === "string" ? latest.created_at : null,
+    coverage: typeof latest.coverage_note === "string" ? latest.coverage_note : "Kick collector coverage note unavailable.",
+    note: points.length < 2
+      ? "Kick day-flow is live, but more runs are needed for a richer history."
+      : "Kick day-flow is backed by repeated top-viewer snapshots.",
+    points,
+    summary: {
+      observedBuckets: points.length,
+      totalViewersObserved: points.length > 0 ? points[points.length - 1].totalViewersObserved : 0,
+      strongestWindow,
+      strongestStreamer
+    }
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
     if (url.pathname === "/status") return json(await getStatusPayload(env))
     if (url.pathname === "/heatmap") return json(await getHeatmapPayload(env))
+    if (url.pathname === "/day-flow") return json(await getDayFlowPayload(env))
 
     if (url.pathname === "/run-once") {
       try {
@@ -465,7 +589,7 @@ export default {
       return json({
         ok: true,
         service: "livefield-kick-collector",
-        routes: ["/status", "/heatmap", "/run-once"]
+        routes: ["/status", "/heatmap", "/day-flow", "/run-once"]
       })
     }
 
@@ -473,7 +597,7 @@ export default {
       {
         ok: false,
         error: "not_found",
-        message: "Use /status, /heatmap, or /run-once."
+        message: "Use /status, /heatmap, /day-flow, or /run-once."
       },
       { status: 404 }
     )
