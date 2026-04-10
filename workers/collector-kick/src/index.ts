@@ -81,6 +81,56 @@ type CollectorHeatmapPayload = {
   }
 }
 
+type CollectorDayFlowPoint = {
+  ts: string
+  totalViewersObserved: number
+  observedCount: number
+  strongestStreamer: string | null
+}
+
+type CollectorDayFlowPayload = {
+  source: "worker"
+  platform: "kick"
+  state: "unconfigured" | "live" | "partial" | "error"
+  lastUpdated: string | null
+  coverage: string
+  note: string
+  points: CollectorDayFlowPoint[]
+  summary: {
+    observedBuckets: number
+    totalViewersObserved: number
+    strongestWindow: string | null
+    strongestStreamer: string | null
+  }
+}
+
+type CollectorBattlePair = {
+  leftSlug: string
+  rightSlug: string
+  leftViewers: number
+  rightViewers: number
+  viewerGap: number
+  previousGap: number | null
+  swing: number | null
+  label: "neck_and_neck" | "closing_fast" | "reversal_watch" | "clear_lead"
+}
+
+type CollectorBattleLinesPayload = {
+  source: "worker"
+  platform: "kick"
+  state: "unconfigured" | "live" | "partial" | "error"
+  lastUpdated: string | null
+  coverage: string
+  note: string
+  pairs: CollectorBattlePair[]
+  summary: {
+    observedPairs: number
+    strongestPair: string | null
+    strongestReversalWindow: string | null
+    strongestPressureSide: string | null
+  }
+}
+
 function json(data: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(data, null, 2), {
     headers: {
@@ -343,6 +393,47 @@ async function getLatestNodes(db: D1Database, runId: number): Promise<CollectorH
     .filter((x): x is CollectorHeatmapNode => x !== null)
 }
 
+async function getTop10Map(db: D1Database, runId: number): Promise<Map<string, number>> {
+  const result = await db.prepare(`
+    SELECT slug, viewer_count
+    FROM kick_livestream_snapshots
+    WHERE run_id = ?
+    ORDER BY viewer_count DESC, id ASC
+    LIMIT 10
+  `).bind(runId).all()
+
+  const rows = Array.isArray(result.results) ? result.results : []
+  const m = new Map<string, number>()
+
+  for (const row of rows) {
+    const r = row as Record<string, unknown>
+    const slug = typeof r.slug === "string" ? r.slug : null
+    if (!slug) continue
+    const viewers = typeof r.viewer_count === "number" ? r.viewer_count : Number(r.viewer_count ?? 0)
+    m.set(slug, viewers)
+  }
+
+  return m
+}
+
+function classifyPair(currentGap: number, previousGap: number | null): CollectorBattlePair["label"] {
+  const absGap = Math.abs(currentGap)
+
+  if (previousGap !== null && currentGap !== 0 && previousGap !== 0 && Math.sign(currentGap) !== Math.sign(previousGap)) {
+    return "reversal_watch"
+  }
+
+  if (absGap <= 500) {
+    return "neck_and_neck"
+  }
+
+  if (previousGap !== null && Math.abs(previousGap) - absGap >= 500) {
+    return "closing_fast"
+  }
+
+  return "clear_lead"
+}
+
 async function getStatusPayload(env: Env): Promise<CollectorStatusPayload> {
   const latest = await getLatestRun(env.DB)
 
@@ -443,12 +534,232 @@ async function getHeatmapPayload(env: Env): Promise<CollectorHeatmapPayload> {
   }
 }
 
+async function getDayFlowPayload(env: Env): Promise<CollectorDayFlowPayload> {
+  const latest = await getLatestRun(env.DB)
+
+  if (!latest) {
+    return {
+      source: "worker",
+      platform: "kick",
+      state: "unconfigured",
+      lastUpdated: null,
+      coverage: "Kick collector worker exists, but no run has completed yet.",
+      note: "No Kick day-flow history is stored yet.",
+      points: [],
+      summary: {
+        observedBuckets: 0,
+        totalViewersObserved: 0,
+        strongestWindow: null,
+        strongestStreamer: null
+      }
+    }
+  }
+
+  const runsResult = await env.DB.prepare(`
+    SELECT
+      id,
+      created_at,
+      observed_count,
+      total_viewers_observed,
+      coverage_note,
+      state
+    FROM kick_runs
+    WHERE state != 'error'
+    ORDER BY id DESC
+    LIMIT 120
+  `).all()
+
+  const runRows = Array.isArray(runsResult.results) ? runsResult.results as Record<string, unknown>[] : []
+  const points: CollectorDayFlowPoint[] = []
+
+  for (const row of runRows.reverse()) {
+    const runId = Number(row.id)
+    let strongestStreamer: string | null = null
+
+    if (Number.isFinite(runId)) {
+      const top = await env.DB.prepare(`
+        SELECT slug
+        FROM kick_livestream_snapshots
+        WHERE run_id = ?
+        ORDER BY viewer_count DESC, id ASC
+        LIMIT 1
+      `).bind(runId).first<Record<string, unknown>>()
+
+      strongestStreamer = top && typeof top.slug === "string" ? top.slug : null
+    }
+
+    points.push({
+      ts: typeof row.created_at === "string" ? row.created_at : "",
+      totalViewersObserved: typeof row.total_viewers_observed === "number"
+        ? row.total_viewers_observed
+        : Number(row.total_viewers_observed ?? 0),
+      observedCount: typeof row.observed_count === "number"
+        ? row.observed_count
+        : Number(row.observed_count ?? 0),
+      strongestStreamer
+    })
+  }
+
+  let strongestWindow: string | null = null
+  let strongestStreamer: string | null = null
+  let strongestViewers = -1
+
+  for (const point of points) {
+    if (point.totalViewersObserved > strongestViewers) {
+      strongestViewers = point.totalViewersObserved
+      strongestWindow = point.ts
+      strongestStreamer = point.strongestStreamer
+    }
+  }
+
+  const state = latest.state === "error" ? "error" : latest.state === "partial" ? "partial" : "live"
+
+  return {
+    source: "worker",
+    platform: "kick",
+    state,
+    lastUpdated: typeof latest.created_at === "string" ? latest.created_at : null,
+    coverage: typeof latest.coverage_note === "string" ? latest.coverage_note : "Kick collector coverage note unavailable.",
+    note: points.length < 2
+      ? "Kick day-flow is live, but more runs are needed for a richer history."
+      : "Kick day-flow is backed by repeated top-viewer snapshots.",
+    points,
+    summary: {
+      observedBuckets: points.length,
+      totalViewersObserved: points.length > 0 ? points[points.length - 1].totalViewersObserved : 0,
+      strongestWindow,
+      strongestStreamer
+    }
+  }
+}
+
+async function getBattleLinesPayload(env: Env): Promise<CollectorBattleLinesPayload> {
+  const latest = await getLatestRun(env.DB)
+
+  if (!latest) {
+    return {
+      source: "worker",
+      platform: "kick",
+      state: "unconfigured",
+      lastUpdated: null,
+      coverage: "Kick collector worker exists, but no run has completed yet.",
+      note: "No Kick rivalry history is stored yet.",
+      pairs: [],
+      summary: {
+        observedPairs: 0,
+        strongestPair: null,
+        strongestReversalWindow: null,
+        strongestPressureSide: null
+      }
+    }
+  }
+
+  const runsResult = await env.DB.prepare(`
+    SELECT id, created_at, state, coverage_note
+    FROM kick_runs
+    WHERE state != 'error'
+    ORDER BY id DESC
+    LIMIT 2
+  `).all()
+
+  const runs = Array.isArray(runsResult.results) ? runsResult.results as Record<string, unknown>[] : []
+
+  if (runs.length < 2) {
+    return {
+      source: "worker",
+      platform: "kick",
+      state: "partial",
+      lastUpdated: typeof latest.created_at === "string" ? latest.created_at : null,
+      coverage: typeof latest.coverage_note === "string" ? latest.coverage_note : "Kick collector coverage note unavailable.",
+      note: "Kick rivalry radar needs at least two successful runs.",
+      pairs: [],
+      summary: {
+        observedPairs: 0,
+        strongestPair: null,
+        strongestReversalWindow: null,
+        strongestPressureSide: null
+      }
+    }
+  }
+
+  const currentRun = runs[0]
+  const previousRun = runs[1]
+
+  const currentId = Number(currentRun.id)
+  const previousId = Number(previousRun.id)
+
+  const currentTop = await getTop10Map(env.DB, currentId)
+  const previousTop = await getTop10Map(env.DB, previousId)
+
+  const currentEntries = Array.from(currentTop.entries()).sort((a, b) => b[1] - a[1])
+  const pairs: CollectorBattlePair[] = []
+
+  for (let i = 0; i < currentEntries.length - 1; i += 1) {
+    const [leftSlug, leftViewers] = currentEntries[i]
+    const [rightSlug, rightViewers] = currentEntries[i + 1]
+    const currentGap = leftViewers - rightViewers
+
+    const prevLeft = previousTop.get(leftSlug)
+    const prevRight = previousTop.get(rightSlug)
+    const previousGap = prevLeft !== undefined && prevRight !== undefined ? prevLeft - prevRight : null
+    const swing = previousGap !== null ? currentGap - previousGap : null
+    const label = classifyPair(currentGap, previousGap)
+
+    pairs.push({
+      leftSlug,
+      rightSlug,
+      leftViewers,
+      rightViewers,
+      viewerGap: currentGap,
+      previousGap,
+      swing,
+      label
+    })
+  }
+
+  const strongest = pairs.length > 0 ? [...pairs].sort((a, b) => {
+    const aScore =
+      (a.label === "reversal_watch" ? 1000000 : 0) +
+      (a.label === "closing_fast" ? 500000 : 0) -
+      Math.abs(a.viewerGap)
+    const bScore =
+      (b.label === "reversal_watch" ? 1000000 : 0) +
+      (b.label === "closing_fast" ? 500000 : 0) -
+      Math.abs(b.viewerGap)
+    return bScore - aScore
+  })[0] : null
+
+  const state = latest.state === "error" ? "error" : latest.state === "partial" ? "partial" : "live"
+
+  return {
+    source: "worker",
+    platform: "kick",
+    state,
+    lastUpdated: typeof currentRun.created_at === "string" ? currentRun.created_at : null,
+    coverage: typeof latest.coverage_note === "string" ? latest.coverage_note : "Kick collector coverage note unavailable.",
+    note: "Kick rivalry radar is using snapshot-to-snapshot viewer pressure only. Webhook activity is not wired yet.",
+    pairs,
+    summary: {
+      observedPairs: pairs.length,
+      strongestPair: strongest ? `${strongest.leftSlug} vs ${strongest.rightSlug}` : null,
+      strongestReversalWindow: typeof currentRun.created_at === "string" ? currentRun.created_at : null,
+      strongestPressureSide: strongest
+        ? strongest.viewerGap >= 0
+          ? strongest.leftSlug
+          : strongest.rightSlug
+        : null
+    }
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
     if (url.pathname === "/status") return json(await getStatusPayload(env))
     if (url.pathname === "/heatmap") return json(await getHeatmapPayload(env))
+    if (url.pathname === "/day-flow") return json(await getDayFlowPayload(env))
+    if (url.pathname === "/battle-lines") return json(await getBattleLinesPayload(env))
 
     if (url.pathname === "/run-once") {
       try {
@@ -465,7 +776,7 @@ export default {
       return json({
         ok: true,
         service: "livefield-kick-collector",
-        routes: ["/status", "/heatmap", "/run-once"]
+        routes: ["/status", "/heatmap", "/day-flow", "/battle-lines", "/run-once"]
       })
     }
 
@@ -473,7 +784,7 @@ export default {
       {
         ok: false,
         error: "not_found",
-        message: "Use /status, /heatmap, or /run-once."
+        message: "Use /status, /heatmap, /day-flow, /battle-lines, or /run-once."
       },
       { status: 404 }
     )
