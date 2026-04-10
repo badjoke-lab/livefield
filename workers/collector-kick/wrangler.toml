@@ -2,6 +2,9 @@ name = "livefield-kick-collector"
 main = "src/index.ts"
 compatibility_date = "2026-03-01"
 
+[triggers]
+crons = ["* * * * *"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "livefield"
