@@ -1,25 +1,7 @@
-type NavItem = {
-  href: string
-  label: string
-  key: string
-  featured?: boolean
-  external?: boolean
-  mobileGroup: "primary" | "secondary"
-}
+import type { SiteConfig, SiteNavItem } from "./site-config"
+import { twitchSiteConfig } from "./site-config"
 
-const items: NavItem[] = [
-  { href: "/", label: "Home", key: "home", mobileGroup: "primary" },
-  { href: "/heatmap/", label: "Heatmap", key: "heatmap", mobileGroup: "primary" },
-  { href: "/day-flow/", label: "Day Flow", key: "day-flow", mobileGroup: "primary" },
-  { href: "/battle-lines/", label: "Rivalry Radar", key: "battle-lines", mobileGroup: "primary" },
-
-  { href: "/about/", label: "About", key: "about", mobileGroup: "secondary" },
-  { href: "/donate/", label: "Donate", key: "donate", featured: true, mobileGroup: "secondary" },
-  { href: "https://docs.google.com/forms/d/e/1FAIpQLSfaT2qkJ1ZnacV2A8HgxyszfnkJ4yW6_X5pqQamIO8XotwLOA/viewform?usp=publish-editor", label: "Contact", key: "contact", external: true, mobileGroup: "secondary" },
-  { href: "/status/", label: "Status", key: "status", mobileGroup: "secondary" }
-]
-
-function renderLink(item: NavItem, active: string, options?: { menu?: boolean }): string {
+function renderLink(item: SiteNavItem, active: string, options?: { menu?: boolean }): string {
   const classes = ["nav-link"]
   if (item.featured) classes.push("nav-link--featured")
   if (options?.menu) classes.push("topbar__menu-link")
@@ -105,20 +87,20 @@ function initializeHeaderMenu(): void {
 
 initializeHeaderMenu()
 
-export function renderHeader(active: string): string {
-  const primaryItems = items.filter((item) => item.mobileGroup === "primary")
-  const secondaryItems = items.filter((item) => item.mobileGroup === "secondary")
+export function renderHeader(active: string, site: SiteConfig = twitchSiteConfig): string {
+  const primaryItems = site.navItems.filter((item) => item.mobileGroup === "primary")
+  const secondaryItems = site.navItems.filter((item) => item.mobileGroup === "secondary")
 
   return `
     <div class="topbar-shell">
       <header class="topbar">
-        <div class="topbar__brand" aria-label="Livefield">
+        <div class="topbar__brand" aria-label="${site.siteName}">
           <img class="topbar__logo" src="/icons/lvf-mark.svg" alt="" width="18" height="18" decoding="async" />
-          <span>Livefield</span>
+          <span>${site.brandLabel}</span>
         </div>
 
         <nav class="topbar__nav" aria-label="Primary">
-          ${items.map((item) => renderLink(item, active)).join("")}
+          ${site.navItems.map((item) => renderLink(item, active)).join("")}
         </nav>
 
         <button type="button" class="topbar__menu-button" data-topbar-menu-open aria-expanded="false" aria-controls="topbar-mobile-drawer">
@@ -138,7 +120,7 @@ export function renderHeader(active: string): string {
         <div class="topbar__menu-head">
           <div class="topbar__menu-brand">
             <img class="topbar__logo" src="/icons/lvf-mark.svg" alt="" width="18" height="18" decoding="async" />
-            <strong>Livefield</strong>
+            <strong>${site.brandLabel}</strong>
           </div>
           <button type="button" class="topbar__menu-close" data-topbar-menu-close aria-label="Close menu">Close</button>
         </div>
