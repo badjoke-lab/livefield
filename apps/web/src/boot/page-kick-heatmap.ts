@@ -1,7 +1,10 @@
+import "../shared/styles/tokens.css"
+import "../shared/styles/reset.css"
+import "../shared/styles/layout.css"
+import "../shared/styles/components.css"
 import "../shared/styles/pages.css"
 import { renderKickHeatmapPage } from "../features/kick-heatmap/page"
 
-const root = document.querySelector<HTMLDivElement>("#app")
-if (!root) throw new Error("Kick heatmap root element not found")
-
-void renderKickHeatmapPage(root)
+const root = document.querySelector<HTMLElement>("#app")
+if (!root) throw new Error("#app not found")
+renderKickHeatmapPage(root)
