@@ -1,44 +1,57 @@
-import { renderKickShell } from "../kick-shell/render"
+import { renderHeader } from "../../shared/app-shell/header"
+import { renderFooter } from "../../shared/app-shell/footer"
+import { renderHero } from "../../shared/app-shell/hero"
+import { renderStatusNote } from "../../shared/app-shell/status-note"
+import { kickSiteConfig } from "../../shared/app-shell/site-config"
 
 export function renderKickAboutPage(root: HTMLElement): void {
-  root.className = "site-shell kick-site"
-  root.innerHTML = renderKickShell("about", `
-    <section class="hero">
-      <div class="hero-inner">
-        <div class="hero-label">ABOUT</div>
-        <h1>About Kick Livefield</h1>
-        <p>
-          Kick Livefield is planned as a separate observation site under the broader Livefield structure.
-          It will keep the same Now / Today / Rivalries split while using Kick-specific collection and limits.
-        </p>
-      </div>
-    </section>
+  root.className = "site-shell kick-about-page"
+  root.innerHTML = `
+    ${renderHeader("about", kickSiteConfig)}
+
+    ${renderHero({
+      eyebrow: "ABOUT",
+      title: "About Livefield - Kick",
+      subtitle: "Kick-focused observation under the same Livefield reading model.",
+      note: "The split is platform-specific collection, not a mixed toggle inside one page.",
+      actions: [
+        { href: "/kick/heatmap/", label: "Open Heatmap" },
+        { href: "/kick/battle-lines/", label: "Open Rivalry Radar" }
+      ]
+    })}
 
     <section class="grid-2 page-section">
       <section class="card">
         <h2>What stays shared</h2>
         <ul class="feature-list">
-          <li>Site shell and reading model</li>
           <li>Now / Today / Rivalries role split</li>
-          <li>Status honesty around stale / partial / empty</li>
+          <li>shared shell, cards, hero, and footer pattern</li>
+          <li>honest stale / partial / empty status language</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>What becomes Kick-specific</h2>
+        <h2>What is Kick-specific</h2>
         <ul class="feature-list">
-          <li>Collector and source limits</li>
-          <li>Payload normalization</li>
-          <li>Coverage notes and stream URLs</li>
+          <li>collector path and source limits</li>
+          <li>payload normalization for Kick data</li>
+          <li>coverage notes and Kick stream routing</li>
         </ul>
       </section>
     </section>
 
-    <section class="card page-section">
-      <h2>Current stage</h2>
-      <p>
-        This page is a structural placeholder. Real Kick data pages are not wired yet.
-      </p>
-    </section>
-  `)
+    ${renderStatusNote({
+      eyebrow: "SITE SHAPE",
+      title: "Why Kick is separate",
+      body: "Kick is not being added as a platform toggle inside the Twitch pages. It is a separate site layer under the Livefield name so the reading model stays consistent while the data paths stay honest.",
+      items: [
+        "separate route tree under /kick/",
+        "same product grammar across platforms",
+        "shared portal landing can come later without rewriting the data pages"
+      ],
+      tone: "info"
+    })}
+
+    ${renderFooter(kickSiteConfig)}
+  `
 }

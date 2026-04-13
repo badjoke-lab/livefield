@@ -36,9 +36,9 @@ export const twitchSiteConfig: SiteConfig = {
 
 export const kickSiteConfig: SiteConfig = {
   key: "kick",
-  siteName: "Kick Livefield",
-  brandLabel: "Kick Livefield",
-  footerLabel: "Kick Livefield · Cloudflare runtime",
+  siteName: "Livefield - Kick",
+  brandLabel: "Livefield - Kick",
+  footerLabel: "Livefield - Kick · Cloudflare runtime",
   navItems: [
     { href: "/kick/", label: "Kick Home", key: "home", mobileGroup: "primary" },
     { href: "/kick/heatmap/", label: "Heatmap", key: "heatmap", mobileGroup: "primary" },
