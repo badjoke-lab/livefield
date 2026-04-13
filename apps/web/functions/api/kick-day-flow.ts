@@ -38,6 +38,7 @@ function scaffold(): KickDayFlowPayload {
 
 export const onRequestGet: PagesFunction<EnvWithKickDayFlow> = async (context) => {
   const dayFlowUrl = context.env.KICK_COLLECTOR_DAY_FLOW_URL?.trim()
+  const requestUrl = new URL(context.request.url)
 
   if (!dayFlowUrl) {
     return new Response(JSON.stringify(scaffold()), {
@@ -49,7 +50,14 @@ export const onRequestGet: PagesFunction<EnvWithKickDayFlow> = async (context) =
   }
 
   try {
-    const response = await fetch(dayFlowUrl, {
+    const workerUrl = new URL(dayFlowUrl)
+
+    for (const key of ['day', 'date', 'top', 'mode', 'bucket']) {
+      const value = requestUrl.searchParams.get(key)
+      if (value) workerUrl.searchParams.set(key, value)
+    }
+
+    const response = await fetch(workerUrl.toString(), {
       headers: { accept: "application/json" },
       cache: "no-store"
     })

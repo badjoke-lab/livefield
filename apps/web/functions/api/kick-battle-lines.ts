@@ -38,6 +38,7 @@ function scaffold(): KickBattleLinesPayload {
 
 export const onRequestGet: PagesFunction<EnvWithKickBattleLines> = async (context) => {
   const battleLinesUrl = context.env.KICK_COLLECTOR_BATTLE_LINES_URL?.trim()
+  const requestUrl = new URL(context.request.url)
 
   if (!battleLinesUrl) {
     return new Response(JSON.stringify(scaffold()), {
@@ -49,7 +50,14 @@ export const onRequestGet: PagesFunction<EnvWithKickBattleLines> = async (contex
   }
 
   try {
-    const response = await fetch(battleLinesUrl, {
+    const workerUrl = new URL(battleLinesUrl)
+
+    for (const key of ['day', 'date', 'top', 'metric', 'bucket', 'focus']) {
+      const value = requestUrl.searchParams.get(key)
+      if (value) workerUrl.searchParams.set(key, value)
+    }
+
+    const response = await fetch(workerUrl.toString(), {
       headers: { accept: "application/json" },
       cache: "no-store"
     })
