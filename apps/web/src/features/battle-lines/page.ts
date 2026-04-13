@@ -681,6 +681,20 @@ export function renderBattleLinesPage(root: HTMLElement): void {
     void runLoad({ silent: false, reason: "manual" })
   })
 
+  const attachControlListeners = (selector: string) => {
+    form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(selector).forEach((field) => {
+      field.addEventListener("change", () => {
+        void runLoad({ silent: false, reason: "manual" })
+      })
+    })
+  }
+
+  attachControlListeners("select[name='day']")
+  attachControlListeners("input[name='date']")
+  attachControlListeners("select[name='top']")
+  attachControlListeners("select[name='metric']")
+  attachControlListeners("select[name='bucket']")
+
   rootEl.__battleLinesDispose = () => {
     disposed = true
     clearRefreshTimer()
