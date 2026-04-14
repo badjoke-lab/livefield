@@ -21,6 +21,7 @@ function text(value: unknown, fallback = ""): string {
 
 function mapState(raw: KickHeatmapScaffoldPayload["state"], hasNodes: boolean): HeatmapPayload["state"] {
   if (raw === "error") return "error"
+  if (!hasNodes && (raw === "live" || raw === "partial")) return "empty"
   if (raw === "empty") return "empty"
   if (raw === "partial") return "partial"
   if (raw === "live") return "live"

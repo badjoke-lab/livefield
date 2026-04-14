@@ -355,6 +355,60 @@ async function getLatestRun(db: D1Database): Promise<Record<string, unknown> | n
   `).first<Record<string, unknown>>() ?? null
 }
 
+async function getLatestUsableRun(db: D1Database): Promise<Record<string, unknown> | null> {
+  return await db.prepare(`
+    SELECT
+      kr.id,
+      kr.created_at,
+      kr.state,
+      kr.coverage_note,
+      kr.observed_count,
+      kr.platform_total_count,
+      kr.total_viewers_observed,
+      kr.error_message
+    FROM kick_runs kr
+    WHERE kr.state != 'error'
+      AND COALESCE(kr.observed_count, 0) > 0
+      AND EXISTS (
+        SELECT 1
+        FROM kick_livestream_snapshots kls
+        WHERE kls.run_id = kr.id
+          AND kls.slug IS NOT NULL
+          AND TRIM(kls.slug) != ''
+      )
+    ORDER BY kr.id DESC
+    LIMIT 1
+  `).first<Record<string, unknown>>() ?? null
+}
+
+async function getLatestUsableRuns(db: D1Database, limit: number): Promise<Record<string, unknown>[]> {
+  const result = await db.prepare(`
+    SELECT
+      kr.id,
+      kr.created_at,
+      kr.state,
+      kr.coverage_note,
+      kr.observed_count,
+      kr.platform_total_count,
+      kr.total_viewers_observed,
+      kr.error_message
+    FROM kick_runs kr
+    WHERE kr.state != 'error'
+      AND COALESCE(kr.observed_count, 0) > 0
+      AND EXISTS (
+        SELECT 1
+        FROM kick_livestream_snapshots kls
+        WHERE kls.run_id = kr.id
+          AND kls.slug IS NOT NULL
+          AND TRIM(kls.slug) != ''
+      )
+    ORDER BY kr.id DESC
+    LIMIT ?
+  `).bind(limit).all()
+
+  return Array.isArray(result.results) ? result.results as Record<string, unknown>[] : []
+}
+
 async function getLatestNodes(db: D1Database, runId: number): Promise<CollectorHeatmapNode[]> {
   const result = await db.prepare(`
     SELECT
@@ -503,33 +557,78 @@ async function getHeatmapPayload(env: Env): Promise<CollectorHeatmapPayload> {
     }
   }
 
-  const runId = Number(latest.id)
-  const nodes = Number.isFinite(runId) ? await getLatestNodes(env.DB, runId) : []
+  const latestRunId = Number(latest.id)
+  const latestNodes = Number.isFinite(latestRunId) ? await getLatestNodes(env.DB, latestRunId) : []
+  const latestObservedCount = typeof latest.observed_count === "number"
+    ? latest.observed_count
+    : Number(latest.observed_count ?? 0)
+  const latestIsUsable = latest.state !== "error" && latestObservedCount > 0 && latestNodes.length > 0
+
+  const selectedRun = latestIsUsable ? latest : await getLatestUsableRun(env.DB)
+  const selectedRunId = Number(selectedRun?.id)
+  const nodes = !selectedRun || !Number.isFinite(selectedRunId)
+    ? []
+    : (latestIsUsable && selectedRunId === latestRunId
+      ? latestNodes
+      : await getLatestNodes(env.DB, selectedRunId))
+
+  if (!selectedRun || nodes.length === 0) {
+    return {
+      source: "worker",
+      platform: "kick",
+      state: latest.state === "error" ? "error" : "partial",
+      lastUpdated: typeof latest.created_at === "string" ? latest.created_at : null,
+      coverage: typeof latest.coverage_note === "string"
+        ? latest.coverage_note
+        : "Kick collector coverage note unavailable.",
+      note: latest.state === "error"
+        ? "Latest Kick heatmap collection failed."
+        : "No non-empty observed window is available yet.",
+      nodes: [],
+      summary: {
+        activeStreams: 0,
+        totalViewersObserved: typeof latest.total_viewers_observed === "number"
+          ? latest.total_viewers_observed
+          : Number(latest.total_viewers_observed ?? 0),
+        strongestMomentumStream: null,
+        highestActivityStream: null,
+        platformTotalCount: latest.platform_total_count === null
+          ? null
+          : (typeof latest.platform_total_count === "number"
+            ? latest.platform_total_count
+            : Number(latest.platform_total_count))
+      }
+    }
+  }
+
   const topSlug = nodes.length > 0 ? nodes[0].slug : null
-  const state = latest.state === "error" ? "error" : latest.state === "partial" ? "partial" : "live"
+  const usedFallback = Number(selectedRun.id) !== latestRunId
+  const state = usedFallback || selectedRun.state === "partial" ? "partial" : "live"
 
   return {
     source: "worker",
     platform: "kick",
     state,
-    lastUpdated: typeof latest.created_at === "string" ? latest.created_at : null,
-    coverage: typeof latest.coverage_note === "string" ? latest.coverage_note : "Kick collector coverage note unavailable.",
-    note: latest.state === "error"
-      ? "Latest Kick heatmap collection failed."
+    lastUpdated: typeof selectedRun.created_at === "string" ? selectedRun.created_at : null,
+    coverage: typeof selectedRun.coverage_note === "string"
+      ? selectedRun.coverage_note
+      : "Kick collector coverage note unavailable.",
+    note: usedFallback
+      ? "Showing latest non-empty observed window."
       : "Kick heatmap is backed by top-viewer livestream polling.",
     nodes,
     summary: {
       activeStreams: nodes.length,
-      totalViewersObserved: typeof latest.total_viewers_observed === "number"
-        ? latest.total_viewers_observed
-        : Number(latest.total_viewers_observed ?? 0),
+      totalViewersObserved: typeof selectedRun.total_viewers_observed === "number"
+        ? selectedRun.total_viewers_observed
+        : Number(selectedRun.total_viewers_observed ?? 0),
       strongestMomentumStream: topSlug,
       highestActivityStream: null,
-      platformTotalCount: latest.platform_total_count === null
+      platformTotalCount: selectedRun.platform_total_count === null
         ? null
-        : (typeof latest.platform_total_count === "number"
-          ? latest.platform_total_count
-          : Number(latest.platform_total_count))
+        : (typeof selectedRun.platform_total_count === "number"
+          ? selectedRun.platform_total_count
+          : Number(selectedRun.platform_total_count))
     }
   }
 }
@@ -654,15 +753,7 @@ async function getBattleLinesPayload(env: Env): Promise<CollectorBattleLinesPayl
     }
   }
 
-  const runsResult = await env.DB.prepare(`
-    SELECT id, created_at, state, coverage_note
-    FROM kick_runs
-    WHERE state != 'error'
-    ORDER BY id DESC
-    LIMIT 2
-  `).all()
-
-  const runs = Array.isArray(runsResult.results) ? runsResult.results as Record<string, unknown>[] : []
+  const runs = await getLatestUsableRuns(env.DB, 2)
 
   if (runs.length < 2) {
     return {
@@ -670,8 +761,10 @@ async function getBattleLinesPayload(env: Env): Promise<CollectorBattleLinesPayl
       platform: "kick",
       state: "partial",
       lastUpdated: typeof latest.created_at === "string" ? latest.created_at : null,
-      coverage: typeof latest.coverage_note === "string" ? latest.coverage_note : "Kick collector coverage note unavailable.",
-      note: "Kick rivalry radar needs at least two successful runs.",
+      coverage: typeof latest.coverage_note === "string"
+        ? latest.coverage_note
+        : "Kick collector coverage note unavailable.",
+      note: "Kick rivalry radar needs two non-empty observed windows.",
       pairs: [],
       summary: {
         observedPairs: 0,
@@ -729,15 +822,21 @@ async function getBattleLinesPayload(env: Env): Promise<CollectorBattleLinesPayl
     return bScore - aScore
   })[0] : null
 
-  const state = latest.state === "error" ? "error" : latest.state === "partial" ? "partial" : "live"
+  const latestId = Number(latest.id)
+  const usedFallback = Number.isFinite(latestId) && Number(currentRun.id) !== latestId
+  const state = usedFallback || currentRun.state === "partial" ? "partial" : "live"
 
   return {
     source: "worker",
     platform: "kick",
     state,
     lastUpdated: typeof currentRun.created_at === "string" ? currentRun.created_at : null,
-    coverage: typeof latest.coverage_note === "string" ? latest.coverage_note : "Kick collector coverage note unavailable.",
-    note: "Kick rivalry radar is using snapshot-to-snapshot viewer pressure only. Webhook activity is not wired yet.",
+    coverage: typeof currentRun.coverage_note === "string"
+      ? currentRun.coverage_note
+      : "Kick collector coverage note unavailable.",
+    note: usedFallback
+      ? "Showing latest non-empty observed windows."
+      : "Kick rivalry radar is using snapshot-to-snapshot viewer pressure only. Webhook activity is not wired yet.",
     pairs,
     summary: {
       observedPairs: pairs.length,
