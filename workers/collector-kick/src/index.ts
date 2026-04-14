@@ -793,7 +793,7 @@ async function getSnapshotsForRunIds(
   const out = new Map<number, Map<string, { viewers: number; title: string }>>()
   if (!runIds.length) return out
 
-  const chunkSize = 400
+  const chunkSize = 80
   for (let start = 0; start < runIds.length; start += chunkSize) {
     const chunk = runIds.slice(start, start + chunkSize)
     const placeholders = chunk.map(() => "?").join(",")
