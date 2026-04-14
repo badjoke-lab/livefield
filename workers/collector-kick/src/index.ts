@@ -559,7 +559,7 @@ async function getTop10Map(db: D1Database, runId: number): Promise<Map<string, n
 }
 
 function classifyPair(currentGap: number, previousGap: number | null): CollectorBattlePair["label"] {
-  const absGap = Math.Math.abs(currentGap)
+  const absGap = Math.abs(currentGap)
 
   if (previousGap !== null && currentGap !== 0 && previousGap !== 0 && Math.sign(currentGap) !== Math.sign(previousGap)) {
     return "reversal_watch"
@@ -569,7 +569,7 @@ function classifyPair(currentGap: number, previousGap: number | null): Collector
     return "neck_and_neck"
   }
 
-  if (previousGap !== null && Math.Math.abs(previousGap) - absGap >= 500) {
+  if (previousGap !== null && Math.abs(previousGap) - absGap >= 500) {
     return "closing_fast"
   }
 
@@ -885,8 +885,8 @@ function buildReversalRecords(
           passerName: passerIsLeft ? a.name : b.name,
           passedId: passerIsLeft ? b.streamerId : a.streamerId,
           passedName: passerIsLeft ? b.name : a.name,
-          gapBefore: Math.Math.abs(prevDelta),
-          gapAfter: Math.Math.abs(nextDelta)
+          gapBefore: Math.abs(prevDelta),
+          gapAfter: Math.abs(nextDelta)
         })
       }
     }
@@ -968,8 +968,8 @@ function buildBattlePayloadFromLines(args: {
       const prevA = a.viewerPoints.length >= 2 ? a.viewerPoints[a.viewerPoints.length - 2] ?? a.latestViewers : a.latestViewers
       const prevB = b.viewerPoints.length >= 2 ? b.viewerPoints[b.viewerPoints.length - 2] ?? b.latestViewers : b.latestViewers
       const previousGapSigned = prevA - prevB
-      const latestGap = Math.Math.abs(latestGapSigned)
-      const previousGap = Math.Math.abs(previousGapSigned)
+      const latestGap = Math.abs(latestGapSigned)
+      const previousGap = Math.abs(previousGapSigned)
       const label = classifyPair(latestGapSigned, previousGapSigned)
       const reversal = reversalRecords.find((record) => record.key === buildPairKey(a.streamerId, b.streamerId)) ?? null
       const gapTrend = gapTrendFrom(previousGap, latestGap)
@@ -1161,7 +1161,7 @@ async function getStatusPayload(env: Env): Promise<CollectorStatusPayload> {
     coverage: typeof latest.coverage_note === "string" ? latest.coverage_note : "Kick collector coverage note unavailable.",
     note: latest.state === "error"
       ? "Latest Kick collector run failed."
-      : "Kick collector is polling livestreams && storing top-viewer snapshots.",
+      : "Kick collector is polling livestreams and storing top-viewer snapshots.",
     knownLimitations: [
       "Top 100 livestream polling only.",
       "Coverage note is required because platform total can exceed observed rows.",
@@ -1575,7 +1575,7 @@ export default {
       {
         ok: false,
         error: "not_found",
-        message: "Use /status, /heatmap, /day-flow, /battle-lines, || /run-once."
+        message: "Use /status, /heatmap, /day-flow, /battle-lines, or /run-once."
       },
       { status: 404 }
     )
