@@ -1458,6 +1458,7 @@ async function getBattleLinesPayload(env: Env, url: URL): Promise<CollectorBattl
 
   const titleBySlug = new Map<string, string>()
   const viewerPointsBySlug = new Map<string, number[]>()
+  const bucketHasRun = buckets.map((bucket) => bucketToRun.has(bucket))
   for (const slug of rankedSlugs) viewerPointsBySlug.set(slug, new Array<number>(buckets.length).fill(0))
 
   let lastUpdated: string | null = null
@@ -1488,7 +1489,12 @@ async function getBattleLinesPayload(env: Env, url: URL): Promise<CollectorBattl
   }
 
   const lines: CollectorBattleLine[] = rankedSlugs.map((slug, index) => {
-    const viewerPoints = viewerPointsBySlug.get(slug) ?? new Array<number>(buckets.length).fill(0)
+    const viewerPoints = [...(viewerPointsBySlug.get(slug) ?? new Array<number>(buckets.length).fill(0))]
+    for (let idx = 1; idx < viewerPoints.length; idx += 1) {
+      if (!bucketHasRun[idx] && viewerPoints[idx] === 0) {
+        viewerPoints[idx] = viewerPoints[idx - 1] ?? 0
+      }
+    }
     const peakViewers = viewerPoints.reduce((best, value) => Math.max(best, value), 0)
     let risePerMin = 0
     for (let idx = 1; idx < viewerPoints.length; idx += 1) {
