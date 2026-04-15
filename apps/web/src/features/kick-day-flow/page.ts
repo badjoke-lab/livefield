@@ -144,7 +144,7 @@ function resolveDayFlowViewport(payload: DayFlowPayload, preference: ChartViewpo
 
   const defaultMode: ChartViewportMode =
     payload.rangeMode === "today"
-      ? "full-day"
+      ? observedState.defaultMode
       : (sparseWindow ? "observed" : "full-day")
 
   const mode = allowObservedToggle ? (preference ?? defaultMode) : "full-day"
