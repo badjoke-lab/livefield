@@ -437,52 +437,6 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     })
   }
 
-  if (isToday) {
-    try {
-      const todayRows = await db
-        .prepare(
-          `SELECT bucket_minute
-           FROM minute_snapshots
-           WHERE provider = 'twitch'
-             AND bucket_minute >= ?
-             AND bucket_minute <= ?
-           LIMIT 1`
-        )
-        .bind(dayStart, queryEnd)
-        .all()
-
-      if (!todayRows.results.length) {
-        const topScope = `top${topN}`
-        const latestHistorical = await db
-          .prepare(
-            `SELECT day
-             FROM (
-               SELECT day FROM dayflow_bands_5m WHERE top_scope = ?
-               UNION ALL
-               SELECT day FROM dayflow_bands_10m WHERE top_scope = ?
-             )
-             ORDER BY day DESC
-             LIMIT 1`
-          )
-          .bind(topScope, topScope)
-          .all()
-
-        const fallbackDay = latestHistorical.results[0]?.day
-        if (typeof fallbackDay === "string" && fallbackDay) {
-          parsed = { day: "date", date: new Date(`${fallbackDay}T00:00:00.000Z`) }
-          selectedDate = fallbackDay
-          dayStart = `${selectedDate}T00:00:00.000Z`
-          dayEnd = `${selectedDate}T24:00:00.000Z`
-          queryEnd = `${selectedDate}T23:59:59.999Z`
-          isToday = false
-          isHistorical = true
-        }
-      }
-    } catch {
-      // keep normal today path
-    }
-  }
-
   if (isHistorical) {
     try {
       const historical = await fetchHistoricalDayflowRows(db, selectedDate, topN)
@@ -756,41 +710,6 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       status: "partial",
       note: "Snapshot query failed; returning safe fallback payload shell."
     })
-  }
-
-  if (!rows.results.length && isToday) {
-    try {
-      const latestAny = await db
-        .prepare(
-          `SELECT bucket_minute
-           FROM minute_snapshots
-           WHERE provider = 'twitch'
-           ORDER BY bucket_minute DESC
-           LIMIT 1`
-        )
-        .all()
-
-      const latestBucket = latestAny.results[0]?.bucket_minute
-      if (latestBucket) {
-        const latestIso = toIsoMinute(new Date(latestBucket))
-        selectedDate = latestIso.slice(0, 10)
-        dayStart = `${selectedDate}T00:00:00.000Z`
-        dayEnd = `${selectedDate}T24:00:00.000Z`
-
-        const fallbackStart = toIsoMinute(
-          new Date(
-            Math.max(
-              new Date(dayStart).getTime(),
-              new Date(latestIso).getTime() - TODAY_RECENT_WINDOW_MINUTES * 60_000
-            )
-          )
-        )
-
-        rows = await fetchMinuteSnapshotsChunked(db, fallbackStart, latestIso, bucketSize)
-      }
-    } catch {
-      // keep empty fallback below
-    }
   }
 
   if (!rows.results.length) {
