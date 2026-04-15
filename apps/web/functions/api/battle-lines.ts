@@ -696,7 +696,7 @@ function json(body: BattleLinesPayload): Response {
 export const onRequest = async (context: { env: Env; request: Request }) => {
   const url = new URL(context.request.url)
   const parsedDay = parseDay(url.searchParams.get("date"), url.searchParams.get("day"))
-  const filters: BattleLinesFilters = {
+  let filters: BattleLinesFilters = {
     day: parsedDay.day,
     date: startOfUtcDay(parsedDay.date).toISOString().slice(0, 10),
     top: normalizeTop(url.searchParams.get("top")),
@@ -707,7 +707,72 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
   const db = context.env.DB
   if (!db) return json(buildDemoPayload(filters))
-  const isHistorical = filters.day === "yesterday" || filters.day === "date"
+
+  let isHistorical = filters.day === "yesterday" || filters.day === "date"
+
+  if (filters.day === "today") {
+    try {
+      const todayStart = `${filters.date}T00:00:00.000Z`
+      const todayEnd = `${filters.date}T23:59:59.999Z`
+
+      const todayRows = await db
+        .prepare(
+          `SELECT bucket_minute
+           FROM minute_snapshots
+           WHERE provider = 'twitch'
+             AND bucket_minute >= ?
+             AND bucket_minute <= ?
+           LIMIT 1`
+        )
+        .bind(todayStart, todayEnd)
+        .all()
+
+      if (!todayRows.results.length) {
+        let fallbackDay: string | null = null
+
+        try {
+          const latest5m = await db
+            .prepare(
+              `SELECT day
+               FROM battlelines_series_5m
+               ORDER BY day DESC
+               LIMIT 1`
+            )
+            .all()
+          fallbackDay = latest5m.results[0]?.day ?? null
+        } catch {
+          // try 10m below
+        }
+
+        if (!fallbackDay) {
+          try {
+            const latest10m = await db
+              .prepare(
+                `SELECT day
+                 FROM battlelines_series_10m
+                 ORDER BY day DESC
+                 LIMIT 1`
+              )
+              .all()
+            fallbackDay = latest10m.results[0]?.day ?? null
+          } catch {
+            // keep normal today path
+          }
+        }
+
+        if (typeof fallbackDay === "string" && fallbackDay) {
+          filters = {
+            ...filters,
+            day: "date",
+            date: fallbackDay
+          }
+          isHistorical = true
+        }
+      }
+    } catch {
+      // keep normal today path
+    }
+  }
 
   try {
     const rollupPayload = await buildRollupPayload(

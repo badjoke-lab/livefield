@@ -410,7 +410,7 @@ async function fetchHistoricalDayflowRows(
 
 export const onRequest = async (context: { env: Env; request: Request }) => {
   const url = new URL(context.request.url)
-  const parsed = parseDay(url.searchParams.get("date"), url.searchParams.get("day"), url.searchParams.get("rangeMode"))
+  let parsed = parseDay(url.searchParams.get("date"), url.searchParams.get("day"), url.searchParams.get("rangeMode"))
   let selectedDate = startOfUtcDay(parsed.date).toISOString().slice(0, 10)
   const bucketSize = normalizeBucket(url.searchParams.get("bucket"))
   const topN = normalizeTop(url.searchParams.get("top"))
@@ -419,9 +419,9 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
   let dayStart = `${selectedDate}T00:00:00.000Z`
   let dayEnd = `${selectedDate}T24:00:00.000Z`
   const isRolling = parsed.day === "rolling24h"
-  const isToday = parsed.day === "today"
-  const isHistorical = parsed.day === "yesterday" || parsed.day === "date"
-  const queryEnd = `${selectedDate}T23:59:59.999Z`
+  let isToday = parsed.day === "today"
+  let isHistorical = parsed.day === "yesterday" || parsed.day === "date"
+  let queryEnd = `${selectedDate}T23:59:59.999Z`
 
   const fallbackQueryStart = isRolling ? toIsoMinute(new Date(Date.now() - DAY_MS)) : dayStart
   const fallbackQueryEnd = isRolling ? toIsoMinute(new Date()) : queryEnd
@@ -435,6 +435,52 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       status: "demo",
       note: "DB unavailable in this environment; returning demo-compatible payload shell."
     })
+  }
+
+  if (isToday) {
+    try {
+      const todayRows = await db
+        .prepare(
+          `SELECT bucket_minute
+           FROM minute_snapshots
+           WHERE provider = 'twitch'
+             AND bucket_minute >= ?
+             AND bucket_minute <= ?
+           LIMIT 1`
+        )
+        .bind(dayStart, queryEnd)
+        .all()
+
+      if (!todayRows.results.length) {
+        const topScope = `top${topN}`
+        const latestHistorical = await db
+          .prepare(
+            `SELECT day
+             FROM (
+               SELECT day FROM dayflow_bands_5m WHERE top_scope = ?
+               UNION ALL
+               SELECT day FROM dayflow_bands_10m WHERE top_scope = ?
+             )
+             ORDER BY day DESC
+             LIMIT 1`
+          )
+          .bind(topScope, topScope)
+          .all()
+
+        const fallbackDay = latestHistorical.results[0]?.day
+        if (typeof fallbackDay === "string" && fallbackDay) {
+          parsed = { day: "date", date: new Date(`${fallbackDay}T00:00:00.000Z`) }
+          selectedDate = fallbackDay
+          dayStart = `${selectedDate}T00:00:00.000Z`
+          dayEnd = `${selectedDate}T24:00:00.000Z`
+          queryEnd = `${selectedDate}T23:59:59.999Z`
+          isToday = false
+          isHistorical = true
+        }
+      }
+    } catch {
+      // keep normal today path
+    }
   }
 
   if (isHistorical) {
