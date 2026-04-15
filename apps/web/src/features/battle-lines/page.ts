@@ -136,6 +136,16 @@ function selectSparseBattleLines(
   return selected
 }
 
+function getLastFiniteBattlePoint(points: number[]): { index: number; value: number } | null {
+  for (let index = points.length - 1; index >= 0; index -= 1) {
+    const value = points[index]
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return { index, value }
+    }
+  }
+  return null
+}
+
 function renderBattleViewportLabels(
   payload: BattleLinesPayload,
   highlightedIds: Set<string>,
@@ -143,20 +153,29 @@ function renderBattleViewportLabels(
 ): string {
   const lines = payload.lines.slice(0, sparseMode ? 2 : 3)
   if (!lines.length) return ""
-  const maxValue = Math.max(...lines.flatMap((line) => line.points), 1)
-  const minValue = Math.min(...lines.flatMap((line) => line.points), 0)
+
+  const finiteValues = lines.flatMap((line) =>
+    line.points.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+  )
+  if (!finiteValues.length) return ""
+
+  const maxValue = Math.max(...finiteValues, 1)
+  const minValue = Math.min(...finiteValues, 0)
   const range = Math.max(1, maxValue - minValue)
   let previousTop = 8
 
   return lines
     .map((line) => {
-      const lastValue = line.points[line.points.length - 1] ?? 0
-      const rawTop = 10 + ((maxValue - lastValue) / range) * 68
+      const lastPoint = getLastFiniteBattlePoint(line.points)
+      if (!lastPoint) return ""
+
+      const rawTop = 10 + ((maxValue - lastPoint.value) / range) * 68
       const clampedTop = Math.max(previousTop + 8, Math.min(84, rawTop))
       previousTop = clampedTop
+      const left = 4 + (lastPoint.index / Math.max(1, line.points.length - 1)) * 92
       const opacity = highlightedIds.has(line.streamerId) ? 0.95 : 0.55
       const compactName = line.name.length > 14 ? `${line.name.slice(0, 13)}…` : line.name
-      return `<div class="battle-line-label" style="left:80%; top:${clampedTop}%; color:${line.color}; opacity:${opacity}">${escapeHtml(compactName)}</div>`
+      return `<div class="battle-line-label" style="left:${left}%; top:${clampedTop}%; color:${line.color}; opacity:${opacity}">${escapeHtml(compactName)}</div>`
     })
     .join("")
 }

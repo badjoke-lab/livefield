@@ -24,12 +24,31 @@ export function drawBattleLines(
     ctx.save()
     ctx.beginPath()
 
+    let hasVisibleSegment = false
+    let drawing = false
+
     line.points.forEach((value, pointIndex) => {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        drawing = false
+        return
+      }
+
       const x = getBattleChartX(scale, pointIndex, line.points.length)
       const y = getBattleChartY(scale, value)
-      if (pointIndex === 0) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
+      if (!drawing) {
+        ctx.moveTo(x, y)
+        drawing = true
+      } else {
+        ctx.lineTo(x, y)
+      }
+
+      hasVisibleSegment = true
     })
+
+    if (!hasVisibleSegment) {
+      ctx.restore()
+      return
+    }
 
     ctx.strokeStyle = line.color
     ctx.lineWidth = strokeWidth

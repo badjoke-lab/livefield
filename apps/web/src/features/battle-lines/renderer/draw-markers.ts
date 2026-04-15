@@ -21,6 +21,14 @@ function getLatestReversalIds(recommendation: BattleLinesRecommendation): Set<st
   return ids
 }
 
+function getLastFinitePointIndex(points: number[]): number {
+  for (let index = points.length - 1; index >= 0; index -= 1) {
+    const value = points[index]
+    if (typeof value === "number" && Number.isFinite(value)) return index
+  }
+  return -1
+}
+
 export function drawBattleNowLine(
   ctx: CanvasRenderingContext2D,
   scale: BattleChartScaleState
@@ -60,9 +68,11 @@ export function drawBattleEndMarkers(
   lines.slice(0, 5).forEach((line) => {
     if (!line.points.length) return
 
-    const pointIndex = line.points.length - 1
+    const pointIndex = getLastFinitePointIndex(line.points)
+    if (pointIndex < 0) return
+
     const x = getBattleChartX(scale, pointIndex, line.points.length)
-    const y = getBattleChartY(scale, line.points[pointIndex] ?? 0)
+    const y = getBattleChartY(scale, line.points[pointIndex] as number)
 
     const isHighlighted = highlightedIds.has(line.streamerId)
     const isPrimary = primaryIds.has(line.streamerId)

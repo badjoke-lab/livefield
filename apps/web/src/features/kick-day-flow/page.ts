@@ -42,6 +42,7 @@ type DayFlowViewport = {
   observedSinceLabel: string | null
   startIndex: number
   endIndex: number
+  allowObservedToggle: boolean
 }
 
 type DayFlowMountController = {
@@ -130,14 +131,36 @@ function resolveDayFlowViewport(payload: DayFlowPayload, preference: ChartViewpo
     buckets: payload.buckets,
     observedIndices: getObservedBucketIndices(payload)
   })
-  const mode = payload.rangeMode === "today" ? (preference ?? observedState.defaultMode) : "full-day"
-  const range = resolveViewportRange(observedState, mode)
+
+  const sparseWindow =
+    payload.state === "partial" &&
+    observedState.observedCount > 0 &&
+    observedState.observedCount < observedState.totalCount
+
+  const allowObservedToggle =
+    payload.rangeMode === "today" ||
+    payload.rangeMode === "rolling24h" ||
+    sparseWindow
+
+  const defaultMode: ChartViewportMode =
+    payload.rangeMode === "today"
+      ? "full-day"
+      : (sparseWindow ? "observed" : "full-day")
+
+  const mode = allowObservedToggle ? (preference ?? defaultMode) : "full-day"
+
+  const range =
+    mode === "full-day" && payload.rangeMode === "today" && observedState.hasObservedData
+      ? { startIndex: 0, endIndex: observedState.endIndex }
+      : resolveViewportRange(observedState, mode)
+
   return {
     mode,
-    sparseToday: observedState.isSparseToday,
+    sparseToday: observedState.isSparseToday || sparseWindow,
     observedSinceLabel: observedState.observedSinceLabel,
     startIndex: range.startIndex,
-    endIndex: range.endIndex
+    endIndex: range.endIndex,
+    allowObservedToggle
   }
 }
 
@@ -360,9 +383,9 @@ function renderFrame(payload: DayFlowPayload, viewport: DayFlowViewport): string
             <span id="dayflow-bucket-chip"><strong>Bucket</strong> ${payload.bucketSize}m</span>
             <span id="dayflow-updated-chip"><strong>Updated</strong> ${payload.lastUpdated.slice(11, 16)} UTC</span>
             ${viewport.sparseToday && viewport.observedSinceLabel ? `<span id="dayflow-observed-chip"><strong>Observed</strong> since ${viewport.observedSinceLabel} UTC</span>` : ""}
-            ${payload.rangeMode === "today"
+            ${viewport.allowObservedToggle
               ? `<button type="button" class="focus-chip ${viewport.mode === "observed" ? "focus-chip--active" : ""}" data-dayflow-viewport="observed">Observed window</button>
-                 <button type="button" class="focus-chip ${viewport.mode === "full-day" ? "focus-chip--active" : ""}" data-dayflow-viewport="full-day">Full day</button>`
+                 <button type="button" class="focus-chip ${viewport.mode === "full-day" ? "focus-chip--active" : ""}" data-dayflow-viewport="full-day">${payload.rangeMode === "rolling24h" ? "Full 24h" : "Full day"}</button>`
               : ""}
           </div>
         </div>

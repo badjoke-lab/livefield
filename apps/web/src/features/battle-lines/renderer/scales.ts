@@ -24,7 +24,9 @@ export function createBattleChartScaleState(args: {
   pointCount: number
   bucketCount: number
 }): BattleChartScaleState {
-  const flattened = args.lines.flat()
+  const flattened = args.lines
+    .flat()
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
   const max = Math.max(...flattened, 1)
   const min = Math.min(...flattened, 0)
   const range = Math.max(max - min, 1)

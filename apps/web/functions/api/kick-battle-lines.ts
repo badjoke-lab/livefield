@@ -611,11 +611,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   const lines: BattleLine[] = rankedSlugs.map((slug, index) => {
     const viewerPoints = [...(viewerPointsBySlug.get(slug) ?? new Array<number>(buckets.length).fill(0))]
-    for (let idx = 1; idx < viewerPoints.length; idx += 1) {
-      if (!bucketHasRun[idx] && viewerPoints[idx] === 0) {
-        viewerPoints[idx] = viewerPoints[idx - 1] ?? 0
-      }
-    }
+    const displayPoints = viewerPoints.map((value, idx) => {
+      if (!bucketHasRun[idx] && value === 0) return null
+      return value
+    })
 
     const peakViewers = viewerPoints.reduce((best, value) => Math.max(best, value), 0)
     let risePerMin = 0
@@ -631,14 +630,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     })()
 
     const points = filters.metric === "indexed"
-      ? (peakViewers > 0 ? viewerPoints.map((value) => Math.round((value / peakViewers) * 1000) / 10) : viewerPoints.map(() => 0))
-      : [...viewerPoints]
+      ? (peakViewers > 0
+          ? displayPoints.map((value) => (typeof value === "number" ? Math.round((value / peakViewers) * 1000) / 10 : null))
+          : displayPoints.map((value) => (typeof value === "number" ? 0 : null)))
+      : [...displayPoints]
 
     return {
       streamerId: slug,
       name: slug,
       color: BATTLE_COLORS[index % BATTLE_COLORS.length],
-      points,
+      points: points as unknown as number[],
       viewerPoints,
       peakViewers,
       latestViewers,
