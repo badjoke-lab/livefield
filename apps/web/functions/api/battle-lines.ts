@@ -757,7 +757,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     Math.max(dayStartDate.getTime(), recentWindowEnd.getTime() - TODAY_RECENT_SNAPSHOT_WINDOW_MINUTES * 60_000)
   )
 
-  const rows = await db
+  let rows = await db
     .prepare(
       `SELECT bucket_minute, collected_at, covered_pages, has_more, payload_json
        FROM minute_snapshots
@@ -766,6 +766,46 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     )
     .bind(toIsoMinute(recentWindowStart), toIsoMinute(recentWindowEnd))
     .all()
+
+  if (!rows.results.length && filters.day === "today") {
+    try {
+      const latestAnyRows = await db
+        .prepare(
+          `SELECT bucket_minute
+           FROM minute_snapshots
+           WHERE provider = 'twitch'
+           ORDER BY bucket_minute DESC
+           LIMIT 1`
+        )
+        .all()
+
+      const latestAnyBucket = latestAnyRows.results[0]?.bucket_minute
+      if (typeof latestAnyBucket === "string") {
+        const latestAnyEnd = new Date(latestAnyBucket)
+        if (!Number.isNaN(latestAnyEnd.getTime())) {
+          const fallbackDayStart = new Date(`${toIsoMinute(latestAnyEnd).slice(0, 10)}T00:00:00.000Z`)
+          const fallbackStart = new Date(
+            Math.max(
+              fallbackDayStart.getTime(),
+              latestAnyEnd.getTime() - TODAY_RECENT_SNAPSHOT_WINDOW_MINUTES * 60_000
+            )
+          )
+
+          rows = await db
+            .prepare(
+              `SELECT bucket_minute, collected_at, covered_pages, has_more, payload_json
+               FROM minute_snapshots
+               WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute <= ?
+               ORDER BY bucket_minute ASC`
+            )
+            .bind(toIsoMinute(fallbackStart), toIsoMinute(latestAnyEnd))
+            .all()
+        }
+      }
+    } catch {
+      // keep empty fallback below
+    }
+  }
 
   if (!rows.results.length) return json(buildEmptyPayload(filters, new Date().toISOString()))
 

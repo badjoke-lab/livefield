@@ -411,13 +411,13 @@ async function fetchHistoricalDayflowRows(
 export const onRequest = async (context: { env: Env; request: Request }) => {
   const url = new URL(context.request.url)
   const parsed = parseDay(url.searchParams.get("date"), url.searchParams.get("day"), url.searchParams.get("rangeMode"))
-  const selectedDate = startOfUtcDay(parsed.date).toISOString().slice(0, 10)
+  let selectedDate = startOfUtcDay(parsed.date).toISOString().slice(0, 10)
   const bucketSize = normalizeBucket(url.searchParams.get("bucket"))
   const topN = normalizeTop(url.searchParams.get("top"))
   const mode = normalizeMode(url.searchParams.get("mode") ?? url.searchParams.get("metric"))
 
-  const dayStart = `${selectedDate}T00:00:00.000Z`
-  const dayEnd = `${selectedDate}T24:00:00.000Z`
+  let dayStart = `${selectedDate}T00:00:00.000Z`
+  let dayEnd = `${selectedDate}T24:00:00.000Z`
   const isRolling = parsed.day === "rolling24h"
   const isToday = parsed.day === "today"
   const isHistorical = parsed.day === "yesterday" || parsed.day === "date"
@@ -710,6 +710,41 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       status: "partial",
       note: "Snapshot query failed; returning safe fallback payload shell."
     })
+  }
+
+  if (!rows.results.length && isToday) {
+    try {
+      const latestAny = await db
+        .prepare(
+          `SELECT bucket_minute
+           FROM minute_snapshots
+           WHERE provider = 'twitch'
+           ORDER BY bucket_minute DESC
+           LIMIT 1`
+        )
+        .all()
+
+      const latestBucket = latestAny.results[0]?.bucket_minute
+      if (latestBucket) {
+        const latestIso = toIsoMinute(new Date(latestBucket))
+        selectedDate = latestIso.slice(0, 10)
+        dayStart = `${selectedDate}T00:00:00.000Z`
+        dayEnd = `${selectedDate}T24:00:00.000Z`
+
+        const fallbackStart = toIsoMinute(
+          new Date(
+            Math.max(
+              new Date(dayStart).getTime(),
+              new Date(latestIso).getTime() - TODAY_RECENT_WINDOW_MINUTES * 60_000
+            )
+          )
+        )
+
+        rows = await fetchMinuteSnapshotsChunked(db, fallbackStart, latestIso, bucketSize)
+      }
+    } catch {
+      // keep empty fallback below
+    }
   }
 
   if (!rows.results.length) {
