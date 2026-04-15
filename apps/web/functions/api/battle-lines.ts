@@ -731,8 +731,30 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
   const now = new Date()
   const dayStartDate = new Date(`${filters.date}T00:00:00.000Z`)
+
+  let recentWindowEnd = now
+  try {
+    const latestRows = await db
+      .prepare(
+        `SELECT bucket_minute
+         FROM minute_snapshots
+         WHERE provider = 'twitch'
+         ORDER BY bucket_minute DESC
+         LIMIT 1`
+      )
+      .all()
+
+    const latestBucket = latestRows.results[0]?.bucket_minute
+    if (typeof latestBucket === "string") {
+      const parsed = new Date(latestBucket)
+      if (!Number.isNaN(parsed.getTime())) recentWindowEnd = parsed
+    }
+  } catch {
+    // keep now
+  }
+
   const recentWindowStart = new Date(
-    Math.max(dayStartDate.getTime(), now.getTime() - TODAY_RECENT_SNAPSHOT_WINDOW_MINUTES * 60_000)
+    Math.max(dayStartDate.getTime(), recentWindowEnd.getTime() - TODAY_RECENT_SNAPSHOT_WINDOW_MINUTES * 60_000)
   )
 
   const rows = await db
@@ -742,7 +764,7 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
        WHERE provider = 'twitch' AND bucket_minute >= ? AND bucket_minute <= ?
        ORDER BY bucket_minute ASC`
     )
-    .bind(toIsoMinute(recentWindowStart), now.toISOString())
+    .bind(toIsoMinute(recentWindowStart), toIsoMinute(recentWindowEnd))
     .all()
 
   if (!rows.results.length) return json(buildEmptyPayload(filters, new Date().toISOString()))
