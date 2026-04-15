@@ -43,12 +43,28 @@ export function resolveObservedWindowState(args: {
   const spanCount = Math.max(1, endIndex - startIndex + 1)
   const spanMinutes = spanCount * Math.max(1, args.bucketMinutes)
   const coverageRatio = spanCount / Math.max(1, totalCount)
-  const startsLate = startIndex >= Math.floor(totalCount * 0.55)
+
+  const leadingBlankCount = startIndex
+  const leadingBlankMinutes = leadingBlankCount * Math.max(1, args.bucketMinutes)
+  const internalGapCount = Math.max(0, spanCount - observedCount)
+  const internalGapRatio = internalGapCount / Math.max(1, spanCount)
+
   const limitedCoverage = coverageRatio <= 0.45
   const veryShortWindow = spanMinutes <= 180
   const veryFewBuckets = observedCount <= Math.max(6, Math.round(totalCount * 0.22))
+  const startsAfterFirstHour = leadingBlankMinutes >= 60
+  const hasMeaningfulInternalGaps = internalGapRatio >= 0.08
 
-  const isSparseToday = args.dayMode === "today" && (veryFewBuckets || (limitedCoverage && startsLate) || veryShortWindow)
+  const isSparseToday =
+    args.dayMode === "today" &&
+    (
+      veryFewBuckets ||
+      limitedCoverage ||
+      veryShortWindow ||
+      startsAfterFirstHour ||
+      hasMeaningfulInternalGaps
+    )
+
   const defaultMode: ChartViewportMode = isSparseToday ? "observed" : "full-day"
 
   return {

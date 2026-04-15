@@ -333,7 +333,6 @@ function buildFocusItems(bands: DayFlowBandSeries[], bucketIndex: number): DayFl
 }
 
 const SNAPSHOT_CHUNK_MS = 6 * 60 * 60 * 1000
-const TODAY_RECENT_WINDOW_MINUTES = 240
 
 async function fetchMinuteSnapshotsChunked(
   db: NonNullable<Env["DB"]>,
@@ -654,7 +653,6 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     }
   }
 
-  let todayWindowStartIso: string | null = null
   let todayWindowEndIso: string | null = null
   if (isToday) {
     try {
@@ -673,13 +671,6 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
       const latestBucket = latestToday.results[0]?.bucket_minute
       if (latestBucket) {
         todayWindowEndIso = toIsoMinute(new Date(latestBucket))
-        const observedStart = new Date(
-          Math.max(
-            new Date(dayStart).getTime(),
-            new Date(todayWindowEndIso).getTime() - TODAY_RECENT_WINDOW_MINUTES * 60_000
-          )
-        )
-        todayWindowStartIso = toIsoMinute(observedStart)
       }
     } catch {
       // fallback to full-day query below
@@ -688,16 +679,14 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
 
   const queryStart = isRolling
     ? (rollingWindowStartIso ?? toIsoMinute(new Date(Date.now() - DAY_MS)))
-    : isToday
-      ? (todayWindowStartIso ?? dayStart)
-      : dayStart
+    : dayStart
   const effectiveQueryEnd = isRolling
     ? (rollingWindowEndIso ?? toIsoMinute(new Date()))
     : isToday
       ? (todayWindowEndIso ?? queryEnd)
       : queryEnd
-  const rankingWindowStart = queryStart
-  const rankingWindowEnd = isRolling || isToday ? effectiveQueryEnd : dayEnd
+  const rankingWindowStart = isRolling ? queryStart : dayStart
+  const rankingWindowEnd = isRolling ? effectiveQueryEnd : (isToday ? effectiveQueryEnd : dayEnd)
 
   let rows: { results: SnapshotRow[] }
   try {
@@ -728,14 +717,14 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     }))
   }
 
-  const windowEnd = (isRolling || isToday)
+  const windowEnd = isRolling
     ? (rows.results.at(-1)?.bucket_minute ?? effectiveQueryEnd)
-    : dayEnd
+    : isToday
+      ? (rows.results.at(-1)?.bucket_minute ?? effectiveQueryEnd)
+      : dayEnd
   const windowStart = isRolling
     ? toIsoMinute(new Date(new Date(windowEnd).getTime() - DAY_MS))
-    : isToday
-      ? queryStart
-      : dayStart
+    : dayStart
   const buckets = isRolling
     ? buildRollingBuckets(windowEnd, bucketSize)
     : buildBuckets(new Date(`${selectedDate}T00:00:00.000Z`), bucketSize)
