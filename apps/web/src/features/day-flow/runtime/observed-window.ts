@@ -17,17 +17,15 @@ function getTimeLabel(iso: string | undefined): string | null {
 }
 
 function resolveLatestDenseSegmentStartIndex(
-  observedIndices: number[],
-  bucketMinutes: number
+  observedIndices: number[]
 ): number {
-  const maxAllowedGapBuckets = bucketMinutes <= 5 ? 1 : 0
   let startIndex = observedIndices[observedIndices.length - 1] ?? 0
   let current = startIndex
 
   for (let idx = observedIndices.length - 2; idx >= 0; idx -= 1) {
     const candidate = observedIndices[idx]
     const missingBuckets = current - candidate - 1
-    if (missingBuckets > maxAllowedGapBuckets) break
+    if (missingBuckets > 0) break
     startIndex = candidate
     current = candidate
   }
@@ -84,7 +82,7 @@ export function resolveObservedWindowState(args: {
       hasMeaningfulInternalGaps
     )
 
-  const latestDenseStartIndex = resolveLatestDenseSegmentStartIndex(deduped, args.bucketMinutes)
+  const latestDenseStartIndex = resolveLatestDenseSegmentStartIndex(deduped)
   const startIndex =
     args.dayMode === "today" || args.dayMode === "rolling24h"
       ? latestDenseStartIndex
