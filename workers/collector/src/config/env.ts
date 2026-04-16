@@ -19,7 +19,7 @@ export interface CollectorConfig {
   chatObserveMs: number
 }
 
-const DEFAULT_MAX_PAGES = 2
+const DEFAULT_MAX_PAGES = 4
 const DEFAULT_PAGE_SIZE = 100
 const DEFAULT_CHAT_MAX_CHANNELS = 10
 const DEFAULT_CHAT_JOIN_INTERVAL_MS = 300
