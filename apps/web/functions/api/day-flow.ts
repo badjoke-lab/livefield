@@ -747,7 +747,6 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     }
     for (const stream of payload.streams ?? []) {
       if (!stream.userId || !stream.displayName || typeof stream.viewerCount !== "number") continue
-      if (stream.language && stream.language !== "en") continue
 
       let agg = streamAggById.get(stream.userId)
       if (!agg) {
