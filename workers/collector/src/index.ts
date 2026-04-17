@@ -92,6 +92,7 @@ export default {
 
       try {
         const startedAt = Date.now()
+        await runCleanup(env)
         const result = await runMinuteCollection(env, {
           mode: modeParam === "snapshot-only" ? "snapshot-only" : "full",
           step
