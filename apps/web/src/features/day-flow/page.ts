@@ -104,6 +104,58 @@ function parseFilters(form: HTMLFormElement): UiFilters {
   }
 }
 
+function hasExplicitDayFlowQuery(): boolean {
+  if (typeof window === "undefined") return false
+  const params = new URL(window.location.href).searchParams
+  return params.has("day")
+    || params.has("rangeMode")
+    || params.has("date")
+    || params.has("top")
+    || params.has("mode")
+    || params.has("metric")
+    || params.has("bucket")
+}
+
+function applyUrlFiltersToForm(form: HTMLFormElement): void {
+  if (typeof window === "undefined") return
+  const params = new URL(window.location.href).searchParams
+
+  const dayParam = params.get("rangeMode") ?? params.get("day")
+  const dateParam = params.get("date")
+  const topParam = params.get("top")
+  const modeParam = params.get("mode") ?? params.get("metric")
+  const bucketParam = params.get("bucket")
+
+  const daySelect = form.querySelector<HTMLSelectElement>('select[name="day"]')
+  const dateInput = form.querySelector<HTMLInputElement>('input[name="date"]')
+  const topSelect = form.querySelector<HTMLSelectElement>('select[name="top"]')
+  const modeSelect = form.querySelector<HTMLSelectElement>('select[name="mode"]')
+  const bucketSelect = form.querySelector<HTMLSelectElement>('select[name="bucket"]')
+
+  if (daySelect && (dayParam === "today" || dayParam === "rolling24h" || dayParam === "yesterday" || dayParam === "date")) {
+    daySelect.value = dayParam
+  }
+
+  if (dateInput && dateParam) {
+    dateInput.value = dateParam
+    if (daySelect && (!dayParam || dayParam === "date")) {
+      daySelect.value = "date"
+    }
+  }
+
+  if (topSelect && (topParam === "10" || topParam === "20" || topParam === "50")) {
+    topSelect.value = topParam
+  }
+
+  if (modeSelect && (modeParam === "volume" || modeParam === "share")) {
+    modeSelect.value = modeParam
+  }
+
+  if (bucketSelect && (bucketParam === "5" || bucketParam === "10")) {
+    bucketSelect.value = bucketParam
+  }
+}
+
 function isoTimeLabel(iso: string | null | undefined): string {
   return iso ? iso.slice(11, 16) : "N/A"
 }
@@ -567,6 +619,27 @@ function mountData(
           mode: viewState.valueMode,
           bucket: viewState.bucketSize
         })
+
+        if (
+          payload.state === "empty" &&
+          viewState.rangeMode === "today" &&
+          !hasExplicitDayFlowQuery()
+        ) {
+          const fallbackPayload = await getDayFlowPayload({
+            day: "rolling24h",
+            date: viewState.selectedDate,
+            top: viewState.topN,
+            mode: viewState.valueMode,
+            bucket: viewState.bucketSize
+          })
+
+          if (fallbackPayload.state !== "empty") {
+            const daySelect = form.querySelector<HTMLSelectElement>('select[name="day"]')
+            if (daySelect) daySelect.value = "rolling24h"
+            viewState.rangeMode = "rolling24h"
+            payload = fallbackPayload
+          }
+        }
       }
     } catch {
       if (previousGood) {
@@ -816,6 +889,8 @@ export function renderDayFlowPage(root: HTMLElement): void {
   const content = root.querySelector<HTMLElement>("#day-flow-content")
   const autoUpdate = root.querySelector<HTMLInputElement>("#auto-update")
   if (!form || !content || !autoUpdate) return
+
+  applyUrlFiltersToForm(form)
 
   let mounted: DayFlowMountController | null = null
   let previousGood: DayFlowPayload | null = readCachedPayload()
