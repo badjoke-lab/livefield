@@ -16,6 +16,24 @@ export interface MinuteSnapshotRecord {
   agitationLevel?: number | null
 }
 
+type StoredSnapshotStream = {
+  userId: string
+  displayName: string
+  title: string
+  viewerCount: number
+}
+
+function serializeSnapshotPayload(streams: TwitchStream[]): string {
+  const compactStreams: StoredSnapshotStream[] = streams.map((stream) => ({
+    userId: stream.userId,
+    displayName: stream.displayName,
+    title: stream.title,
+    viewerCount: stream.viewerCount
+  }))
+
+  return JSON.stringify({ streams: compactStreams })
+}
+
 export async function insertMinuteSnapshot(db: D1Database, row: MinuteSnapshotRecord): Promise<void> {
   await db
     .prepare(
@@ -60,7 +78,7 @@ export async function insertMinuteSnapshot(db: D1Database, row: MinuteSnapshotRe
       row.commentsPerMin ?? null,
       row.agitationRaw ?? null,
       row.agitationLevel ?? null,
-      JSON.stringify({ streams: row.streams })
+      serializeSnapshotPayload(row.streams)
     )
     .run()
 }

@@ -16,23 +16,6 @@ function getTimeLabel(iso: string | undefined): string | null {
   return iso.slice(11, 16)
 }
 
-function resolveLatestDenseSegmentStartIndex(
-  observedIndices: number[]
-): number {
-  let startIndex = observedIndices[observedIndices.length - 1] ?? 0
-  let current = startIndex
-
-  for (let idx = observedIndices.length - 2; idx >= 0; idx -= 1) {
-    const candidate = observedIndices[idx]
-    const missingBuckets = current - candidate - 1
-    if (missingBuckets > 0) break
-    startIndex = candidate
-    current = candidate
-  }
-
-  return startIndex
-}
-
 export function resolveObservedWindowState(args: {
   dayMode: string
   bucketMinutes: number
@@ -82,12 +65,7 @@ export function resolveObservedWindowState(args: {
       hasMeaningfulInternalGaps
     )
 
-  const latestDenseStartIndex = resolveLatestDenseSegmentStartIndex(deduped)
-  const startIndex =
-    args.dayMode === "today" || args.dayMode === "rolling24h"
-      ? latestDenseStartIndex
-      : firstObservedIndex
-
+  const startIndex = firstObservedIndex
   const defaultMode: ChartViewportMode = isSparseToday ? "observed" : "full-day"
 
   return {
