@@ -520,13 +520,15 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
     }), null, 2), { headers: { "content-type": "application/json; charset=utf-8" } })
   }
 
+  let historicalRollupPayload: DayFlowPayload | null = null
+
   if (day === "yesterday" || day === "date") {
     try {
       const historical = await fetchHistoricalRollup(db, selectedDate, topN)
       if (historical.rows.length && historical.bucketSize) {
         const built = buildFromRollup(historical.rows, selectedDate, historical.bucketSize)
         if (built.streamAggById.size > 0) {
-          return new Response(JSON.stringify(buildPayload({
+          historicalRollupPayload = buildPayload({
             day,
             selectedDate,
             bucketSize: historical.bucketSize,
@@ -541,11 +543,11 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
             bucketKeys: built.bucketKeys,
             partial: false,
             note: historical.bucketSize === 10 ? "Historical 5m rollup unavailable; served from 10m dayflow rollup." : undefined
-          }), null, 2), { headers: { "content-type": "application/json; charset=utf-8" } })
+          })
         }
       }
     } catch {
-      // fall through to raw fallback
+      historicalRollupPayload = null
     }
   }
 
@@ -571,6 +573,12 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
   }
 
   if (!rawRows.length) {
+    if (historicalRollupPayload) {
+      return new Response(JSON.stringify(historicalRollupPayload, null, 2), {
+        headers: { "content-type": "application/json; charset=utf-8" }
+      })
+    }
+
     return new Response(JSON.stringify(emptyPayload({
       day,
       selectedDate,
@@ -588,6 +596,12 @@ export const onRequest = async (context: { env: Env; request: Request }) => {
   const bucketKeys = isRolling ? buildRollingBuckets(effectiveWindowEnd, bucketSize) : buildBuckets(new Date(`${selectedDate}T00:00:00.000Z`), bucketSize)
   const built = buildFromRaw(rawRows, bucketKeys, bucketSize)
   if (!built.streamAggById.size) {
+    if (historicalRollupPayload) {
+      return new Response(JSON.stringify(historicalRollupPayload, null, 2), {
+        headers: { "content-type": "application/json; charset=utf-8" }
+      })
+    }
+
     return new Response(JSON.stringify(emptyPayload({
       day,
       selectedDate,
