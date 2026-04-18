@@ -6,6 +6,7 @@ compatibility_date = "2026-03-10"
 crons = ["* * * * *"]
 
 [vars]
+TWITCH_COLLECTION_MAX_PAGES = "2"
 TWITCH_CHAT_MAX_CHANNELS = "10"
 TWITCH_CHAT_JOIN_INTERVAL_MS = "300"
 TWITCH_CHAT_OBSERVE_MS = "20000"
