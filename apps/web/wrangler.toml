@@ -2,9 +2,7 @@ name = "twitcasting-livefield-web"
 compatibility_date = "2026-03-10"
 pages_build_output_dir = "dist"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "livefield"
-database_id = "e1bb4736-b7ad-4194-9ed4-8444479794b6"
-preview_database_id = "e1bb4736-b7ad-4194-9ed4-8444479794b6"
-migrations_dir = "../../db/migrations"
+# Emergency cost guard:
+# D1 binding disabled after accidental D1 Rows Written overage on the livefield database.
+# Do not re-enable without explicit write caps, idempotency, collector auth, retention limits, and Cloudflare budget alerts.
+#migrations_dir = "../../db/migrations"
